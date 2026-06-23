@@ -191,6 +191,8 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .cal-empty{background:transparent;border:none}
 .cal-today{border-color:var(--accent);background:var(--accent-bg)}
 .cal-drop-hover{border-color:var(--accent)!important;background:var(--accent-bg)!important;box-shadow:0 0 0 2px var(--accent)}
+.cal-drag-ghost{opacity:.92;box-shadow:0 8px 22px rgba(40,15,10,.28);transform:scale(1.03)}
+.cal-event[data-drag-clip],.unsched-chip[data-drag-clip]{touch-action:none}
 .unsched-pool{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .unsched-chip{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:var(--surface);border:2px solid var(--border);border-radius:20px;font-size:14px;font-weight:700;color:var(--text);cursor:grab;user-select:none;white-space:nowrap}
 .unsched-chip:hover{border-color:var(--accent);color:var(--text)}
@@ -433,7 +435,7 @@ function expandRow(r){
 var creator='LG';
 var clips=[],tab='queue',expanded=false,editField=null,addingNew=false,nextId=200;
 var openGroups={};
-var dragState=null;
+var calDrag=null;
 var pipeSearch='';
 var calMonth=new Date().getMonth(),calYear=new Date().getFullYear();
 var calPlatFilter='C4S';
@@ -1052,32 +1054,103 @@ function markUploadedUnknown(id,pl){
   c.platformDates[pl]=''; // no date
   saveCreator();render();
 }
-function startCalDrag(e,clipId,platform){
-  dragState={clipId:clipId,platform:platform};
-  e.dataTransfer.effectAllowed='move';
-  e.dataTransfer.setData('text/plain',clipId+'|'+platform);
+// ── Pointer-based calendar drag (works on touch AND mouse) ─────────
+// Replaces the old HTML5 drag-and-drop, which was desktop-only (the
+// draggable/ondrop API does nothing on iOS/touch). Draggable items carry
+// data-drag-clip / data-drag-platform / (optional, All-Creators view)
+// data-drag-creator; drop targets (day cells) carry data-drop-date.
+function calCellUnder(x,y){
+  var g=calDrag&&calDrag.ghost;
+  if(g)g.style.display='none';                 // don't let the ghost block the hit-test
+  var el=document.elementFromPoint(x,y);
+  if(g)g.style.display='';
+  return el&&el.closest?el.closest('[data-drop-date]'):null;
 }
-function calDragOver(e){
-  e.preventDefault();e.dataTransfer.dropEffect='move';
-  e.currentTarget.classList.add('cal-drop-hover');
+function calPointerDown(e){
+  if(e.button!=null&&e.button!==0)return;       // left button / touch only
+  var el=e.target.closest&&e.target.closest('[data-drag-clip]');
+  if(!el)return;
+  calDrag={
+    clipId:parseInt(el.getAttribute('data-drag-clip'),10),
+    platform:el.getAttribute('data-drag-platform'),
+    creator:el.getAttribute('data-drag-creator')||null, // null => active creator
+    el:el,startX:e.clientX,startY:e.clientY,moved:false,ghost:null,lastCell:null
+  };
+  document.addEventListener('pointermove',calPointerMove,{passive:false});
+  document.addEventListener('pointerup',calPointerUp);
+  document.addEventListener('pointercancel',calPointerUp);
 }
-function calDragLeave(e){
-  e.currentTarget.classList.remove('cal-drop-hover');
-}
-function calDrop(e,dateStr){
-  e.preventDefault();e.currentTarget.classList.remove('cal-drop-hover');
-  if(!dragState)return;
-  var c=clips.find(function(x){return x.id===dragState.clipId;});
-  if(!c)return;
-  if(!c.platformDates)c.platformDates={};
-  if(dragState.platform==='__all__'){
-    PL.forEach(function(pl){if(c.platforms[pl]===P)c.platformDates[pl]=dateStr;});
-  } else {
-    c.platformDates[dragState.platform]=dateStr;
+function calPointerMove(e){
+  if(!calDrag)return;
+  if(!calDrag.moved){
+    // Wait for a small movement so a plain tap still registers as a click.
+    if(Math.abs(e.clientX-calDrag.startX)+Math.abs(e.clientY-calDrag.startY)<6)return;
+    calDrag.moved=true;
+    var g=calDrag.el.cloneNode(true);
+    g.classList.add('cal-drag-ghost');
+    g.style.position='fixed';g.style.pointerEvents='none';g.style.zIndex='99999';
+    g.style.width=calDrag.el.offsetWidth+'px';g.style.margin='0';
+    document.body.appendChild(g);
+    calDrag.ghost=g;
+    calDrag.el.style.opacity='0.35';
   }
-  dragState=null;
-  saveCreator();render();
+  e.preventDefault();                            // stop the page scrolling mid-drag
+  calDrag.ghost.style.left=(e.clientX-calDrag.el.offsetWidth/2)+'px';
+  calDrag.ghost.style.top=(e.clientY-16)+'px';
+  var cell=calCellUnder(e.clientX,e.clientY);
+  if(cell!==calDrag.lastCell){
+    if(calDrag.lastCell)calDrag.lastCell.classList.remove('cal-drop-hover');
+    if(cell)cell.classList.add('cal-drop-hover');
+    calDrag.lastCell=cell;
+  }
 }
+function calPointerUp(e){
+  document.removeEventListener('pointermove',calPointerMove,{passive:false});
+  document.removeEventListener('pointerup',calPointerUp);
+  document.removeEventListener('pointercancel',calPointerUp);
+  if(!calDrag)return;
+  var d=calDrag;calDrag=null;
+  if(d.ghost)d.ghost.remove();
+  if(d.lastCell)d.lastCell.classList.remove('cal-drop-hover');
+  if(d.el)d.el.style.opacity='';
+  if(!d.moved)return;                            // a tap — let the element's own onclick run
+  // Swallow the synthetic click that follows a real drag (so jumpToClip doesn't fire).
+  var swallow=function(ev){ev.stopPropagation();ev.preventDefault();};
+  document.addEventListener('click',swallow,true);
+  setTimeout(function(){document.removeEventListener('click',swallow,true);},350);
+  var target=document.elementFromPoint(e.clientX,e.clientY);
+  var cell=(target&&target.closest?target.closest('[data-drop-date]'):null)||d.lastCell;
+  if(cell)applyCalDrop(d.clipId,d.platform,d.creator,cell.getAttribute('data-drop-date'));
+}
+function applyCalDrop(clipId,platform,creator,dateStr){
+  if(!dateStr)return;
+  if(creator){
+    // All-Creators view: the clip belongs to another creator. Edit that
+    // creator's stored record directly (store.setItem syncs to Firestore).
+    try{
+      var s=store.getItem('lg-v8-'+creator);if(!s)return;
+      var p=JSON.parse(s);
+      var c=(p.clips||[]).find(function(x){return x.id===clipId;});
+      if(!c)return;
+      if(!c.platformDates)c.platformDates={};
+      c.platformDates[platform]=dateStr;
+      store.setItem('lg-v8-'+creator,JSON.stringify(p));
+    }catch(err){}
+  } else {
+    // Per-creator calendar: the clip is in the active in-memory array.
+    var c2=clips.find(function(x){return x.id===clipId;});
+    if(!c2)return;
+    if(!c2.platformDates)c2.platformDates={};
+    if(platform==='__all__'){
+      PL.forEach(function(pl){if(c2.platforms[pl]===P)c2.platformDates[pl]=dateStr;});
+    } else {
+      c2.platformDates[platform]=dateStr;
+    }
+    saveCreator();
+  }
+  render();
+}
+document.addEventListener('pointerdown',calPointerDown);
 function renderAllCalendar(){
   var MNAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
   var DNAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -1101,12 +1174,12 @@ function renderAllCalendar(){
     var ds=calYear+'-'+String(calMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     var isToday=ds===today;var isPast=ds<today;
     var evs=evMap[ds]||[];
-    h+='<div class="cal-cell'+(isToday?' cal-today':'')+(isPast&&!isToday?' cal-past':'')+'">';
+    h+='<div class="cal-cell'+(isToday?' cal-today':'')+(isPast&&!isToday?' cal-past':'')+'" data-drop-date="'+ds+'">';
     h+='<div class="cal-day-n">'+d+'</div>';
     evs.slice(0,4).forEach(function(ev){
       var short=ev.clip.title.length>14?ev.clip.title.substring(0,13)+'…':ev.clip.title;
       var stIcon=ev.status===U?' ✓':ev.status===PR?' ★':'';
-      h+='<div class="cal-event" style="background:'+ev.color+';border-color:'+ev.color+';color:#fff" title="'+esc(ev.clip.title)+' ('+ev.creator+' / '+ev.platform+')">';
+      h+='<div class="cal-event" data-drag-clip="'+ev.clip.id+'" data-drag-platform="'+ev.platform+'" data-drag-creator="'+ev.creator+'" style="background:'+ev.color+';border-color:'+ev.color+';color:#fff;cursor:grab" title="'+esc(ev.clip.title)+' ('+ev.creator+' / '+ev.platform+')">';
       h+='<span class="cal-event-plat">'+ev.creator+'</span>'+esc(short)+stIcon+'</div>';
     });
     if(evs.length>4)h+='<div class="cal-more">+'+(evs.length-4)+' more</div>';
@@ -1133,12 +1206,12 @@ function renderCalendar(){
     var ds=calYear+'-'+String(calMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     var isToday=ds===today;var isPast=ds<today;
     var evs=evMap[ds]||[];
-    h+='<div class="cal-cell'+(isToday?' cal-today':'')+(isPast&&!isToday?' cal-past':'')+'" ondragover="calDragOver(event)" ondragleave="calDragLeave(event)" ondrop="calDrop(event,\''+ds+'\')">';
+    h+='<div class="cal-cell'+(isToday?' cal-today':'')+(isPast&&!isToday?' cal-past':'')+'" data-drop-date="'+ds+'">';
     h+='<div class="cal-day-n">'+d+'</div>';
     evs.slice(0,3).forEach(function(ev){
       var stCls=isSimple()?(ev.platform==='C4S'?' is-c4s':ev.platform==='LF'?' is-lf':''):(ev.status===U?' is-up':ev.status===PR?' is-pr':'');
       var short=ev.clip.title.length>16?ev.clip.title.substring(0,15)+'…':ev.clip.title;
-      h+='<div class="cal-event'+stCls+'" draggable="true" ondragstart="startCalDrag(event,'+ev.clip.id+',\''+ev.platform+'\')" onclick="jumpToClip('+ev.clip.id+')" style="cursor:grab">';
+      h+='<div class="cal-event'+stCls+'" data-drag-clip="'+ev.clip.id+'" data-drag-platform="'+ev.platform+'" onclick="jumpToClip('+ev.clip.id+')" style="cursor:grab">';
       h+='<span class="cal-event-plat">'+ev.platform+'</span>'+esc(short)+'</div>';
     });
     if(evs.length>3)h+='<div class="cal-more">+' +(evs.length-3)+' more</div>';
@@ -1211,7 +1284,7 @@ function renderCalendar(){
     unscheduled.forEach(function(item){
       var c=item.clip,pl=item.pl;
       var uchipCls=isSimple()?(c.platforms['C4S']===P?' is-c4s':' is-lf'):'';
-      h+='<div class="unsched-chip'+uchipCls+'" draggable="true" ondragstart="startCalDrag(event,'+c.id+',\''+pl+'\')" title="'+esc(c.title)+'">';
+      h+='<div class="unsched-chip'+uchipCls+'" data-drag-clip="'+c.id+'" data-drag-platform="'+pl+'" title="'+esc(c.title)+'">';
       if(isSimple()&&c.num)h+='<span class="id-badge" style="font-size:10px;padding:1px 5px">'+esc(c.num)+'</span> ';
       h+=esc(c.title.length>22?c.title.substring(0,21)+'…':c.title);
       h+='</div>';
