@@ -1,0 +1,17 @@
+rules_version = '2';
+
+// Firestore security rules for the LG Dashboard.
+// Every document lives under users/{uid}/... and is readable/writable ONLY by
+// the signed-in account that owns it. Without a matching login, all access is
+// denied. Paste these in Firebase console -> Firestore Database -> Rules -> Publish.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == userId;
+    }
+
+    // Everything else is denied by default.
+  }
+}

@@ -1,0 +1,6 @@
+# Static single-file site — no build step.
+# Netlify serves the repo root, which contains index.html.
+# Pinned here (not in the dashboard) so the deploy config lives in version control.
+[build]
+  publish = "."
+  command = ""

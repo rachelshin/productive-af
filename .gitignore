@@ -1,0 +1,13 @@
+# Personal data — must never be committed or deployed
+lg-dashboard-backup-*.json
+versions/
+
+# Redundant: firebase-sync.js is inlined into index.html (single source of truth)
+firebase-sync.js
+
+# Local / OS / editor cruft
+desktop.ini
+thumbnail.png
+node_modules/
+.DS_Store
+Thumbs.db

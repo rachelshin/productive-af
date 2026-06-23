@@ -1,0 +1,2076 @@
+<!DOCTYPE html>
+<script type="application/json" id="cowork-artifact-meta">
+{
+  "name": "Lg Dashboard",
+  "schemaVersion": 1,
+  "description": "Content pipeline dashboard for Lux Gray, Brigit Heart, and Lady Venus. Tracks clips, upload statuses, timers, and invoicing for all three creators."
+}
+</script>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root {
+  --bg:#fdf8f5; --surface:#fff; --border:#ede4de;
+  --text:#2a1f1c; --muted:#7d6358; --faint:#bea89e;
+  --rose:#c4506a; --rose-bg:#fdf0f3; --rose-b:#f5c8d3; --rose-mid:#e8a0b0;
+  --violet:#8b5fbf; --violet-bg:#f6f0fc; --violet-b:#d9c5ef;
+  --amber:#c46a35; --amber-bg:#fdf3ee; --amber-b:#f5c9ac;
+  --green:#4a8c68; --green-bg:#eef8f3; --green-b:#a8dbbf;
+  --sky:#4a7fa5; --sky-bg:#eef5fb; --sky-b:#a8ccde;
+  --teal:#3a8c80; --teal-bg:#eef8f6; --teal-b:#a8d9d2;
+  --sh:0 1px 4px rgba(80,30,20,.06),0 1px 2px rgba(80,30,20,.04);
+  --sh2:0 6px 24px rgba(80,30,20,.1),0 1px 4px rgba(80,30,20,.05);
+  --accent:#c4506a; --accent-bg:#fdf0f3; --accent-b:#f5c8d3;
+  --r:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:18px;line-height:1.5;-webkit-font-smoothing:antialiased;padding-bottom:80px}
+
+/* ── Sticky header ── */
+.header-sticky{position:sticky;top:0;z-index:20}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:68px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 1px 6px rgba(80,30,20,.06)}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-mark{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:800;box-shadow:0 2px 8px rgba(80,30,20,.2);transition:background .3s}
+.brand-name{font-size:20px;font-weight:700;letter-spacing:-.3px}
+.topstats{display:flex;gap:14px}
+.tstat{display:flex;align-items:center;gap:5px;font-size:15px;font-weight:500;color:var(--muted)}
+.tdot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+/* ── Creator switcher ── */
+.creator-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;gap:8px;align-items:center}
+.creator-bar-lbl{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-right:4px}
+.cpill{padding:7px 18px;border-radius:24px;font-size:15px;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--bg);color:var(--muted);font-family:inherit;transition:all .15s;display:flex;align-items:center;gap:7px}
+.cpill:hover{border-color:var(--accent)}
+.cpill.active{color:#fff;border-color:transparent;box-shadow:0 2px 8px rgba(80,30,20,.18)}
+.cpill-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+/* ── Goal / client banner ── */
+.goal-wrap{padding:18px 24px 0}
+.goal-card{background:linear-gradient(135deg,#fdf0f3,#f6f0fc);border:1px solid var(--rose-b);border-radius:var(--r);padding:16px 20px;display:flex;align-items:flex-start;gap:16px}
+.goal-card.client-card{background:linear-gradient(135deg,var(--accent-bg),#f6f0fc);border-color:var(--accent-b)}
+.goal-icon{font-size:28px;flex-shrink:0;margin-top:1px}
+.goal-eyebrow{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);opacity:.8;margin-bottom:5px}
+.goal-body{font-size:19px;font-weight:700;color:var(--text);letter-spacing:-.2px;line-height:1.3}
+.goal-body em{font-style:normal;color:var(--accent)}
+.msg-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 18px;margin:12px 0 0;display:flex;align-items:flex-start;gap:12px;box-shadow:var(--sh)}
+.msg-icon{font-size:20px;flex-shrink:0;margin-top:1px}
+.msg-text{font-size:16px;color:var(--muted);font-style:italic;line-height:1.5}
+
+/* ── Tabs ── */
+.tabs{display:flex;padding:18px 24px 0;gap:2px}
+.tab{padding:10px 22px;border-radius:9px 9px 0 0;font-size:16px;font-weight:600;cursor:pointer;color:var(--faint);background:transparent;border:none;font-family:inherit;border-bottom:2px solid transparent;transition:color .15s}
+.tab:hover{color:var(--muted)}
+.tab.active{color:var(--accent);background:var(--surface);border-color:var(--accent);box-shadow:0 -1px 0 var(--border),1px 0 0 var(--border),-1px 0 0 var(--border)}
+
+/* ── Page ── */
+.page{padding:0 24px 24px}
+.sec-lbl{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);padding:22px 0 12px}
+.sec-lbl::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* ── Do This Next ── */
+.dtn-card{background:var(--surface);border-radius:16px;border:1px solid var(--border);box-shadow:var(--sh2);overflow:hidden}
+.dtn-top{padding:24px 24px 20px;cursor:pointer;user-select:none;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.dtn-left{flex:1;min-width:0}
+.dtn-eyebrow{font-size:13px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.dtn-pulse{width:8px;height:8px;border-radius:50%;animation:pulse 2.5s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.85)}}
+.dtn-action{font-size:24px;font-weight:700;letter-spacing:-.4px;line-height:1.25;margin-bottom:8px}
+.dtn-clip{font-size:16px;color:var(--muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.id-badge{display:inline-flex;align-items:center;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:3px 9px;font-size:13px;font-weight:700;color:var(--faint);flex-shrink:0}
+.dtn-chev{flex-shrink:0;color:var(--faint);font-size:14px;margin-top:8px;transition:transform .2s}
+.dtn-chev.open{transform:rotate(180deg)}
+.dtn-body{display:none;padding:0 24px 24px}
+.dtn-body.open{display:block}
+.dtn-divider{height:1px;background:var(--border);margin:0 -24px 20px}
+
+/* action panels */
+.action-panel{background:var(--bg);border-radius:12px;padding:18px;margin-bottom:6px;border:1px solid var(--border)}
+.action-panel-lbl{font-size:13px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:10px}
+.big-check{display:flex;align-items:center;gap:12px;padding:16px 18px;border:2px solid var(--border);border-radius:12px;cursor:pointer;background:var(--surface);transition:all .15s;user-select:none}
+.big-check:hover{border-color:var(--rose-mid)}
+.big-check.checked{background:var(--green-bg);border-color:var(--green-b)}
+.check-box{width:26px;height:26px;border-radius:8px;border:2px solid #d4c8c0;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--surface)}
+.big-check.checked .check-box{background:var(--green);border-color:var(--green)}
+.check-txt{font-size:16px;font-weight:600;color:var(--muted)}
+.big-check.checked .check-txt{color:var(--green)}
+.plat-action-btn{width:100%;padding:15px;border-radius:12px;border:2px solid var(--border);background:var(--surface);font-family:inherit;font-size:17px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .15s}
+.plat-action-btn:hover{border-color:var(--rose-mid);background:var(--rose-bg)}
+.plat-action-btn.upload-btn{border-color:var(--sky-b);color:var(--sky);background:var(--sky-bg)}
+.plat-action-btn.upload-btn:hover{background:#dceef8}
+.plat-action-btn.promo-btn{border-color:var(--teal-b);color:var(--teal);background:var(--teal-bg)}
+
+/* fields */
+.field-row{margin-bottom:14px}
+.field-lbl{font-size:13px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}
+.field-val{font-size:16px;line-height:1.6;color:#4a3530;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:11px 14px;min-height:38px;cursor:pointer;transition:border-color .15s}
+.field-val:hover{border-color:var(--rose-mid)}
+.field-val.empty{color:var(--faint);font-style:italic}
+.kw-wrap{display:flex;flex-wrap:wrap;gap:6px;cursor:pointer;min-height:34px;padding:4px 0}
+.kw-chip{background:var(--sky-bg);color:var(--sky);border:1px solid var(--sky-b);border-radius:20px;padding:3px 12px;font-size:13px;font-weight:600}
+input[type=text],textarea,select{width:100%;font-family:inherit;font-size:16px;color:var(--text);background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:11px 14px;outline:none;transition:border-color .15s,box-shadow .15s}
+input[type=date]{font-family:inherit;font-size:14px;color:var(--text);background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;outline:none;transition:border-color .15s;width:100%;cursor:pointer}
+input[type=text]:focus,textarea:focus,select:focus,input[type=date]:focus{border-color:var(--rose-mid);box-shadow:0 0 0 3px rgba(212,99,122,.12)}
+textarea{resize:vertical;min-height:90px;line-height:1.6}
+.btn-row{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}
+.btn{padding:9px 17px;border-radius:9px;font-size:15px;font-weight:600;cursor:pointer;border:none;font-family:inherit;transition:opacity .12s,transform .1s}
+.btn:hover{opacity:.87}.btn:active{transform:scale(.97)}
+.btn-dark{background:var(--accent);color:#fff}
+.btn-ghost{background:var(--bg);color:var(--muted);border:1px solid var(--border)}
+.btn-del{background:var(--rose-bg);color:var(--rose);border:1px solid var(--rose-b);font-size:13px;padding:6px 13px}
+
+/* asset checks */
+.asset-checks{display:flex;gap:8px;flex-wrap:wrap}
+.ack{display:flex;align-items:center;gap:7px;padding:9px 14px;border-radius:9px;border:1.5px solid var(--border);cursor:pointer;background:var(--surface);transition:all .15s;user-select:none}
+.ack:hover{border-color:var(--rose-mid)}
+.ack.done{background:var(--green-bg);border-color:var(--green-b)}
+.ack-box{width:19px;height:19px;border-radius:5px;border:2px solid #d4c8c0;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--surface)}
+.ack.done .ack-box{background:var(--green);border-color:var(--green)}
+.ack-lbl{font-size:14px;font-weight:600;color:var(--muted)}
+.ack.done .ack-lbl{color:var(--green)}
+
+/* platform table */
+.plat-table{border-radius:12px;border:1px solid var(--border);overflow:hidden;background:var(--surface)}
+.plat-row{display:grid;grid-template-columns:52px 1fr 148px 52px;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);transition:background .1s}
+.plat-row:last-child{border-bottom:none}
+.plat-row:hover{background:var(--bg)}
+.plat-row.na-row-dim{opacity:.4}
+.plat-name-lbl{font-size:14px;font-weight:800;color:var(--muted);letter-spacing:.04em}
+.plat-date-col{min-width:0}
+.plat-date-col input[type=date]{font-size:13px;padding:5px 8px}
+.plat-date-col .no-date{font-size:13px;color:var(--faint);font-style:italic}
+.plat-status-col{display:flex;justify-content:flex-end}
+.pst-btn{padding:5px 11px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);font-family:inherit;white-space:nowrap;transition:all .12s}
+.pst-btn:hover{border-color:var(--rose-mid)}
+.pst-btn.is-up{background:var(--sky-bg);border-color:var(--sky-b);color:var(--sky)}
+.pst-btn.is-pr{background:var(--green-bg);border-color:var(--green-b);color:var(--green)}
+.pna-btn{padding:4px 9px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--bg);color:var(--faint);font-family:inherit;transition:all .12s}
+.pna-btn.na-on{background:var(--rose-bg);color:var(--rose);border-color:var(--rose-b)}
+.plat-date-due{color:var(--rose);font-size:12px;font-weight:600;margin-top:2px}
+
+/* coming up */
+.ctx-line{font-size:15px;color:var(--muted);text-align:center;padding:12px 0 0}
+.ctx-line a{color:var(--violet);cursor:pointer;font-weight:600}
+.coming-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:6px}
+.coming-cell{background:var(--surface);border-radius:12px;border:1px solid var(--border);padding:16px 10px;text-align:center;box-shadow:var(--sh);cursor:pointer;transition:box-shadow .15s,transform .15s}
+.coming-cell:hover{box-shadow:var(--sh2);transform:translateY(-2px)}
+.coming-n{font-size:30px;font-weight:700;letter-spacing:-.5px;margin-bottom:3px}
+.coming-lbl{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+
+/* pipeline */
+.pipe-group{margin-bottom:6px;background:var(--surface);border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--sh);overflow:hidden}
+.pipe-group-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer;user-select:none;transition:background .12s}
+.pipe-group-head:hover{background:var(--bg)}
+.pipe-group-label{font-size:16px;font-weight:700;display:flex;align-items:center;gap:10px}
+.pipe-group-n{background:var(--bg);border-radius:20px;padding:3px 11px;font-size:13px;color:var(--muted);font-weight:600}
+.pipe-group-chev{color:var(--faint);font-size:13px;transition:transform .2s}
+.pipe-group-chev.open{transform:rotate(180deg)}
+.pipe-group-body{display:none;border-top:1px solid var(--border)}
+.pipe-group-body.open{display:block}
+.pipe-clip-row{display:flex;align-items:center;gap:10px;padding:10px 18px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+.pipe-clip-row:last-child{border-bottom:none}
+.pipe-clip-row:hover{background:var(--bg)}
+.pipe-clip-name{flex:1;font-size:15px;font-weight:500}
+.pipe-clip-sub{font-size:13px;color:var(--faint);font-weight:600}
+
+/* done chips */
+.done-grid{display:flex;flex-wrap:wrap;gap:6px}
+.done-chip{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:6px 13px;font-size:14px;color:var(--muted);box-shadow:var(--sh);display:flex;align-items:center;gap:6px}
+.done-chip .did{font-size:11px;font-weight:700;opacity:.4}
+
+/* calendar */
+.cal-nav-row{display:flex;align-items:center;justify-content:space-between;padding:20px 0 14px}
+.cal-nav-btn{background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:8px 18px;cursor:pointer;font-family:inherit;font-size:16px;color:var(--muted);font-weight:600;transition:all .12s}
+.cal-nav-btn:hover{border-color:var(--rose-mid);color:var(--rose)}
+.cal-month-lbl{font-size:22px;font-weight:700;letter-spacing:-.4px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.cal-day-hdr{text-align:center;font-size:13px;font-weight:700;color:var(--faint);padding:8px 0}
+.cal-cell{background:var(--surface);border-radius:11px;border:1px solid var(--border);height:108px;overflow:hidden;padding:9px;transition:box-shadow .12s}
+.cal-cell:hover{box-shadow:var(--sh)}
+.cal-empty{background:transparent;border:none}
+.cal-today{border-color:var(--accent);background:var(--accent-bg)}
+.cal-drop-hover{border-color:var(--accent)!important;background:var(--accent-bg)!important;box-shadow:0 0 0 2px var(--accent)}
+.unsched-pool{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.unsched-chip{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:var(--surface);border:2px solid var(--border);border-radius:20px;font-size:14px;font-weight:700;color:var(--text);cursor:grab;user-select:none;white-space:nowrap}
+.unsched-chip:hover{border-color:var(--accent);color:var(--text)}
+.cal-past{opacity:.6}
+.cal-day-n{font-size:15px;font-weight:700;color:var(--muted);margin-bottom:5px}
+.cal-today .cal-day-n{color:var(--accent)}
+.cal-plat-toggle{display:flex;gap:8px;margin-bottom:14px}
+.cal-plat-btn{padding:7px 18px;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;border:2px solid var(--border);background:var(--surface);color:var(--muted);font-family:inherit;transition:all .15s}
+.cal-plat-btn.active-c4s{background:#d4909e;border-color:#d4909e;color:#fff}
+.cal-plat-btn.active-lf{background:#90a0d4;border-color:#90a0d4;color:#fff}
+.cal-event{font-size:13px;background:var(--violet-bg);border:1px solid var(--violet-b);border-radius:7px;padding:4px 8px;margin-bottom:3px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--violet);font-weight:600}
+.cal-event:hover{background:var(--violet-b)}
+.cal-event-plat{font-weight:800;font-size:11px;margin-right:4px;opacity:.85}
+.cal-event.is-c4s .cal-event-plat,.cal-event.is-lf .cal-event-plat{display:none}
+.cal-event.is-up{background:var(--sky);border-color:var(--sky);color:#fff}
+.cal-event.is-pr{background:var(--green-bg);border-color:var(--green-b);color:var(--green)}
+.cal-event.is-c4s{background:#f5d5da;border-color:#d4909e;color:#6a1f2e}
+.cal-event.is-lf{background:#d5dff5;border-color:#90a0d4;color:#1f2e6a}
+.unsched-chip.is-c4s{background:#f5d5da;border-color:#d4909e;color:#6a1f2e}
+.unsched-chip.is-lf{background:#d5dff5;border-color:#90a0d4;color:#1f2e6a}
+.cal-more{font-size:11px;color:var(--faint);padding:2px 4px}
+.cal-legend{display:flex;gap:14px;padding:12px 0 0;flex-wrap:wrap}
+.cal-leg-item{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);font-weight:500}
+.cal-leg-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+
+/* empty state */
+.empty-state{text-align:center;padding:50px 24px;color:var(--faint)}
+.empty-state .big{font-size:48px;margin-bottom:14px}
+.empty-state p{font-size:17px;font-weight:500;margin-bottom:6px}
+.empty-state small{font-size:14px}
+
+/* add clip */
+.add-wrap{margin-top:18px}
+.add-btn{width:100%;padding:14px;border-radius:var(--r);border:1.5px dashed #d4c8c0;background:transparent;color:var(--faint);font-size:16px;font-weight:600;font-family:inherit;cursor:pointer;transition:border-color .15s,color .15s}
+.add-btn:hover{border-color:var(--rose-mid);color:var(--rose)}
+.add-form{background:var(--surface);border-radius:var(--r);border:1px solid var(--border);padding:18px;box-shadow:var(--sh);display:flex;flex-direction:column;gap:10px}
+.all-clear{text-align:center;padding:60px 24px;color:var(--faint)}
+.all-clear .big{font-size:48px;margin-bottom:14px}
+.all-clear p{font-size:17px;font-weight:500}
+.sep{height:1px;background:var(--border);margin:16px 0}
+.err-box{background:var(--rose-bg);border:1px solid var(--rose-b);border-radius:12px;padding:16px;color:var(--rose);font-size:13px;margin:24px;font-family:monospace;white-space:pre-wrap}
+
+/* ── Timer widget ── */
+.timer-widget{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 20px;margin:18px 24px 0;box-shadow:var(--sh);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.timer-clock{font-size:32px;font-weight:800;letter-spacing:-.5px;font-variant-numeric:tabular-nums;color:var(--text);min-width:110px}
+.timer-clock.running{color:var(--accent)}
+.timer-btn{padding:10px 22px;border-radius:10px;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;border:none;transition:opacity .12s}
+.timer-btn.start{background:var(--accent);color:#fff}
+.timer-btn.stop{background:var(--rose-bg);color:var(--rose);border:1.5px solid var(--rose-b)}
+.timer-btn:hover{opacity:.85}
+.timer-sep{width:1px;height:40px;background:var(--border);flex-shrink:0}
+.timer-period{flex:1;min-width:160px}
+.timer-period-lbl{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}
+.timer-period-val{font-size:15px;font-weight:600;color:var(--muted);margin-bottom:8px}
+.prog-bar-wrap{background:var(--border);border-radius:20px;height:8px;overflow:hidden}
+.prog-bar-fill{height:100%;border-radius:20px;background:linear-gradient(90deg,var(--accent),var(--violet));transition:width .4s}
+.prog-bar-fill.done{background:var(--green)}
+.timer-session-lbl{font-size:13px;color:var(--faint);margin-top:5px}
+
+/* ── Invoice banners ── */
+.inv-banner{margin:14px 24px 0;border-radius:var(--r);padding:14px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.inv-banner.ready{background:var(--violet-bg);border:1px solid var(--violet-b)}
+.inv-banner.overdue{background:var(--rose-bg);border:1px solid var(--rose-b)}
+.inv-banner-icon{font-size:22px;flex-shrink:0}
+.inv-banner-text{flex:1;font-size:15px;font-weight:600;color:var(--text)}
+.inv-banner-text small{display:block;font-size:13px;color:var(--muted);font-weight:400;margin-top:2px}
+.inv-banner-actions{display:flex;gap:8px;flex-shrink:0}
+.inv-act-btn{padding:7px 14px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:none;font-family:inherit;transition:opacity .12s}
+.inv-act-btn:hover{opacity:.85}
+.inv-act-btn.sent{background:var(--violet);color:#fff}
+.inv-act-btn.paid{background:var(--green);color:#fff}
+.inv-act-btn.ghost{background:var(--bg);color:var(--muted);border:1px solid var(--border)}
+
+/* ── Invoicing tab ── */
+.inv-settings{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px;box-shadow:var(--sh);margin-bottom:14px}
+.inv-settings-lbl{font-size:13px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:10px}
+.inv-hours-row{display:flex;align-items:center;gap:12px}
+.inv-hours-input{width:80px;padding:9px 12px;font-family:inherit;font-size:18px;font-weight:700;text-align:center;border:1.5px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);outline:none;-moz-appearance:textfield}
+.inv-hours-input:focus{border-color:var(--rose-mid)}
+.inv-hours-input::-webkit-inner-spin-button,.inv-hours-input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield}
+.inv-hours-lbl{font-size:15px;color:var(--muted);font-weight:500}
+.inv-period-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px;box-shadow:var(--sh);margin-bottom:14px}
+.inv-period-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+.inv-period-title{font-size:17px;font-weight:700}
+.inv-period-sub{font-size:13px;color:var(--muted);margin-top:2px}
+.inv-period-pct{font-size:22px;font-weight:800;color:var(--accent)}
+.inv-prog-lg{background:var(--border);border-radius:20px;height:14px;overflow:hidden;margin-bottom:8px}
+.inv-prog-fill{height:100%;border-radius:20px;background:linear-gradient(90deg,var(--accent),var(--violet));transition:width .4s}
+.inv-prog-fill.done{background:var(--green)}
+.inv-prog-lbl{font-size:14px;color:var(--muted);font-weight:500}
+.inv-list-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}
+.inv-row{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.inv-row:last-child{border-bottom:none}
+.inv-row-left{flex:1;min-width:160px}
+.inv-row-title{font-size:16px;font-weight:700;margin-bottom:3px}
+.inv-row-sub{font-size:13px;color:var(--muted)}
+.inv-row-actions{display:flex;gap:7px;flex-shrink:0;align-items:center}
+.inv-status-badge{padding:4px 11px;border-radius:20px;font-size:12px;font-weight:700;white-space:nowrap}
+.inv-status-badge.unsent{background:var(--violet-bg);color:var(--violet);border:1px solid var(--violet-b)}
+.inv-status-badge.sent{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-b)}
+.inv-status-badge.paid{background:var(--green-bg);color:var(--green);border:1px solid var(--green-b)}
+.inv-status-badge.overdue{background:var(--rose-bg);color:var(--rose);border:1px solid var(--rose-b)}
+.session-list{margin-top:14px}
+.session-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px}
+.session-row:last-child{border-bottom:none}
+.session-date{color:var(--faint);font-weight:600;min-width:80px}
+.session-dur{color:var(--text);font-weight:700;font-variant-numeric:tabular-nums}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div id="root"><div style="padding:50px;text-align:center;color:#c4aaa2;font-size:18px">Loading…</div></div>
+<script>
+try {
+
+var CREATOR_PLATFORMS={LG:['SM','MFC','CB','SC','NF','SP','C4S'],BH:['LF','C4S'],LV:['C4S']};
+var CREATOR_CONFIG={
+  LG:{rate:50,currency:'$',platformDesc:'Content management'},
+  BH:{rate:50,currency:'$',platformDesc:'LF & C4S management'},
+  LV:{rate:37,currency:'£',platformDesc:'OF & C4S management'}
+};
+var PL=['SM','MFC','CB','SC','NF','SP','C4S'];
+var P='pending',U='uploaded',PR='promoted',N='na';
+
+var CREATORS={
+  LG:{name:'Lux Gray',      initials:'LG',grad:'linear-gradient(135deg,#d4637a,#9b7dbd)',accentVar:'--rose',accentBg:'--rose-bg',accentB:'--rose-b',isMe:true},
+  BH:{name:'Brigit Heart',  initials:'BH',grad:'linear-gradient(135deg,#8b5fbf,#4a7fa5)',accentVar:'--violet',accentBg:'--violet-bg',accentB:'--violet-b',isMe:false},
+  LV:{name:'Lady Venus',    initials:'LV',grad:'linear-gradient(135deg,#3a8c80,#4a8c68)',accentVar:'--teal',accentBg:'--teal-bg',accentB:'--teal-b',isMe:false},
+  ALL:{name:'All Creators', initials:'★', grad:'linear-gradient(135deg,#5a6a8a,#7a5a8a)',accentVar:'--violet',accentBg:'--violet-bg',accentB:'--violet-b',isMe:false}
+};
+
+var MESSAGES=[
+  "She's watching everything you do today. Make it count for her. 💕",
+  "Every clip you upload is a tiny employee working for you 24/7. Time to hire.",
+  "Passive income is just active income you did earlier. Earlier is now.",
+  "You don't need a perfect setup. You need to press upload.",
+  "Your inner child doesn't need you to be perfect. She needs you to show up.",
+  "One thing. Just one. That's the whole game today.",
+  "What would you tell your 10-year-old self? Prove it to her right now.",
+  "C4S doesn't care what mood you're in. Upload anyway.",
+  "Future you is on a beach. Past you did the work. Today you become past you.",
+  "You already made the hard part. The clip is done. Now get paid for it.",
+  "Progress isn't a feeling. It's a checkbox. Check one.",
+  "You're not behind. You're building something real.",
+  "The boring task is the most loving thing you can do for her today.",
+  "Titles first. Existential crisis after.",
+  "An uploaded clip makes money while you sleep. Go file your paperwork.",
+  "Every date you set on that calendar is a promise to little you. Keep it.",
+  "Not every day is a big day. Some days you just mark one thing done. That's still enough.",
+  "You made something beautiful. Let it go out and make money.",
+  "Little Lux wants a savings account. Let her have it.",
+  "The upload queue won't clear itself. But it absolutely will clear.",
+  "You are literally building wealth in your own way. Respect the hustle.",
+  "One platform. One clip. That's two minutes and one more stream of income.",
+  "She deserves the best. Upload the clip.",
+  "Your content doesn't upload itself... yet. Go be the algorithm.",
+  "Doing the thing when you don't feel like it is the whole job. Do the thing.",
+  "Scheduling it is half the battle. You already won half.",
+  "You have what people want. That's the whole business. Go.",
+  "Inner child tax: mark one thing done per vibe check. ✨",
+  "The work feels small until you look at the account balance.",
+  "One description. Just one. Then the next. Then you're done.",
+  "Every single upload is a love letter to the little girl who needed more."
+];
+
+// RAW: [id, title, uploadTitle, status, length, desc, kw[], thumb, gbCover, preview, SM,MFC,CB,SC,NF,SP,C4S, notes]
+var LG_RAW=[
+  [1,'Ball Busting Date Audio','','edited','','I go more in depth about my first time kicking nuts with a guy I met on a dating app. Spoiler alert: I liked it.....',['ball busting','audio','dating app','femdom','CBT'],false,false,false,N,N,N,N,N,N,P,''],
+  [2,'Clothed Erotic Photoset','','edited','','of the hottest screenshot from my erotic oil match with Hanz VanDerKill. A nip slip goes unnoticed for much of the match and my bottoms can\'t quite contain my trimmed bush.',['photoset','erotic','oil wrestling','Hanz VanDerKill','nip slip'],false,false,false,N,P,P,N,N,N,N,''],
+  [3,'Sensual Wrestling w/ Tapered Physique','Sensual Wrestling with Lux Gray and Tapered Physique','edited','','"Basically a sex wrestle in bikinis." This simple erotic match turned into much much more.',['wrestling','erotic','bikini','clothed','female','moaning'],false,false,false,N,P,N,N,N,N,N,''],
+  [4,'Erotic Oil Wrestling w/ Hanz','Erotic Oil Wrestling with Hanz VanDerKill','edited','17','Our very first rematch after our extremely fiery first Sex Wrestling encounter. Our chemistry is off the charts.',['oil wrestling','erotic','Hanz VanDerKill','grinding','foreplay'],false,false,false,N,P,P,P,N,N,N,''],
+  [5,'Lux Gray Dominates Mistress Storm','','edited','','Like a fever dream I come upon the glorious Mistress Storm. With a lilt in my voice I lull her into complete submission.',['domination','femdom','lesbian','submission','cum countdown','Mistress Storm'],false,false,false,N,P,N,N,N,N,N,''],
+  [6,'Giantess Step','','edited','','',['giantess','step','fetish','POV','size'],false,false,false,N,N,N,N,N,N,P,''],
+  [7,'Roommate Feet II','','edited','','',['feet','roommate','foot worship','asian','soles','toes'],false,false,false,N,N,N,N,N,N,P,''],
+  [8,'Erotic Scissor Hanz','','edited','','',['scissor','wrestling','erotic','Hanz VanDerKill'],false,false,false,P,P,P,P,P,P,P,''],
+  [9,'Maledom Hanz','','edited','','',['maledom','submission','Hanz VanDerKill','wrestling'],false,false,false,P,P,P,P,P,P,P,''],
+  [10,'SW Rematch','','edited','','',['sex wrestling','rematch'],false,false,false,P,P,P,P,P,P,N,''],
+  [11,'Wrestling','','edited','','',['wrestling','erotic'],false,false,false,P,P,P,P,P,P,P,''],
+  [12,'Sessions Hanz','','edited','','',['Hanz VanDerKill','session','wrestling'],false,false,false,P,P,P,P,P,P,P,''],
+  [13,'Real Sex Hanz','','edited','','',['sex','Hanz VanDerKill','explicit'],false,false,false,P,P,P,P,P,P,P,''],
+  [14,'Polaroids Item','','edited','','',['polaroid','photoset'],false,false,false,P,P,P,P,P,P,P,''],
+  [15,'Naked Workout Chatty','','edited','','',['naked','workout','talking','chatty','nude'],false,false,false,P,P,P,P,P,P,P,''],
+  [16,'Ruched Dress Tease','','edited','2','',['tease','ruched dress','strip','clothed'],false,false,false,P,P,P,P,P,P,P,''],
+  [17,'Close Up Vibrator','','edited','26','',['vibrator','close up','masturbation','solo','toy'],false,false,false,P,P,P,P,P,P,P,''],
+  [18,'Diaper Custom','','edited','','',['diaper','custom','abdl','fetish'],false,false,false,P,P,P,N,P,P,P,''],
+  [19,'Gold Show','','edited','','',['show','cam','explicit'],false,false,false,P,P,P,P,P,P,P,''],
+  [20,'Microbikini Strip','','edited','','',['microbikini','strip','tease','bikini'],false,false,false,P,P,P,P,P,P,P,''],
+  [21,'Nipple Clamps','','edited','','',['nipple clamps','bdsm','pain','kink','explicit'],false,false,false,P,P,P,P,P,P,P,''],
+  [22,'Captain Pants Custom','','filmed','','',['custom','cosplay'],false,false,false,P,P,P,P,P,P,P,''],
+  [23,'Nose Blowing Audio','','filmed','','',['audio','nose','fetish'],false,false,false,N,N,N,N,N,N,P,''],
+  [24,'Sneezing Video','','filmed','','',['sneeze','fetish'],false,false,false,N,N,N,N,N,N,P,''],
+  [25,'Farting Video','','filmed','','',['farting','fetish','gas'],false,false,false,N,N,N,N,N,N,P,'Need more footage'],
+  [26,'Clothes POV Tease','','filmed','','',['POV','tease','clothed','erotic'],false,false,false,P,P,P,P,P,P,P,''],
+  [27,'GF VM Audio','','filmed','','',['audio','girlfriend','voicemail','roleplay'],false,false,false,N,P,N,N,P,P,P,''],
+  [28,'Solo Try On','','filmed','','',['try on','solo','nude'],false,false,false,P,P,P,P,P,P,P,''],
+  [29,'Post Cam Cum','','filmed','','',['cumming','explicit','masturbation','solo'],false,false,false,P,P,P,P,P,P,P,''],
+  [30,'Xeno Chubby Tease','','filmed','','',['tease','chubby','body','erotic'],false,false,false,P,P,P,P,P,P,P,''],
+  [31,'Homewrecker / Make Her Watch / POV','','idea','','',['homewrecker','POV','roleplay'],false,false,false,P,P,P,P,P,P,P,''],
+  [32,'Professor with Pheromones (Audio)','','idea','','',['audio','roleplay','professor','pheromones'],false,false,false,N,N,N,N,N,N,P,''],
+  [33,'Naked Workout','','idea','','',['naked','workout','fitness','nude'],false,false,false,P,P,P,P,P,P,P,''],
+  [101,'Glove Fingering','','uploaded','6','I make sure no one\'s home before I start to stroke my skin.',['gloves','fingering','latex','solo','masturbation'],true,true,true,PR,PR,PR,PR,PR,PR,PR,''],
+  [102,'Old Dildo Hitachi','','uploaded','1.5','Getting myself off with a dildo and hitachi while wearing a black lace bra.',['dildo','hitachi','blonde','vintage','masturbation'],true,true,true,PR,PR,PR,PR,PR,PR,PR,''],
+  [103,'4 min Rainbow Custom','','uploaded','4','',['custom','solo','explicit'],true,true,true,PR,PR,PR,PR,PR,PR,PR,''],
+  [104,'First B/G Sexwrestle','','uploaded','','',['sex wrestling','boy girl','explicit'],true,true,true,PR,PR,PR,PR,PR,PR,N,''],
+  [105,'Reverse Gangbang','','uploaded','20','What started as a tag team sex wrestling match evolves into an orgy!',['gangbang','orgy','wrestling','group','explicit'],true,true,true,N,PR,N,N,PR,PR,N,''],
+  [106,'Blonde Pussy Tease','','uploaded','30s','',['blonde','tease','pussy','fingering','vintage'],true,true,true,PR,PR,PR,PR,PR,PR,N,''],
+  [107,'Black Haired Finger Suck','','uploaded','30s','',['finger sucking','tease','black hair','oral'],true,true,true,PR,PR,PR,PR,PR,PR,N,''],
+  [108,'First Park Wrestle','','uploaded','10','I ran into Hanz VanDerKill in the park. We start wrestling in public.',['femdom','wrestling','public','outdoor','catfight'],true,true,true,PR,PR,PR,PR,PR,PR,N,''],
+  [109,'Lay Back Dildo','','uploaded','53s','',['dildo','solo','nude','explicit'],true,true,true,PR,PR,PR,PR,PR,PR,N,''],
+  [110,'Black Haired Pussy Tease','','uploaded','15s','',['tease','black hair','hairy pussy','vintage','solo'],true,true,true,PR,PR,PR,PR,PR,PR,N,''],
+  [111,'Alexia and Hanz Threesome','','uploaded','','',['threesome','Gymnast Alexia','Hanz VanDerKill'],true,true,true,N,PR,N,N,PR,PR,N,''],
+  [112,'Ride Cum','','uploaded','5','One of my regulars asks me to send a quick video. I start naked, ride a dildo and make myself cum :)',['riding','cumming','dildo','asian','explicit'],true,true,true,N,PR,PR,PR,PR,PR,PR,''],
+  [113,'Sinthia Catfight','','uploaded','10','',['catfight','wrestling','Sinthia Bee','lesbian','foot'],true,true,true,N,PR,N,N,PR,PR,N,''],
+  [114,'Mouth Taped Fingering','','uploaded','12','Rare Sub Clip! Master is out. Wearing my collar, I tape my mouth shut.',['sub','bdsm','collar','tape','fingering','dildo'],true,true,true,PR,PR,PR,PR,PR,PR,PR,''],
+  [115,'Ballbusting Audio','','uploaded','10','',['ballbusting','audio','femdom','CBT','Q&A'],true,true,true,N,PR,PR,PR,PR,PR,PR,''],
+  [116,'Audio: GF Happy CEI','','uploaded','13','',['audio','cum eating','GFE','roleplay','CEI'],true,true,true,PR,PR,PR,PR,PR,PR,PR,''],
+  [117,'Roommate Foot Worship','Roommate Wants You to Worship Her Perfect Asian Feet','uploaded','11','',['feet','foot worship','asian','roommate','toes','soles'],true,true,true,PR,PR,PR,PR,PR,PR,PR,''],
+  [118,'Threesome Screenshots','Screenshots from My Threesome with Gymnast Alexia and Hanz VanDerKill','uploaded','-','',['photoset','threesome','Gymnast Alexia'],true,N,true,N,PR,N,N,PR,N,N,''],
+  [119,'Facesit Pee','','uploaded','','',['facesitting','pee','watersports','fetish'],true,true,true,N,N,N,N,PR,N,PR,''],
+  [120,'Pee Holding','','uploaded','','',['pee holding','watersports','fetish'],true,true,true,N,N,N,N,PR,N,PR,''],
+  [121,'Maid Microkini Try On','','uploaded','3','',['try on','microkini','maid','lingerie'],true,true,true,PR,PR,PR,PR,N,PR,PR,''],
+  [122,'Audio: First Gloryhole','','uploaded','9','',['audio','gloryhole','bisexual','encouragement'],true,true,true,PR,PR,PR,PR,PR,N,PR,''],
+  [123,'Audio: Sexy Voicemail','Audio: Your GF Leaves a Sexy Voicemail','uploaded','','',['audio','voicemail','GFE','roleplay'],true,true,true,N,N,N,N,PR,N,N,'']
+];
+
+var BH_INITIAL_CLIPS = [{"id":1,"num":"101","title":"Bettie LnC","uploadTitle":"Bettie LnC","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":2,"num":"102","title":"Ruby Pride Blindfolds","uploadTitle":"Brigit Heart enjoys Sensual Blind-Fold with Ruby Rage","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":3,"num":"103","title":"Brigit VS Lyra","uploadTitle":"Brigit VS Lyra","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":4,"num":"104","title":"Jackie Erotic","uploadTitle":"Brigit and Jackie Erotic","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":5,"num":"105","title":"Discipline Hanz","uploadTitle":"Brigit Disciplines Hanz","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":6,"num":"106","title":"Ruby Oil","uploadTitle":"Brigit and Ruby Oil","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":7,"num":"107","title":"Ruby Semi Comp","uploadTitle":"Brigit Heart & Ruby in Semi-Comp Wrestling","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":8,"num":"108","title":"Sinthia Playtime","uploadTitle":"Wrestling Playtime with Brigit Heart & Sinthia Bee","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":9,"num":"109","title":"Hanz Pride","uploadTitle":"Matching Shorts - Pride Celebration with Hanz & Brigit","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":10,"num":"110","title":"Little Lyra","uploadTitle":"Little Lyra vs Brigit Heart in Chicago","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":11,"num":"111","title":"Miles in Miami","uploadTitle":"Miles and Brigit meet in Miami to wrestle","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":12,"num":"112","title":"Miles Lone Star","uploadTitle":"Brigit Heart Meet Miles for a Mixed Wrestling Showdown","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":13,"num":"113","title":"Miles NYC","uploadTitle":"Brigit Heart Invites Miles to Wrestle in NYC","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":14,"num":"114","title":"Cay Baby","uploadTitle":"Brigit Heart & Cay Baby Wrestle in NYC","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":15,"num":"115","title":"Miles Oil","uploadTitle":"Brigit Heart & Miles Madden Oil Wrestle","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":16,"num":"116","title":"Cay Scissors","uploadTitle":"Brigit Heart Enters the Ring for a Scissor Dual with Cay Baby","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":17,"num":"117","title":"Hanz Semi DM","uploadTitle":"Brigit Heart vs Tatiana Steele - Feisty Sensual and Playful","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":18,"num":"117","title":"Tatiana","uploadTitle":"Tatiana","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":19,"num":"118","title":"Elliot LnC","uploadTitle":"Brigit and Elliot Lift and Carry Each Other","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":20,"num":"118","title":"Hanz Beatdown Dream","uploadTitle":"Hanz Beatdown Dream","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":21,"num":"119","title":"Veve Foot Comparison","uploadTitle":"Brigit Heart vs Veve Lane - Foot Comparison 1","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":22,"num":"120","title":"Veve Foot Comparison Rematch","uploadTitle":"Brigit Heart vs Veve Lane - Foot Comparison Rematch","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":23,"num":"121","title":"Elliot Round 1 NYC","uploadTitle":"Brigit Heart & Elliot Mixed Wrestling NYC - Round 1","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":24,"num":"122","title":"Elliot NYC 2","uploadTitle":"Brigit Heart & Elliot Mixed Wrestling NYC - Round 2","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":25,"num":"123","title":"Andi","uploadTitle":"Brigit Heat Plays with Andi Vicious","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":26,"num":"124","title":"Getting a Foot Massage","uploadTitle":"Brigit Relaxes for a Foot Massage","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":27,"num":"125","title":"Brigit's Playful Wrestle with Hanz in NYC","uploadTitle":"Brigit's Playful Wrestle with Hanz in NYC","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":28,"num":"126","title":"Elliot France 1","uploadTitle":"Brigit and Elliot Wrestle - South of France Round 1","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":29,"num":"127","title":"Hanz Hotel Domination","uploadTitle":"Brigit Heart - Hanz Spatial Bed Wrestle","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":30,"num":"128","title":"Sugar Barcelona","uploadTitle":"Brigit Heart's Wrestling Fantasy with Sugar Diamond","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":31,"num":"129","title":"Mel Fire","uploadTitle":"Brigit Heart Wrestles Brazilian Amazon Mel Fire","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":32,"num":"130","title":"Alice Mayflower","uploadTitle":"Brigit Hart and Alice Mayflower Wrestle in Teenie Green Bikinis","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":33,"num":"131","title":"Brigit Heart and Sinthia Bee Wet Wrestle in Bar...","uploadTitle":"Brigit Heart and Sinthia Bee Wet Wrestle in Barcelona","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":34,"num":"132","title":"Queen and Princess","uploadTitle":"Queen + Princess Makeout: Queen Brigit Heart Play Outdoors with Princess Nikki","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":35,"num":"133","title":"Elliot France 2","uploadTitle":"Brigit and Elliot Wrestle - South of France Round 2","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":36,"num":"133","title":"Sinthia Barcelona","uploadTitle":"Sinthia Barcelona","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":37,"num":"134","title":"Veve Slap Fight","uploadTitle":"Brigit Heart vs VeVe Lane Slap Fight","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":38,"num":"135","title":"Sabrina","uploadTitle":"Sabrina","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":39,"num":"136","title":"Veve Math Double Dom 1","uploadTitle":"Veve Math Double Dom 1","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":40,"num":"137","title":"Veve Math Double Dom 2","uploadTitle":"Veve Math Double Dom 2","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":41,"num":"138","title":"Veve Math Double Dom 3","uploadTitle":"Brigit and VeVe Session with Mat Paris 3","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":42,"num":"139","title":"Elliot Boxing Milano","uploadTitle":"Elliot Boxing Milano - no sound","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"N","C4S":"N"},"platformDates":{"LF":"","C4S":""},"notes":"Not going to upload"},{"id":43,"num":"140","title":"Sugar LnC","uploadTitle":"Sugar LnC","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"N","C4S":"N"},"platformDates":{"LF":"","C4S":""},"notes":"Not going to upload"},{"id":44,"num":"141","title":"Hanz Playful","uploadTitle":"Hanz Playful","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":45,"num":"142","title":"Rage Holiday","uploadTitle":"Hot Holiday Wrestle - Brigit Heart and Rage Shieldmaiden","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":46,"num":"143","title":"Rage Round 2","uploadTitle":"Rage Round 2","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":47,"num":"144","title":"Rage BeatCreeper","uploadTitle":"Rage BeatCreeper","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":48,"num":"145","title":"Rage Mik","uploadTitle":"Rage Mik","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":49,"num":"146","title":"2v1 Cay Brigit v Hanz","uploadTitle":"Cay Baby and Brigit Dominate Hanz","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":50,"num":"147","title":"Craig Miami Miles","uploadTitle":"Craig Miami Miles","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":51,"num":"148","title":"Miles Round 3 NYC","uploadTitle":"Miles Round 3 NYC","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":52,"num":"149","title":"Miles Round 2 NYC","uploadTitle":"Miles Round 2 NYC","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":53,"num":"150","title":"Miles Madden NYC","uploadTitle":"Brigit Heart Destroys Miles Madden","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":54,"num":"151","title":"Petra Oct 12","uploadTitle":"Brigit Heart vs Princess Petra (competitive rematch) October 12","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":55,"num":"152","title":"Petra Brigit vs Rosie Kami","uploadTitle":"2v2: Brigit Heart & Princess Petra vs Rosie Gia & Kami Kyller","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":56,"num":"153","title":"2v1 Lana Brigit v Veve","uploadTitle":"2v1 Competetive: Lana Luxor & Brigit Heart vs VeVe Lane","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":57,"num":"154","title":"Lyra","uploadTitle":"Lyra","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":58,"num":"155","title":"Amazon Dolly","uploadTitle":"Amazon Dolly vs Brigit Heart Competetive","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":59,"num":"156","title":"Antscha","uploadTitle":"Brigit Heart gets Destroyed by Antscha in Budapest","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":60,"num":"157","title":"Dominate Foxxy","uploadTitle":"Brigit Heart Dominates Foxxy Squeeze","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":61,"num":"158","title":"Udo","uploadTitle":"Brigit's Session with German Udo","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":"Need ID from Udo"},{"id":62,"num":"159","title":"Petra Lamb","uploadTitle":"Princess Petra Dominates Male Lamb","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":63,"num":"160","title":"Valentines Boyfriend","uploadTitle":"Brigit Heart dominates boyfriend on Valentines Day","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":64,"num":"161","title":"Steve Strength Scissors","uploadTitle":"Steve Strength Scissors","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":65,"num":"162","title":"Steve Superwoman","uploadTitle":"Steve Superwoman","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":66,"num":"163","title":"Talia Rematch","uploadTitle":"Talia Rematch","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":67,"num":"164","title":"Blaze BJJ Instructor","uploadTitle":"Blaze BJJ Instructor","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":68,"num":"165","title":"Hanz Mixed","uploadTitle":"Hanz Mixed","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":69,"num":"166","title":"Petra Round 1 March 15","uploadTitle":"Petra Round 1 March 15","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":70,"num":"167","title":"Petra Round 2 March 15","uploadTitle":"Petra Round 2 March 15","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":71,"num":"168","title":"Andi Miss Frog","uploadTitle":"Andi Miss Frog","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":72,"num":"169","title":"Andi Kami","uploadTitle":"Andi Kami","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":73,"num":"170","title":"T Budapest Sensual Scissors and Facesitting","uploadTitle":"T Budapest Sensual Scissors and Facesitting","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":74,"num":"171","title":"Alexis and Lamb","uploadTitle":"Alexis and Lamb","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":75,"num":"172","title":"Kira","uploadTitle":"Kira","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":76,"num":"173","title":"Candy Cane Scissor Trampling","uploadTitle":"Brigit Heart's Candy Cane Scissor + Trampling Video","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":77,"num":"174","title":"Veve Ass Comparison and Worship","uploadTitle":"Brigit Heart vs VeVe Lane Ass Comparison and Worship","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":78,"num":"175","title":"Foxxy Brigit v Steve","uploadTitle":"Foxxy Brigit v Steve","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":"Need Foxxy compliance"},{"id":79,"num":"176","title":"Andi Hanz","uploadTitle":"Andi Vicious vs Hanz VanderKill Oil Wrestling Round Robin","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":80,"num":"177","title":"Brigit Hanz Lux Kami Tag Team","uploadTitle":"2v2 Tag Team: Hanz VanDerKill and Lux Gray vs Brigit Heart and Kami Kyller","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":"Need Lux and Andi compliance"},{"id":81,"num":"178","title":"Sinthia Strength Challenge","uploadTitle":"Sinthia Bee vs Brigit Heart: Feats of Strength","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":82,"num":"179","title":"Sinthia Cage","uploadTitle":"Brigit Heart and Sinthia Bee Cage Wrestle","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":83,"num":"180","title":"Hanz Cage Wrestle","uploadTitle":"Brigit Heart Scissor Dominates Hanz - Wrestling Cage","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":84,"num":"181","title":"Lana Ex-Girlfriends","uploadTitle":"Lana Ex-Girlfriends","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":85,"num":"182","title":"Submit and Congratulate","uploadTitle":"Submit and Congratulate","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":86,"num":"183","title":"Scissor Dominate Joe","uploadTitle":"Scissor Dominate Joe","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":87,"num":"184","title":"Scissor Tickles Miles Madden","uploadTitle":"Scissor Tickles Miles Madden","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":88,"num":"185","title":"Foxxy Double Domination","uploadTitle":"Foxxy Double Domination","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":89,"num":"186","title":"CPR Emergency - Brigit Heart Sinthia Bee and Lu...","uploadTitle":"CPR Emergency - Brigit Heart Sinthia Bee and Lux Gray","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":90,"num":"187","title":"Lux Sinthia Bellybutton","uploadTitle":"Lux Sinthia Bellybutton","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":91,"num":"188","title":"Lux Sinthia CPR","uploadTitle":"Lux Sinthia CPR","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":92,"num":"189","title":"Math","uploadTitle":"Math","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":93,"num":"190","title":"Math 2","uploadTitle":"Math 2","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":94,"num":"191","title":"Math 3","uploadTitle":"Math 3","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":95,"num":"192","title":"Brigit and VeVe Session with Mat Paris 2","uploadTitle":"Brigit and VeVe Session with Mat Paris 2","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":96,"num":"193","title":"Lana Boxing","uploadTitle":"Brigit Heart Dominates Lana Luxor","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":97,"num":"194","title":"NYC Ricardo","uploadTitle":"NYC Ricardo","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":98,"num":"195","title":"London Ricardo","uploadTitle":"London Ricardo","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":99,"num":"196","title":"Foxxy Holiday","uploadTitle":"Foxxy Holiday","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":100,"num":"197","title":"Foxxy Scissors","uploadTitle":"Foxxy Scissors","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":101,"num":"198","title":"Squish Scissors","uploadTitle":"Squish Scissors","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":102,"num":"199","title":"Holiday Unwrap","uploadTitle":"Holiday Unwrap","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":103,"num":"200","title":"Jack","uploadTitle":"Jack","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":104,"num":"201","title":"Ali","uploadTitle":"Ali","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":105,"num":"202","title":"Hanz and Brigit Semi-Comp Domination at Doom Ma...","uploadTitle":"Hanz and Brigit Semi-Comp Domination at Doom Maidens","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":106,"num":"203","title":"Hanz's Beatdown Dream - Brigit Heart","uploadTitle":"Hanz's Beatdown Dream - Brigit Heart","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":107,"num":"204","title":"Brigit Heart Wrestles Her International Crush E...","uploadTitle":"Brigit Heart Wrestles Her International Crush Elliot - Berlin","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":108,"num":"205","title":"Brigit Heart Bed Wrestle Playtime with Hanz - S...","uploadTitle":"Brigit Heart Bed Wrestle Playtime with Hanz - Spatial Video","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":109,"num":"206","title":"Kink Astoria - Brigit Scissors Hanz","uploadTitle":"Kink Astoria - Brigit Scissors Hanz","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":110,"num":"207","title":"Elliot Dom","uploadTitle":"Elliot Dom","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":111,"num":"","title":"Cassie","uploadTitle":"Cassie","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":"Needs compliance paperwork"},{"id":112,"num":"","title":"El Nino","uploadTitle":"El Nino","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":"Needs compliance paperwork"},{"id":113,"num":"","title":"Elliot Crush","uploadTitle":"Elliot Crush","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":114,"num":"","title":"Hanz Hotel Playtime","uploadTitle":"Hanz Hotel Playtime","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":115,"num":"","title":"Petra Rosie","uploadTitle":"Petra Rosie","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":116,"num":"","title":"Pride Hanz Scissor","uploadTitle":"Pride Hanz Scissor","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":117,"num":"","title":"Princess Nikki Bondage","uploadTitle":"Princess Nikki Bondage","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":"Needs compliance paperwork"},{"id":118,"num":"","title":"Squish Christmas Blue Thong Scissors","uploadTitle":"Squish Christmas Blue Thong Scissors","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":119,"num":"","title":"Early Willy Boxing","uploadTitle":"Early Willy Boxing","status":"ready","length":"","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":120,"num":"","title":"Hanz Legscissors Landscape","uploadTitle":"Hanz Legscissors Landscape","status":"ready","length":"15:52","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":121,"num":"","title":"Red Plaid Top Hanz Landscape","uploadTitle":"Red Plaid Top Hanz Landscape","status":"ready","length":"17:11","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":122,"num":"","title":"Black Minidress Hanz Landscape","uploadTitle":"Black Minidress Hanz Landscape","status":"ready","length":"19:12","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":123,"num":"","title":"Hanz Legscissors Portrait","uploadTitle":"Hanz Legscissors Portrait","status":"ready","length":"15:52","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":124,"num":"","title":"Red Plaid Top Hanz Portrait","uploadTitle":"Red Plaid Top Hanz Portrait","status":"ready","length":"17:11","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":125,"num":"","title":"Black Minidress Hanz Portrait","uploadTitle":"Black Minidress Hanz Portrait","status":"ready","length":"19:12","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":126,"num":"","title":"Princess Nikki","uploadTitle":"Princess Nikki","status":"ready","length":"14:51","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":127,"num":"","title":"Colorful Shorts Miles","uploadTitle":"Colorful Shorts Miles","status":"ready","length":"20:34","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":128,"num":"","title":"Richard Budapest","uploadTitle":"Richard Budapest","status":"ready","length":"47:32","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":129,"num":"","title":"Elliot France Wrestle","uploadTitle":"Elliot France Wrestle","status":"ready","length":"7:09","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":130,"num":"","title":"Elliot Wrestle","uploadTitle":"Elliot Wrestle","status":"ready","length":"10:46","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":131,"num":"","title":"Elliot LnC Ankle","uploadTitle":"Elliot LnC Ankle","status":"ready","length":"10:09","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":132,"num":"","title":"Flow Arts","uploadTitle":"Flow Arts","status":"ready","length":"12:28","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"U","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":133,"num":"","title":"Math Roleplay","uploadTitle":"Math Roleplay","status":"ready","length":"28:22","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":134,"num":"","title":"Veve Math","uploadTitle":"Veve Math","status":"ready","length":"1 hr","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":135,"num":"","title":"Colorful Shorts Miles 2","uploadTitle":"Colorful Shorts Miles 2","status":"ready","length":"12:55","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":136,"num":"","title":"Black Bikini Miles","uploadTitle":"Black Bikini Miles","status":"ready","length":"14:23","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":137,"num":"","title":"Hoodie Squish","uploadTitle":"Hoodie Squish","status":"ready","length":"4:26","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":138,"num":"","title":"Squish Leopard Scissors","uploadTitle":"Squish Leopard Scissors","status":"ready","length":"11:33","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":139,"num":"","title":"Squish Scissor","uploadTitle":"Squish Scissor","status":"ready","length":"5:21","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":140,"num":"","title":"Green Hood Purple Rope","uploadTitle":"Green Hood Purple Rope","status":"ready","length":"14:24","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":141,"num":"","title":"Red Velvet Punching Bag","uploadTitle":"Red Velvet Punching Bag","status":"ready","length":"4:56","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":142,"num":"","title":"Punching Bag","uploadTitle":"Punching Bag","status":"ready","length":"8:03","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":143,"num":"","title":"Hanz Hotel Dom","uploadTitle":"Hanz Hotel Dom","status":"ready","length":"13:35","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":144,"num":"","title":"Hanz Hotel Interrogation","uploadTitle":"Hanz Hotel Interrogation","status":"ready","length":"12:17","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"U"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":145,"num":"","title":"Elliot LnC","uploadTitle":"Elliot LnC","status":"ready","length":"6:32","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""},{"id":146,"num":"","title":"Richard Monica","uploadTitle":"Richard Monica","status":"ready","length":"9:38","desc":"","keywords":[],"thumbnail":false,"nfGbCover":false,"preview":false,"platforms":{"LF":"P","C4S":"P"},"platformDates":{"LF":"","C4S":""},"notes":""}];
+
+function expandRow(r){
+  return {id:r[0],title:r[1],uploadTitle:r[2],status:r[3],length:r[4],
+    desc:r[5],keywords:r[6],thumbnail:r[7],nfGbCover:r[8],preview:r[9],
+    platforms:{SM:r[10],MFC:r[11],CB:r[12],SC:r[13],NF:r[14],SP:r[15],C4S:r[16]},
+    platformDates:{SM:'',MFC:'',CB:'',SC:'',NF:'',SP:'',C4S:''},notes:r[17]};
+}
+
+// ── STATE ──────────────────────────────────────────────────────
+var creator='LG';
+var clips=[],tab='queue',expanded=false,editField=null,addingNew=false,nextId=200;
+var openGroups={};
+var dragState=null;
+var pipeSearch='';
+var calMonth=new Date().getMonth(),calYear=new Date().getFullYear();
+var calPlatFilter='C4S';
+var calSearch='';
+
+// Consulting / timer state
+var consulting={hoursPerInvoice:10,rate:50,currency:'$',currentPeriodStart:new Date().toISOString().split('T')[0],currentPeriodSeconds:0,sessions:[],invoices:[],nextSessionId:1,nextInvoiceId:1,nextInvoiceNum:1};
+var timerRunning=false,timerStartMs=0,timerInterval=null;
+var manualEntryOpen=false,editPeriodStart=false;
+
+function storageKey(){return 'lg-v8-'+creator;}
+function consultingKey(){return 'lg-consulting-'+creator;}
+function defaultConsulting(){
+  var cfg=CREATOR_CONFIG[creator]||{rate:50,currency:'$'};
+  return {hoursPerInvoice:10,rate:cfg.rate,currency:cfg.currency,currentPeriodStart:todayStr(),currentPeriodSeconds:0,sessions:[],invoices:[],nextSessionId:1,nextInvoiceId:1,nextInvoiceNum:1};
+}
+function loadConsulting(){
+  if(creator==='LG'){consulting=defaultConsulting();return;}
+  try{
+    var s=store.getItem(consultingKey());
+    if(s){
+      consulting=JSON.parse(s);
+      // fill missing fields
+      if(!consulting.rate)consulting.rate=(CREATOR_CONFIG[creator]||{rate:50}).rate;
+      if(!consulting.currency)consulting.currency=(CREATOR_CONFIG[creator]||{currency:'$'}).currency;
+      if(!consulting.nextInvoiceNum)consulting.nextInvoiceNum=consulting.nextInvoiceId||1;
+    } else {consulting=defaultConsulting();}
+  }catch(e){consulting=defaultConsulting();}
+  manualEntryOpen=false;editPeriodStart=false;
+}
+function saveConsulting(){
+  if(creator==='LG')return;
+  try{store.setItem(consultingKey(),JSON.stringify(consulting));}catch(e){}
+}
+
+function normalizePlatforms(clipArr){
+  // BH_INITIAL_CLIPS (and old backups) store "P","U","N","PR" as single-letter shorthands;
+  // runtime constants are full words. Normalize on load so all comparisons work.
+  var shortMap={'P':P,'U':U,'N':N,'PR':PR};
+  clipArr.forEach(function(c){
+    if(!c.platforms)return;
+    Object.keys(c.platforms).forEach(function(pl){
+      if(shortMap[c.platforms[pl]])c.platforms[pl]=shortMap[c.platforms[pl]];
+    });
+    if(!c.platformDates)c.platformDates={};
+    PL.forEach(function(pl){if(typeof c.platformDates[pl]==='undefined')c.platformDates[pl]='';});
+    ['SM','MFC','CB','SC','NF','SP','C4S','LF'].forEach(function(pl){if(typeof c.platformDates[pl]==='undefined')c.platformDates[pl]='';});
+  });
+  return clipArr;
+}
+var BH_NUM_MAP=(function(){
+  var m={};
+  var rows=[
+    ['101','Bettie LnC'],['102','Ruby Pride Blindfolds'],['104','Jackie Erotic'],
+    ['105','Discipline Hanz'],['106','Ruby Oil'],['107','Ruby Semi Comp'],
+    ['108','Sinthia Playtime'],['109','Hanz Pride'],['110','Little Lyra'],
+    ['111','Miles in Miami'],['112','Miles Lone Star'],['113','Miles NYC'],
+    ['114','Cay Baby'],['115','Miles Oil'],['116','Cay Scissors'],
+    ['117','Hanz Semi DM'],['117','Tatiana'],['118','Elliot LnC'],
+    ['118','Hanz Beatdown Dream'],['119','Veve Foot Comparison'],
+    ['120','Veve Foot Comparison Rematch'],['121','Elliot Round 1 NYC'],
+    ['122','Elliot NYC 2'],['123','Andi'],['124','Getting a Foot Massage'],
+    ['126','Elliot France 1'],['126','Elliot France Round 1'],
+    ['127','Hanz Hotel Domination'],['128','Sugar Barcelona'],['129','Mel Fire'],
+    ['130','Alice Mayflower'],['132','Queen and Princess'],['133','Elliot France 2'],
+    ['133','Elliot France Round 2'],['133','Sinthia Barcelona'],
+    ['134','Veve Slap Fight'],['135','Sabrina'],['136','Veve Math Double Dom 1'],
+    ['137','Veve Math Double Dom 2'],['138','Veve Math Double Dom3'],
+    ['139','Elliot Boxing Milano'],['140','Sugar LnC'],['141','Hanz Playful'],
+    ['142','Rage Holiday'],['143','Rage Round 2'],['144','Rage BeatCreeper'],
+    ['145','Rage Mik'],['146','2v1 Cay Brigit v Hanz'],['147','Craig Miami Miles'],
+    ['148','Miles Comp'],['148','Miles Round 3 NYC'],['149','Miles Round 2 NYC'],
+    ['150','Miles Madden NYC'],['151','Petra Oct 12'],
+    ['152','Petra Brigit vs Rosie Kami'],['153','2v1 Lana Brigit v Veve'],
+    ['154','Lyra'],['155','Amazon Dolly'],['156','Antscha'],
+    ['157','Dominate Foxxy'],['158','Udo'],['159','Petra Lamb'],
+    ['160','Valentines Boyfriend'],['160','Valentine Boyfriend'],
+    ['161','Steve Strength Scissors'],['162','Steve Superwoman'],
+    ['163','Talia Rematch'],['164','Blaze BJJ Instructor'],['165','Hanz Mixed'],
+    ['166','Petra Round 1 March 15'],['167','Petra Round 2 March 15'],
+    ['168','Andi Miss Frog'],['169','Andi Kami'],
+    ['170','T Budapest Sensual Scissors and Facesitting'],
+    ['171','Alexis and Lamb'],['172','Kira'],['173','Candy Cane Scissor Trampling'],
+    ['174','Veve Ass Comparison and Worship'],['175','Foxxy Brigit v Steve'],
+    ['176','Andi Hanz'],['177','Brigit Hanz Lux Kami Tag Team'],
+    ['178','Sinthia Strength Challenge'],['179','Sinthia Cage'],
+    ['180','Hanz Cage Wrestle'],['181','Lana Ex-Girlfriends'],
+    ['182','Submit and Congratulate'],['183','Scissor Dominate Joe'],
+    ['184','Scissor Tickles Miles Madden'],['185','Foxxy Double Domination'],
+    ['187','Lux Sinthia Bellybutton'],['188','Lux Sinthia CPR'],
+    ['193','Lana Boxing'],['194','NYC Ricardo'],['195','London Ricardo'],
+    ['196','Foxxy Holiday'],['197','Foxxy Scissors'],['198','Squish Scissors'],
+    ['199','Holiday Unwrap'],['200','Jack'],['201','Ali']
+  ];
+  function norm(t){return t.toLowerCase().replace(/[^a-z0-9]/g,'');}
+  rows.forEach(function(r){m[norm(r[1])]=r[0];});
+  return m;
+})();
+function applyBHNums(){
+  if(creator!=='BH')return;
+  var changed=false;
+  function norm(t){return t.toLowerCase().replace(/[^a-z0-9]/g,'');}
+  clips.forEach(function(c){
+    if(c.num)return;
+    var k=norm(c.title);
+    if(BH_NUM_MAP[k]){c.num='#'+BH_NUM_MAP[k];changed=true;return;}
+    // partial: map key starts with clip key or vice versa (min 6 chars)
+    var keys=Object.keys(BH_NUM_MAP);
+    for(var i=0;i<keys.length;i++){
+      var mk=keys[i];
+      if(mk.length>=6&&k.length>=6&&(k.indexOf(mk)===0||mk.indexOf(k)===0)){
+        c.num='#'+BH_NUM_MAP[mk];changed=true;break;
+      }
+    }
+  });
+  if(changed)saveCreator();
+  // Assign IDs to any remaining clips that still have no num
+  var maxId=0;
+  clips.forEach(function(c){
+    if(c.num){var n=parseInt(c.num.replace(/[^0-9]/g,''));if(n>maxId)maxId=n;}
+  });
+  var needsId=clips.filter(function(c){return !c.num;});
+  if(needsId.length){
+    needsId.forEach(function(c){c.num='#'+(++maxId);});
+    saveCreator();
+  }
+}
+function loadCreator(){
+  try{
+    var s=store.getItem(storageKey());
+    if(s){
+      var p=JSON.parse(s);clips=p.clips;nextId=p.nextId||200;
+      normalizePlatforms(clips);
+    } else if(creator==='LG'){
+      clips=LG_RAW.map(expandRow);nextId=200;
+    } else if(creator==='BH'){
+      clips=normalizePlatforms(JSON.parse(JSON.stringify(BH_INITIAL_CLIPS)));nextId=147;
+    } else {
+      clips=[];nextId=1;
+    }
+  }catch(e){
+    clips=creator==='LG'?LG_RAW.map(expandRow):(creator==='BH'?normalizePlatforms(JSON.parse(JSON.stringify(BH_INITIAL_CLIPS))):[]);nextId=creator==='LG'?200:(creator==='BH'?147:1);
+  }
+  applyBHNums();
+}
+
+function saveCreator(){
+  try{store.setItem(storageKey(),JSON.stringify({clips:clips,nextId:nextId}));}catch(e){}
+}
+
+function exportData(){
+  var data={};
+  ['LG','BH','LV'].forEach(function(k){
+    var cs=localStorage.getItem('lg-v8-'+k);
+    var co=localStorage.getItem('lg-consulting-'+k);
+    if(cs)data['clips_'+k]=JSON.parse(cs);
+    if(co)data['consulting_'+k]=JSON.parse(co);
+  });
+  var blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='lg-dashboard-backup-'+new Date().toISOString().split('T')[0]+'.json';
+  a.click();
+}
+function importData(){
+  var inp=document.createElement('input');inp.type='file';inp.accept='.json';
+  inp.onchange=function(e){
+    var f=e.target.files[0];if(!f)return;
+    var r=new FileReader();
+    r.onload=function(ev){
+      try{
+        var data=JSON.parse(ev.target.result);
+        ['LG','BH','LV'].forEach(function(k){
+          if(data['clips_'+k])store.setItem('lg-v8-'+k,JSON.stringify(data['clips_'+k]));
+          if(data['consulting_'+k])store.setItem('lg-consulting-'+k,JSON.stringify(data['consulting_'+k]));
+        });
+        loadCreator();normalizePlatforms(clips);saveCreator();loadConsulting();render();
+        alert('Data restored! All your clips and timer data are back.');
+      }catch(ex){alert('Could not read backup file.');}
+    };
+    r.readAsText(f);
+  };
+  inp.click();
+}
+function switchCreator(key){
+  saveCreator();saveConsulting();
+  if(timerRunning)stopTimer(true);
+  creator=key;
+  PL=CREATOR_PLATFORMS[key]||['C4S'];
+  expanded=false;editField=null;addingNew=false;
+  openGroups={};tab='queue';
+  var cr=CREATORS[key];
+  document.documentElement.style.setProperty('--accent','var('+cr.accentVar+')');
+  document.documentElement.style.setProperty('--accent-bg','var('+cr.accentBg+')');
+  document.documentElement.style.setProperty('--accent-b','var('+cr.accentB+')');
+  if(key==='ALL'){clips=[];nextId=1;loadConsulting();render();}
+  else{loadCreator();loadConsulting();render();}
+}
+
+// ── LOGIC ──────────────────────────────────────────────────────
+function todayStr(){return new Date().toISOString().split('T')[0];}
+
+function firstIn(c,state){
+  var today=todayStr();var dates=c.platformDates||{};
+  var overdue=PL.filter(function(pl){return c.platforms[pl]===state&&dates[pl]&&dates[pl]<=today;});
+  overdue.sort(function(a,b){return dates[a]<dates[b]?-1:1;});
+  if(overdue.length)return overdue[0];
+  var future=PL.filter(function(pl){return c.platforms[pl]===state&&dates[pl]&&dates[pl]>today;});
+  future.sort(function(a,b){return dates[a]<dates[b]?-1:1;});
+  if(future.length)return future[0];
+  for(var i=0;i<PL.length;i++){if(c.platforms[PL[i]]===state)return PL[i];}
+  return null;
+}
+
+function getClipStep(c){
+  if(c.status==='idea')  return {type:'film',clip:c,pl:null};
+  if(c.status==='filmed')return {type:'edit',clip:c,pl:null};
+  if(!c.desc||c.desc.trim().length<10)       return {type:'write-desc',    clip:c,pl:null};
+  if(!c.uploadTitle||!c.uploadTitle.trim())  return {type:'write-title',   clip:c,pl:null};
+  if(!c.keywords||!c.keywords.length)        return {type:'write-keywords',clip:c,pl:null};
+  if(!c.thumbnail)                           return {type:'make-thumbnail',clip:c,pl:null};
+  if(creator==='LG'&&!c.nfGbCover)           return {type:'make-nfgbcover',clip:c,pl:null};
+  if(!c.preview)                             return {type:'make-preview',  clip:c,pl:null};
+  var pp=firstIn(c,P);if(pp)return {type:'upload', clip:c,pl:pp};
+  var up=firstIn(c,U);if(up)return {type:'promote',clip:c,pl:up};
+  return null;
+}
+
+var GPRI={'upload':0,'promote':1,'make-thumbnail':2,'make-nfgbcover':3,'make-preview':4,'write-desc':5,'write-title':6,'write-keywords':7,'edit':8,'film':9};
+var TCOLOR={'upload':'var(--rose)','promote':'var(--teal)','make-thumbnail':'var(--amber)','make-nfgbcover':'var(--amber)','make-preview':'var(--amber)','write-desc':'var(--violet)','write-title':'var(--violet)','write-keywords':'var(--violet)','edit':'var(--sky)','film':'var(--faint)'};
+var TLABEL={'upload':'Upload to','promote':'Promote on','make-thumbnail':'Make a thumbnail for','make-nfgbcover':'Make an NF GB Cover for','make-preview':'Make a preview for','write-desc':'Write a description for','write-title':'Write a title for','write-keywords':'Add keywords for','edit':'Edit','film':'Film'};
+
+function actionTitle(s){
+  var t=TLABEL[s.type]||s.type;
+  if(s.type==='upload'||s.type==='promote')return t+' '+s.pl;
+  return t+' "'+s.clip.title+'"';
+}
+function getNext(){
+  var all=[];clips.forEach(function(c){var s=getClipStep(c);if(s)all.push(s);});
+  if(!all.length)return null;
+  all.sort(function(a,b){var pa=GPRI[a.type]||99,pb=GPRI[b.type]||99;return pa!==pb?pa-pb:a.clip.id-b.clip.id;});
+  return all[0];
+}
+function getCounts(){
+  var o={upload:0,promote:0,assets:0,desc:0,title:0,keywords:0,edit:0,film:0,done:0};
+  clips.forEach(function(c){
+    var s=getClipStep(c);if(!s){o.done++;return;}
+    if(s.type==='upload')o.upload++;
+    else if(s.type==='promote')o.promote++;
+    else if(s.type.indexOf('make-')===0)o.assets++;
+    else if(s.type==='write-desc')o.desc++;
+    else if(s.type==='write-title')o.title++;
+    else if(s.type==='write-keywords')o.keywords++;
+    else if(s.type==='edit')o.edit++;
+    else if(s.type==='film')o.film++;
+  });
+  return o;
+}
+function clipsForTypes(types){
+  return clips.filter(function(c){var s=getClipStep(c);return s&&types.indexOf(s.type)>=0;}).sort(function(a,b){return a.id-b.id;});
+}
+function doneClips(){return clips.filter(function(c){return !getClipStep(c);});}
+
+// ── SIMPLE MODE (BH / LV) ─────────────────────────────────────
+function isSimple(){return creator!=='LG';}
+function clipUploadedSimple(c){
+  return PL.every(function(pl){return c.platforms[pl]===U||c.platforms[pl]===PR||c.platforms[pl]===N;});
+}
+function getClipStepSimple(c){
+  var pp=firstIn(c,P);if(pp)return {type:'upload',clip:c,pl:pp};
+  return null;
+}
+function getNextSimple(){
+  var today=todayStr();
+  var pending=clips.filter(function(c){return !clipUploadedSimple(c);});
+  if(!pending.length)return null;
+  // sort by earliest scheduled date, then by id
+  pending.sort(function(a,b){
+    var da=a.platformDates&&a.platformDates[firstIn(a,P)||PL[0]]||'9999';
+    var db=b.platformDates&&b.platformDates[firstIn(b,P)||PL[0]]||'9999';
+    return da<db?-1:da>db?1:a.id-b.id;
+  });
+  var c=pending[0];var pp=firstIn(c,P);
+  return {type:'upload',clip:c,pl:pp||PL[0]};
+}
+function doneClipsSimple(){return clips.filter(function(c){return clipUploadedSimple(c);});}
+
+function dailyMsg(){return MESSAGES[(new Date().getDate()-1)%MESSAGES.length];}
+function getCalEvents(){
+  var evs={};
+  clips.forEach(function(c){
+    var dates=c.platformDates||{};
+    PL.forEach(function(pl){
+      var d=dates[pl];if(!d||c.platforms[pl]===N)return;
+      // LF shouldn't appear on calendar until C4S is uploaded
+      if(pl==='LF'&&c.platforms['C4S']===P)return;
+      if(!evs[d])evs[d]=[];
+      evs[d].push({clip:c,platform:pl,status:c.platforms[pl]});
+    });
+  });
+  return evs;
+}
+function getAllCalEvents(){
+  var evs={};
+  var crColors={LG:'#c4506a',BH:'#7272b8',LV:'#3a8c80'};
+  var crPL={LG:['SM','MFC','CB','SC','NF','SP','C4S'],BH:['LF','C4S'],LV:['C4S']};
+  ['LG','BH','LV'].forEach(function(cr){
+    var s=localStorage.getItem('lg-v8-'+cr);if(!s)return;
+    try{
+      var p=JSON.parse(s);
+      (p.clips||[]).forEach(function(c){
+        var dates=c.platformDates||{};
+        (crPL[cr]||[]).forEach(function(pl){
+          var d=dates[pl];if(!d||c.platforms[pl]===N)return;
+          if(pl==='LF'&&c.platforms['C4S']===P)return;
+          if(!evs[d])evs[d]=[];
+          evs[d].push({clip:c,platform:pl,status:c.platforms[pl],creator:cr,color:crColors[cr]});
+        });
+      });
+    }catch(e){}
+  });
+  return evs;
+}
+function fmtDate(d){
+  if(!d)return '';var parts=d.split('-');
+  var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return m[parseInt(parts[1])-1]+' '+parseInt(parts[2]);
+}
+
+// ── MUTATIONS ──────────────────────────────────────────────────
+function cyclePlatform(id,pl){
+  var c=clips.find(function(x){return x.id===id;});if(!c)return;
+  var cur=c.platforms[pl];
+  if(cur===P)c.platforms[pl]=U;else if(cur===U)c.platforms[pl]=PR;else c.platforms[pl]=P;
+  var allDone=PL.every(function(q){return c.platforms[q]===PR||c.platforms[q]===N;});
+  if(allDone&&c.status!=='uploaded')c.status='uploaded';
+  saveCreator();render();
+}
+function toggleNA(id,pl){
+  var c=clips.find(function(x){return x.id===id;});if(!c)return;
+  if(c.platforms[pl]===N){c.platforms[pl]=P;}
+  else{c.platforms[pl]=N;if(c.platformDates)c.platformDates[pl]='';}
+  saveCreator();render();
+}
+function setPlatformDate(id,pl,val){
+  var c=clips.find(function(x){return x.id===id;});if(!c)return;
+  if(!c.platformDates)c.platformDates={SM:'',MFC:'',CB:'',SC:'',NF:'',SP:'',C4S:''};
+  c.platformDates[pl]=val;
+  if(val&&c.platforms[pl]===N)c.platforms[pl]=P;
+  saveCreator();render();
+}
+function toggleCheck(id,field){
+  var c=clips.find(function(x){return x.id===id;});if(!c)return;
+  c[field]=!c[field];saveCreator();render();
+}
+function saveF(id,field,value){
+  var c=clips.find(function(x){return x.id===id;});if(!c)return;
+  if(field==='num'&&value.trim()){
+    var norm=value.trim().replace(/^#+/,'');
+    var dup=clips.find(function(x){return x.id!==id&&x.num&&x.num.replace(/^#+/,'')===norm;});
+    if(dup){alert('ID #'+norm+' is already used by "'+dup.title+'". Please choose a different number.');return;}
+    value='#'+norm;
+  }
+  if(field==='keywords')c.keywords=value.split(',').map(function(k){return k.trim();}).filter(Boolean);
+  else c[field]=value;
+  editField=null;saveCreator();render();
+}
+function advanceStatus(id){
+  var c=clips.find(function(x){return x.id===id;});if(!c)return;
+  var ord=['idea','filmed','edited','uploaded'];var i=ord.indexOf(c.status);
+  if(i>=0&&i<ord.length-1)c.status=ord[i+1];
+  saveCreator();render();
+}
+function nextClipNum(){
+  var max=0;
+  clips.forEach(function(c){if(c.num){var n=parseInt(c.num.replace(/[^0-9]/g,''));if(n>max)max=n;}});
+  return '#'+(max+1);
+}
+function doAddClip(title,status,num,length,date){
+  if(!title.trim())return;
+  var pl={};PL.forEach(function(p){pl[p]=P;});
+  var pld={};PL.forEach(function(p){pld[p]=date||'';});
+  var assignedNum=num&&num.trim()?num.trim():nextClipNum();
+  clips.push({id:nextId++,num:assignedNum,title:title.trim(),uploadTitle:'',keywords:[],status:status,
+    length:length||'',desc:'',thumbnail:false,nfGbCover:false,preview:false,platforms:pl,platformDates:pld,notes:''});
+  addingNew=false;saveCreator();render();
+}
+function doRemove(id){
+  if(!confirm('Remove clip #'+id+'?'))return;
+  clips=clips.filter(function(c){return c.id!==id;});saveCreator();render();
+}
+function jumpToClip(id){
+  if(isSimple()){tab='pipe';}else{tab='queue';}
+  expanded=id;editField=null;render();
+}
+function prevMonth(){calMonth--;if(calMonth<0){calMonth=11;calYear--;}render();}
+function nextMonth(){calMonth++;if(calMonth>11){calMonth=0;calYear++;}render();}
+
+// ── HELPERS ────────────────────────────────────────────────────
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function fid(id){return '#'+String(id).padStart(3,'0');}
+
+function renderField(c,field,label,placeholder){
+  var isE=editField&&editField.id===c.id&&editField.field===field;
+  var eid='fe_'+c.id+'_'+field;
+  var h='<div class="field-row"><div class="field-lbl">'+label+'</div>';
+  if(isE){
+    if(field==='desc')h+='<textarea id="'+eid+'">'+esc(c.desc||'')+'</textarea>';
+    else if(field==='keywords')h+='<input type="text" id="'+eid+'" value="'+esc((c.keywords||[]).join(', '))+'" placeholder="comma, separated, tags">';
+    else h+='<input type="text" id="'+eid+'" value="'+esc(c[field]||'')+'" placeholder="'+esc(placeholder)+'">';
+    h+='<div class="btn-row"><button class="btn btn-dark" onclick="saveF('+c.id+',\''+field+'\',document.getElementById(\''+eid+'\').value)">Save</button>';
+    h+='<button class="btn btn-ghost" onclick="editField=null;render()">Cancel</button></div>';
+  } else {
+    if(field==='keywords'){
+      var kws=c.keywords||[];
+      h+='<div class="kw-wrap" onclick="editField={id:'+c.id+',field:\'keywords\'};render()">';
+      if(kws.length)kws.forEach(function(k){h+='<span class="kw-chip">'+esc(k)+'</span>';});
+      else h+='<span class="field-val empty">click to add keywords</span>';
+      h+='</div>';
+    } else {
+      var val=c[field]||'';
+      h+='<div class="field-val'+(val?'':' empty')+'" onclick="editField={id:'+c.id+',field:\''+field+'\'};render()">';
+      h+=val?esc(val):esc(placeholder)+' — click to add';h+='</div>';
+    }
+  }
+  h+='</div>';return h;
+}
+
+function renderAssets(c){
+  var items=[{f:'thumbnail',l:'Thumbnail'}];
+  if(creator==='LG')items.push({f:'nfGbCover',l:'NF GB Cover'});
+  items.push({f:'preview',l:'Preview'});
+  var h='<div class="field-row"><div class="field-lbl">Assets</div><div class="asset-checks">';
+  items.forEach(function(it){
+    var done=c[it.f];
+    h+='<div class="ack'+(done?' done':'')+'" onclick="toggleCheck('+c.id+',\''+it.f+'\')">';
+    h+='<div class="ack-box">'+(done?'<svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3 5-6" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>':'')+'</div>';
+    h+='<span class="ack-lbl">'+it.l+'</span></div>';
+  });
+  h+='</div></div>';return h;
+}
+
+function renderPlatforms(c){
+  var today=todayStr();var dates=c.platformDates||{};
+  // Single-platform: simplified "Upload by" view
+  if(PL.length===1){
+    var pl=PL[0];var st=c.platforms[pl]||P;var dateVal=dates[pl]||'';
+    var isOverdue=dateVal&&dateVal<=today&&st===P;
+    var h='<div class="field-row"><div class="field-lbl">Upload by ('+pl+')</div>';
+    h+='<div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">';
+    h+='<div style="flex:1;min-width:160px">';
+    if(st===PR){h+='<div style="font-size:15px;color:var(--green);font-weight:600;padding:10px 0">★ Promoted on '+pl+'</div>';}
+    else if(st===U){
+      h+='<div style="display:flex;flex-direction:column;gap:6px;padding:6px 0">';
+      h+='<div style="font-size:13px;color:var(--muted)">Date uploaded</div>';
+      h+='<input type="date" value="'+esc(dateVal)+'" onchange="setUploadDate('+c.id+',\''+pl+'\',this.value)">';
+      if(!dateVal)h+='<div style="font-size:12px;color:var(--faint)">Date unknown</div>';
+      h+='</div>';
+    }
+    else{
+      h+='<div style="display:flex;flex-direction:column;gap:6px;padding:6px 0">';
+      h+='<div style="font-size:13px;color:var(--muted)">Schedule for</div>';
+      h+='<input type="date" value="'+esc(dateVal)+'" onchange="setPlatformDate('+c.id+',\''+pl+'\',this.value)">';
+      if(isOverdue)h+='<div class="plat-date-due">⚠ Overdue</div>';
+      h+='<label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer">';
+      h+='<input type="checkbox" onchange="if(this.checked)markUploadedUnknown('+c.id+',\''+pl+'\')"> Uploaded (no date)</label>';
+      h+='</div>';
+    }
+    h+='</div>';
+    h+='<div style="display:flex;gap:7px;flex-shrink:0;padding-top:2px">';
+    if(st===P)h+='<button class="pst-btn" onclick="cyclePlatform('+c.id+',\''+pl+'\')">□ Pending</button>';
+    else if(st===U)h+='<button class="pst-btn is-up" onclick="cyclePlatform('+c.id+',\''+pl+'\')">▲ Uploaded</button>';
+    else if(st===PR)h+='<button class="pst-btn is-pr" onclick="cyclePlatform('+c.id+',\''+pl+'\')">★ Promoted</button>';
+    h+='</div></div></div>';return h;
+  }
+  // Multi-platform: full table
+  var h='<div class="field-row"><div class="field-lbl">Upload Schedule</div><div class="plat-table">';
+  PL.forEach(function(pl){
+    var st=c.platforms[pl];if(typeof st==='undefined')st=P;var isNA=st===N;var dateVal=dates[pl]||'';
+    var isOverdue=dateVal&&dateVal<=today&&st===P;
+    h+='<div class="plat-row'+(isNA?' na-row-dim':'')+'">';
+    h+='<div class="plat-name-lbl">'+pl+'</div>';
+    h+='<div class="plat-date-col">';
+    if(!isNA){
+      if(st===PR){h+='<div style="font-size:14px;color:var(--green);font-weight:600">★ Promoted</div>';}
+      else if(st===U){
+        h+='<div style="display:flex;flex-direction:column;gap:4px">';
+        h+='<input type="date" value="'+esc(dateVal)+'" placeholder="Upload date" onchange="setUploadDate('+c.id+',\''+pl+'\',this.value)" style="font-size:13px">';
+        if(!dateVal)h+='<div style="font-size:11px;color:var(--faint)">Date unknown</div>';
+        h+='</div>';
+      }
+      else{
+        h+='<div style="display:flex;flex-direction:column;gap:4px">';
+        h+='<input type="date" value="'+esc(dateVal)+'" onchange="setPlatformDate('+c.id+',\''+pl+'\',this.value)" style="font-size:13px">';
+        if(isOverdue)h+='<div class="plat-date-due">⚠ Overdue</div>';
+        h+='<label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);cursor:pointer">';
+        h+='<input type="checkbox" onchange="if(this.checked)markUploadedUnknown('+c.id+',\''+pl+'\')"> No date</label>';
+        h+='</div>';
+      }
+    } else {h+='<span class="no-date">Not applicable</span>';}
+    h+='</div>';
+    h+='<div class="plat-status-col">';
+    if(!isNA){
+      if(st===P)h+='<button class="pst-btn" onclick="cyclePlatform('+c.id+',\''+pl+'\')">□ Pending</button>';
+      else if(st===U)h+='<button class="pst-btn is-up" onclick="cyclePlatform('+c.id+',\''+pl+'\')">▲ Uploaded</button>';
+      else if(st===PR)h+='<button class="pst-btn is-pr" onclick="cyclePlatform('+c.id+',\''+pl+'\')">★ Promoted</button>';
+    }
+    h+='</div>';
+    h+='<button class="pna-btn'+(isNA?' na-on':'')+'" onclick="toggleNA('+c.id+',\''+pl+'\')">N/A</button>';
+    h+='</div>';
+  });
+  h+='</div></div>';return h;
+}
+
+function renderActionPanel(step){
+  var c=step.clip,t=step.type,pl=step.pl;
+  var h='<div class="action-panel">';
+  if(t==='upload'){
+    var dv=c.platformDates&&c.platformDates[pl]?fmtDate(c.platformDates[pl]):'';
+    h+='<div class="action-panel-lbl">Mark as uploaded to '+pl+(dv?' (scheduled '+dv+')':'')+'</div>';
+    h+='<button class="plat-action-btn upload-btn" onclick="cyclePlatform('+c.id+',\''+pl+'\')">▲&nbsp; Done — Uploaded to '+pl+'</button>';
+  } else if(t==='promote'){
+    h+='<div class="action-panel-lbl">Mark as promoted on '+pl+'</div>';
+    h+='<button class="plat-action-btn promo-btn" onclick="cyclePlatform('+c.id+',\''+pl+'\')">★&nbsp; Done — Promoted on '+pl+'</button>';
+  } else if(t==='write-desc'){
+    h+='<div class="action-panel-lbl">Write the description</div>';
+    var isE=editField&&editField.id===c.id&&editField.field==='desc';
+    if(isE){
+      h+='<textarea id="fe_'+c.id+'_desc" style="min-height:100px">'+esc(c.desc||'')+'</textarea>';
+      h+='<div class="btn-row"><button class="btn btn-dark" onclick="saveF('+c.id+',\'desc\',document.getElementById(\'fe_'+c.id+'_desc\').value)">Save description</button>';
+      h+='<button class="btn btn-ghost" onclick="editField=null;render()">Cancel</button></div>';
+    } else {
+      h+='<div class="field-val'+(c.desc&&c.desc.trim().length>10?'':' empty')+'" onclick="editField={id:'+c.id+',field:\'desc\'};render()" style="min-height:70px">';
+      h+=(c.desc&&c.desc.trim().length>10)?esc(c.desc):'Click to write description…';h+='</div>';
+    }
+  } else if(t==='write-title'){
+    h+='<div class="action-panel-lbl">Upload title</div>';
+    var isE2=editField&&editField.id===c.id&&editField.field==='uploadTitle';
+    if(isE2){
+      h+='<input type="text" id="fe_'+c.id+'_uploadTitle" value="'+esc(c.uploadTitle||'')+'" placeholder="How it will appear on the platform">';
+      h+='<div class="btn-row"><button class="btn btn-dark" onclick="saveF('+c.id+',\'uploadTitle\',document.getElementById(\'fe_'+c.id+'_uploadTitle\').value)">Save title</button>';
+      h+='<button class="btn btn-ghost" onclick="editField=null;render()">Cancel</button></div>';
+    } else {
+      h+='<div class="field-val'+(c.uploadTitle?'':' empty')+'" onclick="editField={id:'+c.id+',field:\'uploadTitle\'};render()" style="min-height:50px">';
+      h+=c.uploadTitle?esc(c.uploadTitle):'Click to write upload title…';h+='</div>';
+    }
+  } else if(t==='write-keywords'){
+    h+='<div class="action-panel-lbl">Keywords</div>';
+    var isE3=editField&&editField.id===c.id&&editField.field==='keywords';
+    if(isE3){
+      h+='<input type="text" id="fe_'+c.id+'_keywords" value="'+esc((c.keywords||[]).join(', '))+'" placeholder="comma, separated, tags">';
+      h+='<div class="btn-row"><button class="btn btn-dark" onclick="saveF('+c.id+',\'keywords\',document.getElementById(\'fe_'+c.id+'_keywords\').value)">Save keywords</button>';
+      h+='<button class="btn btn-ghost" onclick="editField=null;render()">Cancel</button></div>';
+    } else {
+      var kws2=c.keywords||[];
+      h+='<div onclick="editField={id:'+c.id+',field:\'keywords\'};render()" style="cursor:pointer">';
+      if(kws2.length){h+='<div class="kw-wrap">';kws2.forEach(function(k){h+='<span class="kw-chip">'+esc(k)+'</span>';});h+='</div>';}
+      else h+='<div class="field-val empty" style="min-height:50px">Click to add keywords…</div>';
+      h+='</div>';
+    }
+  } else if(t.indexOf('make-')===0){
+    var fm={'make-thumbnail':'thumbnail','make-nfgbcover':'nfGbCover','make-preview':'preview'};
+    var f2=fm[t];var done2=c[f2];
+    h+='<div class="action-panel-lbl">Check off when done</div>';
+    h+='<div class="big-check'+(done2?' checked':'')+'" onclick="toggleCheck('+c.id+',\''+f2+'\')">';
+    h+='<div class="check-box">'+(done2?'<svg width="13" height="10" viewBox="0 0 13 10" fill="none"><path d="M1 5l4 4 7-8" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>':'')+'</div>';
+    h+='<span class="check-txt">'+(done2?'Done! ✨':'Mark as complete when ready')+'</span></div>';
+  } else if(t==='edit'){
+    h+='<div class="action-panel-lbl">Mark this clip as edited</div>';
+    h+='<button class="plat-action-btn" onclick="advanceStatus('+c.id+')">✓&nbsp; Mark as Edited</button>';
+  } else if(t==='film'){
+    h+='<div class="action-panel-lbl">Mark this idea as filmed</div>';
+    h+='<button class="plat-action-btn" onclick="advanceStatus('+c.id+')">✓&nbsp; Mark as Filmed</button>';
+  }
+  h+='</div>';return h;
+}
+
+function renderAddForm(){
+  if(!addingNew)return '<div class="add-wrap"><button class="add-btn" onclick="addingNew=true;render()">+ Add clip'+(isSimple()?'':' or idea')+'</button></div>';
+  if(isSimple()){
+    return '<div class="add-wrap"><div class="add-form">'+
+      '<input type="hidden" id="new-status" value="uploaded">'+
+      '<input type="text" id="new-title" placeholder="Clip title…" onkeydown="if(event.key===\'Enter\')doAdd()">'+
+      '<div style="display:flex;gap:8px">'+
+        '<input type="text" id="new-num" placeholder="Clip # (e.g. 101)" style="flex:1">'+
+        '<input type="text" id="new-length" placeholder="Length (e.g. 12:34)" style="flex:1">'+
+      '</div>'+
+      '<div style="display:flex;align-items:center;gap:8px">'+
+        '<label style="font-size:13px;color:var(--muted);white-space:nowrap">Upload by</label>'+
+        '<input type="date" id="new-date" style="flex:1">'+
+      '</div>'+
+      '<div class="btn-row"><button class="btn btn-dark" onclick="doAdd()">Add</button>'+
+      '<button class="btn btn-ghost" onclick="addingNew=false;render()">Cancel</button></div>'+
+    '</div></div>';
+  }
+  return '<div class="add-wrap"><div class="add-form">'+
+    '<input type="text" id="new-title" placeholder="Clip title…" onkeydown="if(event.key===\'Enter\')doAdd()">'+
+    '<select id="new-status"><option value="idea">Idea — not filmed yet</option>'+
+    '<option value="filmed">Filmed — needs editing</option>'+
+    '<option value="edited">Edited — needs prep</option></select>'+
+    '<div class="btn-row"><button class="btn btn-dark" onclick="doAdd()">Add</button>'+
+    '<button class="btn btn-ghost" onclick="addingNew=false;render()">Cancel</button></div></div></div>';
+}
+
+function setUploadDate(id,pl,date){
+  var c=clips.find(function(x){return x.id===id;});if(!c)return;
+  if(!c.platformDates)c.platformDates={};
+  c.platformDates[pl]=date;
+  if(date)c.platforms[pl]=U; // entering a date auto-marks as uploaded
+  saveCreator();render();
+}
+function markUploadedUnknown(id,pl){
+  var c=clips.find(function(x){return x.id===id;});if(!c)return;
+  c.platforms[pl]=U;
+  if(!c.platformDates)c.platformDates={};
+  c.platformDates[pl]=''; // no date
+  saveCreator();render();
+}
+function startCalDrag(e,clipId,platform){
+  dragState={clipId:clipId,platform:platform};
+  e.dataTransfer.effectAllowed='move';
+  e.dataTransfer.setData('text/plain',clipId+'|'+platform);
+}
+function calDragOver(e){
+  e.preventDefault();e.dataTransfer.dropEffect='move';
+  e.currentTarget.classList.add('cal-drop-hover');
+}
+function calDragLeave(e){
+  e.currentTarget.classList.remove('cal-drop-hover');
+}
+function calDrop(e,dateStr){
+  e.preventDefault();e.currentTarget.classList.remove('cal-drop-hover');
+  if(!dragState)return;
+  var c=clips.find(function(x){return x.id===dragState.clipId;});
+  if(!c)return;
+  if(!c.platformDates)c.platformDates={};
+  if(dragState.platform==='__all__'){
+    PL.forEach(function(pl){if(c.platforms[pl]===P)c.platformDates[pl]=dateStr;});
+  } else {
+    c.platformDates[dragState.platform]=dateStr;
+  }
+  dragState=null;
+  saveCreator();render();
+}
+function renderAllCalendar(){
+  var MNAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var DNAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var today=todayStr();var evMap=getAllCalEvents();
+  var crLabel={LG:'LG',BH:'BH',LV:'LV'};
+  var h='<div class="cal-nav-row">';
+  h+='<button class="cal-nav-btn" onclick="prevMonth()">&#8592; Prev</button>';
+  h+='<div class="cal-month-lbl">'+MNAMES[calMonth]+' '+calYear+'</div>';
+  h+='<button class="cal-nav-btn" onclick="nextMonth()">Next &#8594;</button></div>';
+  h+='<div class="cal-legend" style="margin-bottom:12px">';
+  h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:#c4506a"></div>Lux Gray</div>';
+  h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:#7272b8"></div>Brigit Heart</div>';
+  h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:#3a8c80"></div>Lady Venus</div>';
+  h+='</div>';
+  h+='<div class="cal-grid">';
+  DNAMES.forEach(function(d){h+='<div class="cal-day-hdr">'+d+'</div>';});
+  var firstDay=new Date(calYear,calMonth,1).getDay();
+  var daysInMonth=new Date(calYear,calMonth+1,0).getDate();
+  for(var i=0;i<firstDay;i++)h+='<div class="cal-cell cal-empty"></div>';
+  for(var d=1;d<=daysInMonth;d++){
+    var ds=calYear+'-'+String(calMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    var isToday=ds===today;var isPast=ds<today;
+    var evs=evMap[ds]||[];
+    h+='<div class="cal-cell'+(isToday?' cal-today':'')+(isPast&&!isToday?' cal-past':'')+'">';
+    h+='<div class="cal-day-n">'+d+'</div>';
+    evs.slice(0,4).forEach(function(ev){
+      var short=ev.clip.title.length>14?ev.clip.title.substring(0,13)+'…':ev.clip.title;
+      var stIcon=ev.status===U?' ✓':ev.status===PR?' ★':'';
+      h+='<div class="cal-event" style="background:'+ev.color+';border-color:'+ev.color+';color:#fff" title="'+esc(ev.clip.title)+' ('+ev.creator+' / '+ev.platform+')">';
+      h+='<span class="cal-event-plat">'+ev.creator+'</span>'+esc(short)+stIcon+'</div>';
+    });
+    if(evs.length>4)h+='<div class="cal-more">+'+(evs.length-4)+' more</div>';
+    h+='</div>';
+  }
+  h+='</div>';
+  return h;
+}
+function renderCalendar(){
+  var MNAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var DNAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var today=todayStr();var evMap=getCalEvents();
+  var h='';
+  h+='<div class="cal-nav-row">';
+  h+='<button class="cal-nav-btn" onclick="prevMonth()">&#8592; Prev</button>';
+  h+='<div class="cal-month-lbl">'+MNAMES[calMonth]+' '+calYear+'</div>';
+  h+='<button class="cal-nav-btn" onclick="nextMonth()">Next &#8594;</button></div>';
+  h+='<div class="cal-grid">';
+  DNAMES.forEach(function(d){h+='<div class="cal-day-hdr">'+d+'</div>';});
+  var firstDay=new Date(calYear,calMonth,1).getDay();
+  var daysInMonth=new Date(calYear,calMonth+1,0).getDate();
+  for(var i=0;i<firstDay;i++)h+='<div class="cal-cell cal-empty"></div>';
+  for(var d=1;d<=daysInMonth;d++){
+    var ds=calYear+'-'+String(calMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    var isToday=ds===today;var isPast=ds<today;
+    var evs=evMap[ds]||[];
+    h+='<div class="cal-cell'+(isToday?' cal-today':'')+(isPast&&!isToday?' cal-past':'')+'" ondragover="calDragOver(event)" ondragleave="calDragLeave(event)" ondrop="calDrop(event,\''+ds+'\')">';
+    h+='<div class="cal-day-n">'+d+'</div>';
+    evs.slice(0,3).forEach(function(ev){
+      var stCls=isSimple()?(ev.platform==='C4S'?' is-c4s':ev.platform==='LF'?' is-lf':''):(ev.status===U?' is-up':ev.status===PR?' is-pr':'');
+      var short=ev.clip.title.length>16?ev.clip.title.substring(0,15)+'…':ev.clip.title;
+      h+='<div class="cal-event'+stCls+'" draggable="true" ondragstart="startCalDrag(event,'+ev.clip.id+',\''+ev.platform+'\')" onclick="jumpToClip('+ev.clip.id+')" style="cursor:grab">';
+      h+='<span class="cal-event-plat">'+ev.platform+'</span>'+esc(short)+'</div>';
+    });
+    if(evs.length>3)h+='<div class="cal-more">+' +(evs.length-3)+' more</div>';
+    h+='</div>';
+  }
+  h+='</div>';
+  h+='<div class="cal-legend">';
+  if(isSimple()){
+    h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:#d4909e"></div>Upload to C4S</div>';
+    h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:#90a0d4"></div>Upload to LF</div>';
+    h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--sky-b)"></div>Uploaded</div>';
+  } else {
+    h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--violet-b)"></div>Scheduled</div>';
+    h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--sky-b)"></div>Uploaded</div>';
+    h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--green-b)"></div>Promoted</div>';
+  }
+  h+='</div>';
+  // Search-aware unscheduled section
+  var isCalSearch=isSimple()&&PL.length>1&&calSearch.trim().length>0;
+  function clipMatchesCalSearch(c){
+    var q=calSearch.toLowerCase();
+    return c.title.toLowerCase().indexOf(q)>=0||(c.num&&c.num.toLowerCase().indexOf(q)>=0);
+  }
+  function getUnschedC4S(){
+    return clips.filter(function(c){
+      return c.platforms['C4S']===P&&(!c.platformDates||!c.platformDates['C4S'])&&(!isCalSearch||clipMatchesCalSearch(c));
+    });
+  }
+  function getUnschedLF(){
+    return clips.filter(function(c){
+      return c.platforms['C4S']!==P&&c.platforms['LF']===P&&(!c.platformDates||!c.platformDates['LF'])&&(!isCalSearch||clipMatchesCalSearch(c));
+    });
+  }
+  var unscheduled;
+  if(isSimple()&&PL.length>1){
+    if(isCalSearch){
+      unscheduled=getUnschedC4S().map(function(c){return {clip:c,pl:'C4S'};})
+        .concat(getUnschedLF().map(function(c){return {clip:c,pl:'LF'};}));
+    } else {
+      var pool=calPlatFilter==='C4S'?getUnschedC4S():getUnschedLF();
+      unscheduled=pool.map(function(c){return {clip:c,pl:calPlatFilter};});
+    }
+  } else {
+    unscheduled=clips.filter(function(c){
+      return PL.some(function(pl){return c.platforms[pl]===P&&(!c.platformDates||!c.platformDates[pl]);});
+    }).map(function(c){return {clip:c,pl:'__all__'};});
+  }
+
+  // Unscheduled header + search (simple multi-platform only)
+  if(isSimple()&&PL.length>1){
+    h+='<div style="margin-top:24px">';
+    h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">';
+    h+='<div class="sec-lbl" style="margin:0">Unscheduled</div>';
+    if(!isCalSearch){
+      h+='<div class="cal-plat-toggle" style="margin:0">';
+      h+='<button class="cal-plat-btn'+(calPlatFilter==='C4S'?' active-c4s':'')+'" data-plat="C4S" onclick="calPlatFilter=this.dataset.plat;render()">C4S</button>';
+      h+='<button class="cal-plat-btn'+(calPlatFilter==='LF'?' active-lf':'')+'" data-plat="LF" onclick="calPlatFilter=this.dataset.plat;render()">LF</button>';
+      h+='</div>';
+    }
+    h+='</div>';
+    h+='<input type="text" id="cal-search" value="'+esc(calSearch)+'" placeholder="Search unscheduled clips…" oninput="calSearch=this.value;render();var el=document.getElementById(\'cal-search\');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}" style="width:100%;box-sizing:border-box;padding:8px 14px;border:1.5px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:14px">';
+    if(calSearch)h+='<div style="font-size:12px;color:var(--muted);margin-top:6px">C4S &amp; LF results for &ldquo;'+esc(calSearch)+'&rdquo; &mdash; <a onclick="calSearch=\'\';render()" style="cursor:pointer;color:var(--accent)">clear</a></div>';
+    h+='</div>';
+  } else if(!isSimple()||PL.length<=1){
+    if(unscheduled.length)h+='<div class="sec-lbl" style="margin-top:24px">Unscheduled — drag to a date</div>';
+  }
+
+  if(unscheduled.length){
+    h+='<div class="unsched-pool" style="margin-top:10px">';
+    unscheduled.forEach(function(item){
+      var c=item.clip,pl=item.pl;
+      var uchipCls=isSimple()?(c.platforms['C4S']===P?' is-c4s':' is-lf'):'';
+      h+='<div class="unsched-chip'+uchipCls+'" draggable="true" ondragstart="startCalDrag(event,'+c.id+',\''+pl+'\')" title="'+esc(c.title)+'">';
+      if(isSimple()&&c.num)h+='<span class="id-badge" style="font-size:10px;padding:1px 5px">'+esc(c.num)+'</span> ';
+      h+=esc(c.title.length>22?c.title.substring(0,21)+'…':c.title);
+      h+='</div>';
+    });
+    h+='</div>';
+  } else if(isSimple()&&PL.length>1){
+    h+='<div style="color:var(--faint);font-size:14px;padding:10px 0">No unscheduled clips'+(calSearch?' matching &ldquo;'+esc(calSearch)+'&rdquo;':'')+'.</div>';
+  }
+  return h;
+}
+
+// ── TIMER & INVOICING ─────────────────────────────────────────
+function fmtSeconds(s){
+  var h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
+  if(h>0)return h+'h '+String(m).padStart(2,'0')+'m '+String(sec).padStart(2,'0')+'s';
+  return String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');
+}
+function fmtSecsClock(s){
+  var h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
+  return (h>0?h+':':'')+String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');
+}
+function fmtHours(s){
+  var h=Math.floor(s/3600),m=Math.round((s%3600)/60);
+  if(m===60){h++;m=0;}
+  return h+(m>0?'h '+m+'m':'h');
+}
+function fmtDateRange(start,end){
+  var mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function fmt(d){var p=d.split('-');return mo[parseInt(p[1])-1]+' '+parseInt(p[2]);}
+  return fmt(start)+' – '+fmt(end);
+}
+function daysDiff(dateStr){
+  var d=new Date(dateStr+'T00:00:00');var now=new Date();
+  return Math.floor((now-d)/(1000*60*60*24));
+}
+
+function startTimer(){
+  if(timerRunning)return;
+  timerRunning=true;timerStartMs=Date.now();
+  timerInterval=setInterval(function(){
+    var el=document.getElementById('timer-clock');
+    if(el){el.textContent=fmtSecsClock(Math.floor((Date.now()-timerStartMs)/1000));}
+  },1000);
+  render();
+}
+
+function stopTimer(silent){
+  if(!timerRunning)return;
+  clearInterval(timerInterval);timerInterval=null;timerRunning=false;
+  var elapsed=Math.floor((Date.now()-timerStartMs)/1000);
+  if(elapsed<1){render();return;}
+
+  if(!silent){
+    // Record session
+    consulting.sessions.push({id:consulting.nextSessionId++,date:todayStr(),seconds:elapsed});
+
+    // Accumulate into current period, create invoices when threshold crossed
+    var threshold=Math.round(consulting.hoursPerInvoice*3600);
+    consulting.currentPeriodSeconds+=elapsed;
+
+    while(consulting.currentPeriodSeconds>=threshold){
+      var invEnd=todayStr();
+      consulting.invoices.unshift({
+        id:consulting.nextInvoiceId++,
+        invoiceNum:consulting.nextInvoiceNum++,
+        periodStart:consulting.currentPeriodStart,
+        periodEnd:invEnd,
+        hours:consulting.hoursPerInvoice,
+        rate:consulting.rate,
+        currency:consulting.currency,
+        invoicedAt:null,
+        paidAt:null
+      });
+      consulting.currentPeriodSeconds-=threshold;
+      consulting.currentPeriodStart=todayStr();
+    }
+    saveConsulting();
+  }
+  render();
+}
+
+function markInvoiced(invId){
+  var inv=consulting.invoices.find(function(i){return i.id===invId;});
+  if(inv)inv.invoicedAt=todayStr();
+  saveConsulting();render();
+}
+function markPaid(invId){
+  var inv=consulting.invoices.find(function(i){return i.id===invId;});
+  if(inv)inv.paidAt=todayStr();
+  saveConsulting();render();
+}
+function saveHoursPerInvoice(val){
+  var n=parseFloat(val);if(isNaN(n)||n<=0)return;
+  consulting.hoursPerInvoice=n;saveConsulting();render();
+}
+function saveRate(val){
+  var n=parseFloat(val);if(isNaN(n)||n<=0)return;
+  consulting.rate=n;saveConsulting();render();
+}
+function saveCurrency(val){
+  consulting.currency=val;saveConsulting();render();
+}
+function setPeriodStart(val){
+  if(val)consulting.currentPeriodStart=val;
+  editPeriodStart=false;saveConsulting();render();
+}
+function addManualSession(){
+  var dateEl=document.getElementById('man-date');
+  var hEl=document.getElementById('man-h');
+  var mEl=document.getElementById('man-m');
+  if(!dateEl||!hEl||!mEl)return;
+  var date=dateEl.value||todayStr();
+  var hours=parseInt(hEl.value)||0;
+  var mins=parseInt(mEl.value)||0;
+  var secs=(hours*3600)+(mins*60);
+  if(secs<60){alert('Please enter at least 1 minute.');return;}
+  consulting.sessions.push({id:consulting.nextSessionId++,date:date,seconds:secs,manual:true});
+  var threshold=Math.round(consulting.hoursPerInvoice*3600);
+  consulting.currentPeriodSeconds+=secs;
+  while(consulting.currentPeriodSeconds>=threshold){
+    consulting.invoices.unshift({
+      id:consulting.nextInvoiceId++,
+      invoiceNum:consulting.nextInvoiceNum++,
+      periodStart:consulting.currentPeriodStart,
+      periodEnd:date,
+      hours:consulting.hoursPerInvoice,
+      rate:consulting.rate,
+      currency:consulting.currency,
+      invoicedAt:null,
+      paidAt:null
+    });
+    consulting.currentPeriodSeconds-=threshold;
+    consulting.currentPeriodStart=date;
+  }
+  manualEntryOpen=false;saveConsulting();render();
+}
+function deleteSession(sid){
+  var s=consulting.sessions.find(function(x){return x.id===sid;});
+  if(!s)return;
+  if(!confirm('Remove this '+fmtSeconds(s.seconds)+' session on '+fmtDate(s.date)+'?'))return;
+  consulting.currentPeriodSeconds=Math.max(0,consulting.currentPeriodSeconds-s.seconds);
+  consulting.sessions=consulting.sessions.filter(function(x){return x.id!==sid;});
+  saveConsulting();render();
+}
+
+function addDays(dateStr,n){
+  var d=new Date(dateStr+'T12:00:00');d.setDate(d.getDate()+n);
+  return d.toISOString().split('T')[0];
+}
+function longDate(dateStr){
+  var mo=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var p=dateStr.split('-');return mo[parseInt(p[1])-1]+' '+parseInt(p[2])+', '+p[0];
+}
+function shortDate2(dateStr){
+  var p=dateStr.split('-');
+  return p[1].replace(/^0/,'')+'/'+p[2].replace(/^0/,'')+'/'+p[0].slice(2);
+}
+
+function generateInvoicePDF(inv){
+  var sym=inv.currency||consulting.currency;
+  var rate=inv.rate||consulting.rate;
+  var hours=inv.hours;
+  var total=Math.round(rate*hours);
+  var invNumStr=String(inv.invoiceNum||inv.id).padStart(4,'0');
+  var invoiceDate=inv.invoicedAt||todayStr();
+  var dueDate=addDays(invoiceDate,7);
+  var cfg=CREATOR_CONFIG[creator]||{platformDesc:'Content management'};
+  var desc=cfg.platformDesc;
+  var dateRange=shortDate2(inv.periodStart)+' - '+shortDate2(inv.periodEnd);
+
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8">';
+  html+='<style>';
+  html+='*{margin:0;padding:0;box-sizing:border-box}';
+  html+='body{font-family:\'Helvetica Neue\',Arial,sans-serif;color:#000;background:#fff;padding:60px 70px;font-size:14px;line-height:1.5}';
+  html+='.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}';
+  html+='.inv-title{font-size:72px;font-weight:900;letter-spacing:-2px;line-height:1}';
+  html+='.header-right{text-align:right;font-size:13px;line-height:1.6}';
+  html+='.header-right .name{font-size:15px;font-weight:700}';
+  html+='.divider{border:none;border-top:2px solid #000;margin:16px 0 28px}';
+  html+='.divider2{border:none;border-top:1px solid #000;margin:4px 0 28px}';
+  html+='.meta{margin-bottom:32px}';
+  html+='.meta p{font-size:14px;font-weight:700;margin-bottom:8px}';
+  html+='table{width:100%;border-collapse:collapse;margin-bottom:30px}';
+  html+='thead td{font-weight:700;border-bottom:1px solid #000;padding:8px 10px}';
+  html+='tbody td{padding:10px 10px;vertical-align:top}';
+  html+='tbody tr td{border-bottom:1px solid #ddd}';
+  html+='.col-desc{width:50%}';
+  html+='.col-rate,.col-units,.col-amt{width:16.6%;text-align:left}';
+  html+='.total-row td{border-top:2px solid #000;border-bottom:none;font-weight:700;padding:10px 10px}';
+  html+='.payment{margin-top:24px}';
+  html+='.payment h3{font-weight:700;margin-bottom:10px}';
+  html+='.payment p{margin-bottom:4px;font-size:13px}';
+  html+='em{font-style:italic}';
+  html+='@media print{body{padding:40px 50px}}';
+  html+='</style></head><body>';
+  html+='<div class="header">';
+  html+='<div class="inv-title">Invoice</div>';
+  html+='<div class="header-right"><div class="name">Lux Gray</div><div>Content Consultant</div><hr style="border:none;border-top:1px solid #000;margin:6px 0"><div>luxgray@proton.me</div><div>781-645-8869</div></div>';
+  html+='</div>';
+  html+='<hr class="divider"><hr class="divider2">';
+  html+='<div class="meta"><p>Invoice #: '+invNumStr+'</p><p>Invoice Date: '+longDate(invoiceDate)+'</p></div>';
+  html+='<table>';
+  html+='<thead><tr><td class="col-desc">Description</td><td class="col-rate">Rate</td><td class="col-units">Units</td><td class="col-amt">Amount</td></tr></thead>';
+  html+='<tbody>';
+  html+='<tr><td class="col-desc">'+desc+'<br>'+dateRange+'</td>';
+  html+='<td class="col-rate">'+sym+rate+'</td>';
+  html+='<td class="col-units">'+hours+' hours</td>';
+  html+='<td class="col-amt">'+sym+total+'</td></tr>';
+  html+='<tr><td colspan="4" style="padding:8px 10px;border-bottom:1px solid #ddd"> </td></tr>';
+  html+='<tr><td colspan="4" style="padding:8px 10px;border-bottom:1px solid #ddd"> </td></tr>';
+  html+='<tr class="total-row"><td colspan="3" style="text-align:right;padding-right:20px">Total</td><td>'+sym+total+'</td></tr>';
+  html+='</tbody></table>';
+  html+='<div class="payment"><h3>Payment Information</h3>';
+  html+='<p>Payment Due Date: '+longDate(dueDate)+'</p><br>';
+  html+='<p>Paypal: shin.rachel@gmail.com</p>';
+  html+='<p><em>or Bank Transfer</em></p>';
+  html+='<p>Bank Name: Ally</p>';
+  html+='<p>Account Number: 1040106898</p>';
+  html+='<p>Account Routing Number: 124003116</p>';
+  html+='</div></body></html>';
+
+  var w=window.open('','_blank','width=900,height=1100');
+  w.document.write(html);w.document.close();
+  setTimeout(function(){w.print();},400);
+}
+
+function renderTimerWidget(){
+  var elapsed=timerRunning?Math.floor((Date.now()-timerStartMs)/1000):0;
+  var threshold=Math.round(consulting.hoursPerInvoice*3600);
+  var periodSecs=consulting.currentPeriodSeconds+(timerRunning?elapsed:0);
+  var pct=Math.min(100,Math.round(periodSecs/threshold*100));
+  var h='<div class="timer-widget">';
+  h+='<div id="timer-clock" class="timer-clock'+(timerRunning?' running':'')+'">'+fmtSecsClock(elapsed)+'</div>';
+  if(timerRunning){
+    h+='<button class="timer-btn stop" onclick="stopTimer(false)">&#9209; Stop</button>';
+  } else {
+    h+='<button class="timer-btn start" onclick="startTimer()">&#9654; Start</button>';
+  }
+  h+='<div class="timer-sep"></div>';
+  h+='<div class="timer-period">';
+  h+='<div class="timer-period-lbl">This period</div>';
+  h+='<div class="timer-period-val">'+fmtHours(periodSecs)+' of '+consulting.hoursPerInvoice+'h</div>';
+  h+='<div class="prog-bar-wrap"><div class="prog-bar-fill'+(pct>=100?' done':'')+'" style="width:'+pct+'%"></div></div>';
+  var todaySecs=0;consulting.sessions.filter(function(s){return s.date===todayStr();}).forEach(function(s){todaySecs+=s.seconds;});
+  if(todaySecs>0)h+='<div class="timer-session-lbl">Today: '+fmtHours(todaySecs)+'</div>';
+  h+='</div></div>';
+  return h;
+}
+
+function renderInvoicingBanners(){
+  var h='';
+  if(!isSimple())return h;
+  consulting.invoices.filter(function(i){return !i.invoicedAt;}).forEach(function(inv){
+    h+='<div class="inv-banner ready">';
+    h+='<div class="inv-banner-icon">&#129534;</div>';
+    h+='<div class="inv-banner-text">Invoice ready to send!<small>'+fmtDateRange(inv.periodStart,inv.periodEnd)+' &middot; '+inv.hours+'h</small></div>';
+    h+='<div class="inv-banner-actions">';
+    h+='<button class="inv-act-btn ghost" onclick="generateInvoicePDF(consulting.invoices.find(function(x){return x.id==='+inv.id+'}))">&#128424; PDF</button>';
+    h+='<button class="inv-act-btn sent" onclick="markInvoiced('+inv.id+')">&#10003; Mark Sent</button></div></div>';
+  });
+  consulting.invoices.filter(function(i){return i.invoicedAt&&!i.paidAt&&daysDiff(i.invoicedAt)>7;}).forEach(function(inv){
+    h+='<div class="inv-banner overdue">';
+    h+='<div class="inv-banner-icon">&#9888;&#65039;</div>';
+    h+='<div class="inv-banner-text">Payment overdue &mdash; '+daysDiff(inv.invoicedAt)+' days since invoice!<small>Sent '+fmtDate(inv.invoicedAt)+' &middot; '+fmtDateRange(inv.periodStart,inv.periodEnd)+'</small></div>';
+    h+='<div class="inv-banner-actions">';
+    h+='<button class="inv-act-btn paid" onclick="markPaid('+inv.id+')">&#10003; Mark Paid</button></div></div>';
+  });
+  return h;
+}
+
+function renderInvoicingTab(){
+  var threshold=Math.round(consulting.hoursPerInvoice*3600);
+  var pct=Math.min(100,Math.round(consulting.currentPeriodSeconds/threshold*100));
+  var sym=consulting.currency||'$';
+  var h='';
+
+  h+='<div class="sec-lbl">Settings</div>';
+  h+='<div class="inv-settings">';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">';
+  h+='<div><div class="inv-settings-lbl">Invoice every</div>';
+  h+='<div class="inv-hours-row"><input class="inv-hours-input" type="number" min="1" max="200" step="0.5" value="'+consulting.hoursPerInvoice+'" onchange="saveHoursPerInvoice(this.value)">';
+  h+='<span class="inv-hours-lbl">hours</span></div></div>';
+  h+='<div><div class="inv-settings-lbl">Hourly rate</div>';
+  h+='<div class="inv-hours-row">';
+  h+='<select style="padding:9px 10px;border:1.5px solid var(--border);border-radius:10px;font-family:inherit;font-size:16px;background:var(--bg);cursor:pointer" onchange="saveCurrency(this.value)">';
+  h+='<option value="$"'+(consulting.currency==='$'?' selected':'')+'>$ USD</option>';
+  h+='<option value="&#163;"'+(consulting.currency==='£'?' selected':'')+'>£ GBP</option>';
+  h+='</select>';
+  h+='<input class="inv-hours-input" type="number" min="1" max="9999" step="1" value="'+consulting.rate+'" onchange="saveRate(this.value)" style="margin-left:6px">';
+  h+='<span class="inv-hours-lbl">/ hr</span></div></div>';
+  h+='</div></div>';
+
+  h+='<div class="sec-lbl">Current Period</div>';
+  h+='<div class="inv-period-card">';
+  h+='<div class="inv-period-head">';
+  h+='<div>';
+  if(editPeriodStart){
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
+    h+='<input type="date" id="ps-input" value="'+consulting.currentPeriodStart+'" style="font-size:14px;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px">';
+    h+='<button class="btn btn-dark" style="font-size:13px;padding:6px 12px" onclick="setPeriodStart(document.getElementById(\'ps-input\').value)">Save</button>';
+    h+='<button class="btn btn-ghost" style="font-size:13px;padding:6px 12px" onclick="editPeriodStart=false;render()">&#10005;</button></div>';
+  } else {
+    h+='<div class="inv-period-title">Since '+fmtDate(consulting.currentPeriodStart);
+    h+='<button onclick="editPeriodStart=true;render()" style="margin-left:8px;background:none;border:none;color:var(--faint);cursor:pointer;font-size:14px" title="Edit start date">&#9998;</button></div>';
+  }
+  h+='<div class="inv-period-sub">'+fmtHours(consulting.currentPeriodSeconds)+' of '+consulting.hoursPerInvoice+'h logged &middot; '+sym+Math.round(consulting.rate*(consulting.currentPeriodSeconds/3600))+' earned so far</div>';
+  h+='</div>';
+  h+='<div class="inv-period-pct">'+pct+'%</div></div>';
+  h+='<div class="inv-prog-lg"><div class="inv-prog-fill'+(pct>=100?' done':'')+'" style="width:'+pct+'%"></div></div>';
+  h+='<div class="inv-prog-lbl">'+fmtHours(consulting.currentPeriodSeconds)+' / '+consulting.hoursPerInvoice+'h</div>';
+
+  var allSessions=consulting.sessions.slice().reverse();
+  h+='<div class="session-list" style="margin-top:14px">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
+  h+='<div style="font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)">Time Log</div>';
+  h+='<button class="btn btn-ghost" style="font-size:13px;padding:5px 12px" onclick="manualEntryOpen=!manualEntryOpen;render()">+ Log Time</button></div>';
+
+  if(manualEntryOpen){
+    h+='<div style="background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">';
+    h+='<div style="display:grid;grid-template-columns:1fr 80px 80px auto;gap:8px;align-items:end">';
+    h+='<div><div style="font-size:12px;font-weight:700;color:var(--faint);margin-bottom:4px">DATE</div>';
+    h+='<input type="date" id="man-date" value="'+todayStr()+'" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:9px;font-family:inherit;font-size:14px"></div>';
+    h+='<div><div style="font-size:12px;font-weight:700;color:var(--faint);margin-bottom:4px">HRS</div>';
+    h+='<input type="number" id="man-h" min="0" max="24" value="0" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:9px;font-family:inherit;font-size:14px;text-align:center"></div>';
+    h+='<div><div style="font-size:12px;font-weight:700;color:var(--faint);margin-bottom:4px">MINS</div>';
+    h+='<input type="number" id="man-m" min="0" max="59" value="0" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:9px;font-family:inherit;font-size:14px;text-align:center"></div>';
+    h+='<div style="padding-top:4px"><button class="btn btn-dark" onclick="addManualSession()">Add</button></div>';
+    h+='</div></div>';
+  }
+
+  if(allSessions.length){
+    allSessions.slice(0,15).forEach(function(s){
+      h+='<div class="session-row">';
+      h+='<span class="session-date">'+fmtDate(s.date)+'</span>';
+      h+='<span class="session-dur">'+fmtSeconds(s.seconds)+(s.manual?' <span style="font-size:11px;color:var(--faint)">(manual)</span>':'')+'</span>';
+      h+='<button onclick="deleteSession('+s.id+')" style="margin-left:auto;background:none;border:none;color:var(--faint);cursor:pointer;font-size:13px" title="Remove">&#10005;</button>';
+      h+='</div>';
+    });
+  } else {
+    h+='<div style="color:var(--faint);font-size:14px;padding:10px 0">No sessions yet. Start the timer or log time manually.</div>';
+  }
+  h+='</div></div>';
+
+  h+='<div class="sec-lbl">Invoices</div>';
+  if(consulting.invoices.length){
+    h+='<div class="inv-list-card">';
+    consulting.invoices.forEach(function(inv){
+      var status,badge;
+      var invSym=inv.currency||sym;var invRate=inv.rate||consulting.rate;
+      if(inv.paidAt){status='paid';badge='&#10003; Paid '+fmtDate(inv.paidAt);}
+      else if(inv.invoicedAt&&daysDiff(inv.invoicedAt)>7){status='overdue';badge='&#9888; Overdue ('+daysDiff(inv.invoicedAt)+'d)';}
+      else if(inv.invoicedAt){status='sent';badge='Sent '+fmtDate(inv.invoicedAt);}
+      else{status='unsent';badge='Not sent yet';}
+      var invNumDisp=String(inv.invoiceNum||inv.id).padStart(4,'0');
+      h+='<div class="inv-row">';
+      h+='<div class="inv-row-left">';
+      h+='<div class="inv-row-title">Invoice #'+invNumDisp+' &middot; '+inv.hours+'h &middot; '+invSym+Math.round(invRate*inv.hours)+'</div>';
+      h+='<div class="inv-row-sub">'+fmtDateRange(inv.periodStart,inv.periodEnd)+'</div></div>';
+      h+='<div class="inv-row-actions" style="flex-wrap:wrap;gap:6px">';
+      h+='<span class="inv-status-badge '+status+'">'+badge+'</span>';
+      h+='<button class="inv-act-btn ghost" onclick="generateInvoicePDF(consulting.invoices.find(function(x){return x.id==='+inv.id+'}))" title="Open printable invoice">&#128424; PDF</button>';
+      if(!inv.invoicedAt)h+='<button class="inv-act-btn sent" onclick="markInvoiced('+inv.id+')">&#10003; Sent</button>';
+      if(inv.invoicedAt&&!inv.paidAt)h+='<button class="inv-act-btn paid" onclick="markPaid('+inv.id+')">&#10003; Paid</button>';
+      h+='</div></div>';
+    });
+    h+='</div>';
+  } else {
+    h+='<div style="text-align:center;padding:32px;color:var(--faint);font-size:15px">No invoices yet &mdash; keep logging time!</div>';
+  }
+  return h;
+}
+
+// ── MAIN RENDER ────────────────────────────────────────────────
+function renderAllView(){
+  var cr=CREATORS['ALL'];
+  var h='<div class="header-sticky">';
+  h+='<div class="topbar"><div class="brand">';
+  h+='<div class="brand-mark" style="background:'+cr.grad+'">'+cr.initials+'</div>';
+  h+='<span class="brand-name">All Creators</span></div></div>';
+  h+='<div class="creator-bar"><span class="creator-bar-lbl">Creator</span>';
+  Object.keys(CREATORS).forEach(function(key){
+    var c2=CREATORS[key];var isActive=key==='ALL';
+    h+='<button class="cpill'+(isActive?' active':'')+'" style="'+(isActive?'background:'+c2.grad+';':'')+'" onclick="switchCreator(\''+key+'\')">';   h+='<span class="cpill-dot" style="background:'+(isActive?'rgba(255,255,255,.6)':'var(--border)')+'"></span>';
+    h+=c2.name+'</button>';
+  });
+  h+='</div></div>';
+  h+='<div class="page" style="padding-top:16px">';
+  h+='<div class="sec-lbl">Combined Calendar</div>';
+  h+=renderAllCalendar();
+  h+='</div>';
+  document.getElementById('root').innerHTML=h;
+}
+function render(){
+  if(creator==='ALL'){renderAllView();return;}
+  var next=isSimple()?getNextSimple():getNext();
+  var counts=isSimple()?null:getCounts();
+  var done=isSimple()?doneClipsSimple():doneClips();
+  var cr=CREATORS[creator];
+  var h='';
+
+  h+='<div class="header-sticky">';
+  h+='<div class="topbar"><div class="brand">';
+  h+='<div class="brand-mark" style="background:'+cr.grad+'">'+cr.initials+'</div>';
+  h+='<span class="brand-name">'+cr.name+'</span></div>';
+  h+='<div class="topstats">';
+  if(isSimple()){
+    var pendingN=clips.filter(function(c){return !clipUploadedSimple(c);}).length;
+    h+='<div class="tstat"><span class="tdot" style="background:var(--rose)"></span>'+pendingN+' to upload</div>';
+    h+='<div class="tstat"><span class="tdot" style="background:var(--green)"></span>'+done.length+' uploaded</div>';
+  } else {
+    h+='<div class="tstat"><span class="tdot" style="background:var(--rose)"></span>'+counts.upload+' upload</div>';
+    h+='<div class="tstat"><span class="tdot" style="background:var(--teal)"></span>'+counts.promote+' promote</div>';
+    h+='<div class="tstat"><span class="tdot" style="background:var(--violet)"></span>'+(counts.desc+counts.title+counts.keywords)+' write</div>';
+    h+='<div class="tstat"><span class="tdot" style="background:var(--green)"></span>'+counts.done+' done</div>';
+  }
+  h+='</div></div>';
+
+  h+='<div class="creator-bar"><span class="creator-bar-lbl">Creator</span>';
+  Object.keys(CREATORS).forEach(function(key){
+    var c2=CREATORS[key];var isActive=key===creator;
+    h+='<button class="cpill'+(isActive?' active':'')+'" style="'+(isActive?'background:'+c2.grad+';':'')+'" onclick="switchCreator(\''+key+'\')">';
+    h+='<span class="cpill-dot" style="background:'+(isActive?'rgba(255,255,255,.6)':'var(--border)')+'"></span>';
+    h+=c2.name+'</button>';
+  });
+  h+='<span style="margin-left:auto;display:flex;gap:6px">';
+  h+='<button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="exportData()" title="Save a backup of all your clip and timer data">&#11015; Backup</button>';
+  h+='<button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="importData()" title="Restore data from a backup file">&#11014; Restore</button>';
+  h+='</span>';
+  h+='</div>';
+  h+='</div>';
+
+  h+='<div class="goal-wrap">';
+  if(cr.isMe){
+    h+='<div class="goal-card"><div class="goal-icon">&#10024;</div>';
+    h+='<div><div class="goal-eyebrow">Your why</div>';
+    h+='<div class="goal-body">Make my <em>inner child</em> feel financially secure.</div></div></div>';
+    h+='<div class="msg-card"><div class="msg-icon">&#128140;</div>';
+    h+='<div class="msg-text">'+esc(dailyMsg())+'</div></div>';
+  } else {
+    h+='<div class="goal-card client-card"><div class="goal-icon">&#128204;</div>';
+    h+='<div><div class="goal-eyebrow">Consulting client</div>';
+    h+='<div class="goal-body">Managing content for <em>'+esc(cr.name)+'</em></div></div></div>';
+  }
+  h+='</div>';
+
+  if(isSimple())h+=renderTimerWidget();
+  if(isSimple())h+=renderInvoicingBanners();
+
+  h+='<div class="tabs">';
+  h+='<button class="tab'+(tab==='queue'?' active':'')+'" onclick="tab=\'queue\';render()">Do This Next</button>';
+  h+='<button class="tab'+(tab==='pipe'?' active':'')+'" onclick="tab=\'pipe\';render()">Pipeline</button>';
+  h+='<button class="tab'+(tab==='cal'?' active':'')+'" onclick="tab=\'cal\';render()">Calendar</button>';
+  if(isSimple())h+='<button class="tab'+(tab==='inv'?' active':'')+'" onclick="tab=\'inv\';render()">Invoicing</button>';
+  h+='</div><div class="page">';
+
+  if(tab==='queue'){
+    h+='<div class="sec-lbl">Do This Next</div>';
+    if(!next){
+      if(!clips.length){
+        h+='<div class="empty-state"><div class="big">&#128203;</div>';
+        h+='<p>No clips yet for '+esc(cr.name)+'.</p>';
+        h+='<small>Add the first one below to get started.</small></div>';
+      } else {
+        h+='<div class="all-clear"><div class="big">&#127881;</div><p>All caught up'+(cr.isMe?'. She\'s so proud of you.':'.')+'</p></div>';
+      }
+    } else {
+      var col=TCOLOR[next.type]||'var(--faint)';
+      var isOpen=expanded===next.clip.id;
+      h+='<div class="dtn-card">';
+      h+='<div class="dtn-top" onclick="expanded=expanded==='+next.clip.id+'?false:'+next.clip.id+';editField=null;render()">';
+      h+='<div class="dtn-left">';
+      h+='<div class="dtn-eyebrow" style="color:'+col+'"><span class="dtn-pulse" style="background:'+col+'"></span>';
+      h+=esc((TLABEL[next.type]||'').toUpperCase())+'</div>';
+      h+='<div class="dtn-action">'+esc(actionTitle(next))+'</div>';
+      h+='<div class="dtn-clip">';
+      h+=isSimple()&&next.clip.num?'<span class="id-badge">'+esc(next.clip.num)+'</span>':'<span class="id-badge">'+fid(next.clip.id)+'</span>';
+      h+=esc(next.clip.title);
+      if(next.clip.length)h+=' &middot; '+esc(next.clip.length);
+      if((next.type==='upload'||next.type==='promote')&&next.pl&&next.clip.platformDates&&next.clip.platformDates[next.pl])
+        h+=' &middot; scheduled '+fmtDate(next.clip.platformDates[next.pl]);
+      h+='</div></div>';
+      h+='<div class="dtn-chev'+(isOpen?' open':'')+'">&#9662;</div></div>';
+      if(isOpen){
+        h+='<div class="dtn-body open"><div class="dtn-divider"></div>';
+        h+=renderActionPanel(next);
+        h+='<div class="sep"></div>';
+        if(!isSimple()){
+          h+=renderField(next.clip,'uploadTitle','Upload Title','Same as working title');
+          h+=renderField(next.clip,'desc','Description','No description yet');
+          h+=renderField(next.clip,'keywords','Keywords','No keywords yet');
+          h+=renderAssets(next.clip);
+        }
+        h+=renderPlatforms(next.clip);
+        h+=renderField(next.clip,'notes','Notes','Any notes…');
+        h+='<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">';
+        h+='<button class="btn btn-del" onclick="doRemove('+next.clip.id+')">Remove clip</button></div></div>';
+      }
+      h+='</div>';
+      if(!isSimple()){
+        var same=clips.filter(function(c){var s=getClipStep(c);return s&&s.type===next.type&&c.id!==next.clip.id;});
+        if(same.length)h+='<div class="ctx-line">+'+same.length+' more clip'+(same.length>1?'s':'')+' also need this &mdash; <a onclick="tab=\'pipe\';render()">see pipeline</a></div>';
+      }
+    }
+    if(!isSimple()){
+      var cats=[
+        {l:'Upload',n:counts.upload,c:'var(--rose)'},{l:'Promote',n:counts.promote,c:'var(--teal)'},
+        {l:'Description',n:counts.desc,c:'var(--violet)'},{l:'Title',n:counts.title,c:'var(--violet)'},
+        {l:'Keywords',n:counts.keywords,c:'var(--violet)'},{l:'Assets',n:counts.assets,c:'var(--amber)'},
+        {l:'Edit',n:counts.edit,c:'var(--sky)'},{l:'Film',n:counts.film,c:'var(--faint)'}
+      ].filter(function(x){return x.n>0;});
+      if(cats.length){
+        h+='<div class="sec-lbl">What\'s Coming</div><div class="coming-grid">';
+        cats.forEach(function(cat){
+          h+='<div class="coming-cell" onclick="tab=\'pipe\';render()">';
+          h+='<div class="coming-n" style="color:'+cat.c+'">'+cat.n+'</div>';
+          h+='<div class="coming-lbl">'+cat.l+'</div></div>';
+        });
+        h+='</div>';
+      }
+    }
+    h+=renderAddForm();
+
+  } else if(tab==='pipe'){
+    h+='<div class="sec-lbl">Pipeline</div>';
+    if(isSimple()){
+      // Search bar
+      h+='<div style="padding:0 0 14px 0">';
+      h+='<input type="text" id="pipe-search" value="'+esc(pipeSearch)+'" placeholder="Search clips…" oninput="pipeSearch=this.value;render();var el=document.getElementById(\'pipe-search\');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}" style="width:100%;box-sizing:border-box;padding:9px 14px;border:1.5px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:14px">';
+      if(pipeSearch)h+='<div style="font-size:12px;color:var(--muted);margin-top:6px">Results for &ldquo;'+esc(pipeSearch)+'&rdquo; &mdash; <a onclick="pipeSearch=\'\';render()" style="cursor:pointer;color:var(--accent)">clear</a></div>';
+      h+='</div>';
+
+      var filteredClips=pipeSearch?clips.filter(function(c){var q=pipeSearch.toLowerCase();return c.title.toLowerCase().indexOf(q)>=0||(c.num&&c.num.toLowerCase().indexOf(q)>=0);}):clips;
+
+      function clipRowS(c,showAction){
+        var pp=firstIn(c,P)||PL[0];
+        var dv=c.platformDates&&c.platformDates[pp]?fmtDate(c.platformDates[pp]):'No date set';
+        var isExp=expanded===c.id;
+        var rh='<div class="pipe-clip-row" onclick="expanded=expanded==='+c.id+'?false:'+c.id+';editField=null;render()">';
+        rh+=c.num?'<span class="id-badge">'+esc(c.num)+'</span>':'';
+        rh+='<span class="pipe-clip-name">'+esc(c.title)+(c.length?' <span style="color:var(--faint);font-size:13px;font-weight:400">&middot; '+esc(c.length)+'</span>':'')+'</span>';
+        if(showAction)rh+='<span class="pipe-clip-sub">'+esc(dv)+'</span>';
+        rh+='<span style="color:var(--faint);font-size:13px;margin-left:auto">'+(isExp?'&#9650;':'&#9660;')+'</span></div>';
+        if(isExp){
+          rh+='<div style="padding:16px 18px 18px;border-top:1px solid var(--border);background:var(--bg)">';
+          if(showAction)rh+=renderActionPanel({type:'upload',clip:c,pl:pp||PL[0]});
+          rh+=renderPlatforms(c);
+          rh+=renderField(c,'num','Clip #','e.g. 101');
+          rh+=renderField(c,'length','Length','e.g. 15:52');
+          rh+=renderField(c,'notes','Notes','Any notes…');
+          rh+='<div style="margin-top:12px"><button class="btn btn-del" onclick="event.stopPropagation();doRemove('+c.id+')">Remove clip</button></div>';
+          rh+='</div>';
+        }
+        return rh;
+      }
+      function pipeGrp(gk,icon,label,col,items,showAction){
+        if(!items.length)return '';
+        var isOG=openGroups[gk]!==false;
+        var gh='<div class="pipe-group">';
+        gh+='<div class="pipe-group-head" onclick="openGroups[\''+gk+'\']= !openGroups[\''+gk+'\'];render()">';
+        gh+='<div class="pipe-group-label" style="color:'+col+'">'+icon+' '+label+'<span class="pipe-group-n">'+items.length+'</span></div>';
+        gh+='<div class="pipe-group-chev'+(isOG?' open':'')+'">&#9662;</div></div>';
+        if(isOG){gh+='<div class="pipe-group-body open">';items.forEach(function(c){gh+=clipRowS(c,showAction);});gh+='</div>';}
+        gh+='</div>';return gh;
+      }
+      if(!clips.length)h+='<div class="empty-state"><div class="big">&#128203;</div><p>No clips yet.</p><small>Add clips below.</small></div>';
+      if(PL.length>1){
+        var needsC4S=filteredClips.filter(function(c){return c.platforms['C4S']===P;});
+        var needsLF=filteredClips.filter(function(c){return c.platforms['C4S']!==P&&PL.some(function(pl){return c.platforms[pl]===P;});});
+        var filteredDone=filteredClips.filter(function(c){return clipUploadedSimple(c);});
+        needsC4S.sort(function(a,b){var da=a.platformDates&&a.platformDates['C4S']||'9999';var db=b.platformDates&&b.platformDates['C4S']||'9999';return da<db?-1:da>db?1:0;});
+        needsLF.sort(function(a,b){var da=a.platformDates&&a.platformDates['LF']||'9999';var db=b.platformDates&&b.platformDates['LF']||'9999';return da<db?-1:da>db?1:0;});
+        h+=pipeGrp('needsC4S','&#11014;&#65039;','Upload to C4S','var(--rose)',needsC4S,true);
+        h+=pipeGrp('needsLF','&#11014;&#65039;','Upload to LF','var(--amber)',needsLF,true);
+        h+=pipeGrp('allDone','&#9733;','Uploaded Everywhere','var(--green)',filteredDone,false);
+      } else {
+        var toUpload2=filteredClips.filter(function(c){return !clipUploadedSimple(c);});
+        var filteredDone2=filteredClips.filter(function(c){return clipUploadedSimple(c);});
+        toUpload2.sort(function(a,b){var da=a.platformDates&&a.platformDates[PL[0]]||'9999';var db=b.platformDates&&b.platformDates[PL[0]]||'9999';return da<db?-1:da>db?1:0;});
+        h+=pipeGrp('toUpload','&#11014;&#65039;','To Upload','var(--rose)',toUpload2,true);
+        h+=pipeGrp('allDone','&#9733;','Uploaded','var(--green)',filteredDone2,false);
+      }
+    } else {
+      var groups=[
+        {types:['upload'],icon:'&#11014;&#65039;',label:'Ready to Upload',col:'var(--rose)'},
+        {types:['promote'],icon:'&#9733;',label:'Ready to Promote',col:'var(--teal)'},
+        {types:['write-desc'],icon:'&#9997;&#65039;',label:'Needs Description',col:'var(--violet)'},
+        {types:['write-title'],icon:'&#127991;&#65039;',label:'Needs Title',col:'var(--violet)'},
+        {types:['write-keywords'],icon:'&#128273;',label:'Needs Keywords',col:'var(--violet)'},
+        {types:['make-thumbnail','make-nfgbcover','make-preview'],icon:'&#128444;&#65039;',label:'Needs Assets',col:'var(--amber)'},
+        {types:['edit'],icon:'&#9986;&#65039;',label:'Needs Editing',col:'var(--sky)'},
+        {types:['film'],icon:'&#128161;',label:'Ideas to Film',col:'var(--faint)'}
+      ];
+      var anyGroups=false;
+      groups.forEach(function(grp){
+        var items=clipsForTypes(grp.types);if(!items.length)return;
+        anyGroups=true;
+        var gk=grp.label;var isOpen=openGroups[gk]!==false;
+        h+='<div class="pipe-group">';
+        h+='<div class="pipe-group-head" onclick="openGroups[\''+gk+'\']=!openGroups[\''+gk+'\'];render()">';
+        h+='<div class="pipe-group-label" style="color:'+grp.col+'">'+grp.icon+' '+grp.label+'<span class="pipe-group-n">'+items.length+'</span></div>';
+        h+='<div class="pipe-group-chev'+(isOpen?' open':'')+'">&#9662;</div></div>';
+        if(isOpen){
+          h+='<div class="pipe-group-body open">';
+          items.forEach(function(c){
+            var s=getClipStep(c);
+            var sub=s&&s.pl?' → '+s.pl:'';
+            h+='<div class="pipe-clip-row" onclick="jumpToClip('+c.id+')">';
+            h+='<span class="id-badge">'+fid(c.id)+'</span>';
+            h+='<span class="pipe-clip-name">'+esc(c.title)+'</span>';
+            if(sub)h+='<span class="pipe-clip-sub">'+esc(sub)+'</span>';
+            h+='</div>';
+          });
+          h+='</div>';
+        }
+        h+='</div>';
+      });
+      if(!anyGroups&&!clips.length)h+='<div class="empty-state"><div class="big">&#128203;</div><p>No clips yet.</p><small>Add clips using the button below.</small></div>';
+      if(done.length){
+        h+='<div class="sec-lbl">All Done ('+done.length+')</div><div class="done-grid">';
+        done.forEach(function(c){h+='<span class="done-chip"><span class="did">'+fid(c.id)+'</span>'+esc(c.title)+'</span>';});
+        h+='</div>';
+      }
+    }
+    h+=renderAddForm();
+
+  } else if(tab==='inv'&&isSimple()){
+    h+=renderInvoicingTab();
+
+  } else {
+    h+='<div class="sec-lbl">Upload Schedule</div>';
+    if(!clips.length){
+      h+='<div class="empty-state"><div class="big">&#128197;</div><p>No clips scheduled yet.</p></div>';
+      h+=renderAddForm();
+    } else {
+      h+=renderCalendar();
+      h+=renderAddForm();
+    }
+  }
+
+  h+='</div>';
+  document.getElementById('root').innerHTML=h;
+
+  if(editField){
+    var el=document.getElementById('fe_'+editField.id+'_'+editField.field);
+    if(el){el.focus();if(el.tagName==='TEXTAREA')el.setSelectionRange(el.value.length,el.value.length);}
+  }
+  if(addingNew){var inp=document.getElementById('new-title');if(inp)inp.focus();}
+}
+
+function doAdd(){
+  var t=document.getElementById('new-title'),s=document.getElementById('new-status');
+  var n=document.getElementById('new-num'),l=document.getElementById('new-length'),d=document.getElementById('new-date');
+  doAddClip(t?t.value:'',s?s.value:'idea',n?n.value:'',l?l.value:'',d?d.value:'');
+}
+
+// init
+// Boot is now driven by firebase-sync.js after login (loadCreator();loadConsulting();render();)
+
+}catch(err){
+  document.getElementById('root').innerHTML='<div class="err-box">Error: '+err.message+'\n\n'+err.stack+'</div>';
+}
+</script>
+<script>
+/* ==========================================================================
+   firebase-sync.js  —  durable cloud storage + login for the LG Dashboard
+   --------------------------------------------------------------------------
+   Replaces the app's localStorage-only persistence with Firebase Firestore.
+   Design goals:
+     • Minimal change to the existing app: it exposes a global `store` object
+       with the SAME API as localStorage (getItem / setItem / removeItem),
+       so the app only needs `localStorage` swapped for `store` in its four
+       storage functions.
+     • Instant reads: localStorage is kept as a fast local cache.
+     • Durable + synced: every write is mirrored to Firestore (debounced),
+       and remote changes stream back in real time (phone <-> computer).
+     • Private: nothing loads until the user signs in; Firestore rules lock
+       the data to the signed-in account (see firestore.rules).
+
+   See MIGRATION-GUIDE.md for setup + the exact edits to index.html.
+   This file can be loaded with <script src="firebase-sync.js"><\/script>
+   AFTER the main app <script>, or pasted inline as its own <script> block.
+   ========================================================================== */
+(function () {
+  // 1) -------- YOUR FIREBASE CONFIG -----------------------------------------
+  //    Firebase console -> Project settings -> "Your apps" -> Web app -> Config.
+  //    NOTE: apiKey is an identifier, NOT a secret. It is safe in client code.
+  //    Real security comes from Firebase Auth + Firestore rules.
+  var firebaseConfig = {
+    apiKey:            "AIzaSyCiAxJwjlwUOn7NDsjEejHwo-1eObllu1E",
+    authDomain:        "productive-as-fuck.firebaseapp.com",
+    projectId:         "productive-as-fuck",
+    storageBucket:     "productive-as-fuck.firebasestorage.app",
+    messagingSenderId: "836342779433",
+    appId:             "1:836342779433:web:64d376be0594a1d0cb9638"
+  };
+
+  // 2) -------- The localStorage keys this app persists ----------------------
+  //    (LG clips ARE saved; LG consulting is intentionally ephemeral, so it
+  //     is not listed here — that mirrors the app's existing behavior.)
+  var SYNC_KEYS = [
+    'lg-v8-LG', 'lg-v8-BH', 'lg-v8-LV',
+    'lg-consulting-BH', 'lg-consulting-LV'
+  ];
+
+  // 3) -------- Init Firebase (compat SDK, no build step needed) -------------
+  firebase.initializeApp(firebaseConfig);
+  var auth = firebase.auth();
+  var db   = firebase.firestore();
+  // Offline cache so the app still works without a connection.
+  try { db.enablePersistence({ synchronizeTabs: true }); } catch (e) { /* multi-tab or unsupported */ }
+
+  var uid = null;
+  var writeTimers = {};
+
+  function docRef(key) {
+    // users/{uid}/kv/{key}  ->  { value: "<json string>", updated: <ts> }
+    return db.collection('users').doc(uid).collection('kv').doc(key);
+  }
+
+  // 4) -------- `store`: drop-in replacement for localStorage ----------------
+  //    Reads come from the local cache (synchronous, instant).
+  //    Writes update the cache AND push to Firestore, debounced per key.
+  var store = {
+    getItem: function (k) { return localStorage.getItem(k); },
+    setItem: function (k, v) {
+      localStorage.setItem(k, v);                 // instant local cache
+      if (!uid) return;                            // not signed in yet
+      clearTimeout(writeTimers[k]);
+      writeTimers[k] = setTimeout(function () {
+        docRef(k).set({
+          value: v,
+          updated: firebase.firestore.FieldValue.serverTimestamp()
+        }).catch(function (e) { console.warn('cloud save failed for', k, e); });
+      }, 700);
+    },
+    removeItem: function (k) {
+      localStorage.removeItem(k);
+      if (uid) docRef(k).delete().catch(function () {});
+    }
+  };
+  window.store = store;
+
+  // 5) -------- Pull cloud data down on login, then live-sync ----------------
+  function hydrate() {
+    var jobs = SYNC_KEYS.map(function (k) {
+      return docRef(k).get().then(function (snap) {
+        var data = snap.exists ? snap.data() : null;
+        if (data && typeof data.value === 'string') {
+          // Cloud is the source of truth on load.
+          localStorage.setItem(k, data.value);
+        } else if (localStorage.getItem(k) != null) {
+          // First run on a device that already has local data and the cloud
+          // is empty -> seed the cloud from local (one-time migration).
+          return docRef(k).set({
+            value: localStorage.getItem(k),
+            updated: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        }
+      });
+    });
+    return Promise.all(jobs).then(startListeners);
+  }
+
+  // Keep the local cache fresh across devices and re-render if the change
+  // affects the creator currently on screen.
+  function startListeners() {
+    SYNC_KEYS.forEach(function (k) {
+      docRef(k).onSnapshot(function (snap) {
+        if (snap.metadata.hasPendingWrites) return;       // ignore our own writes
+        var data = snap.exists ? snap.data() : null;
+        if (data && typeof data.value === 'string' &&
+            localStorage.getItem(k) !== data.value) {
+          localStorage.setItem(k, data.value);
+          var c = (typeof creator !== 'undefined') ? creator : null;
+          if (c && (k === 'lg-v8-' + c || k === 'lg-consulting-' + c)) {
+            if (typeof loadCreator === 'function')    loadCreator();
+            if (typeof loadConsulting === 'function') loadConsulting();
+            if (typeof render === 'function')         render();
+          }
+        }
+      });
+    });
+  }
+
+  // 6) -------- Simple login gate -------------------------------------------
+  function showLogin(message) {
+    if (document.getElementById('login-overlay')) {
+      if (message) document.getElementById('lg-login-msg').textContent = message;
+      return;
+    }
+    var o = document.createElement('div');
+    o.id = 'login-overlay';
+    o.style.cssText = 'position:fixed;inset:0;background:#fdf8f5;z-index:9999;' +
+      'display:flex;align-items:center;justify-content:center;' +
+      'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif';
+    o.innerHTML =
+      '<div style="background:#fff;border:1px solid #ede4de;border-radius:16px;' +
+        'padding:32px;width:320px;box-shadow:0 6px 24px rgba(80,30,20,.1)">' +
+        '<div style="font-size:20px;font-weight:700;color:#2a1f1c;margin-bottom:18px">Sign in</div>' +
+        '<input id="lg-email" type="email" placeholder="email" autocomplete="username" ' +
+          'style="width:100%;padding:11px 14px;margin-bottom:10px;border:1.5px solid #ede4de;' +
+          'border-radius:10px;font-size:15px;box-sizing:border-box">' +
+        '<input id="lg-pass" type="password" placeholder="password" autocomplete="current-password" ' +
+          'style="width:100%;padding:11px 14px;margin-bottom:14px;border:1.5px solid #ede4de;' +
+          'border-radius:10px;font-size:15px;box-sizing:border-box">' +
+        '<button id="lg-login-btn" style="width:100%;padding:12px;border:none;border-radius:10px;' +
+          'background:#c4506a;color:#fff;font-size:15px;font-weight:700;cursor:pointer">Sign in</button>' +
+        '<div id="lg-login-msg" style="color:#c4506a;font-size:13px;margin-top:10px;min-height:16px">' +
+          (message || '') + '</div>' +
+      '</div>';
+    document.body.appendChild(o);
+
+    function submit() {
+      var e = document.getElementById('lg-email').value.trim();
+      var p = document.getElementById('lg-pass').value;
+      document.getElementById('lg-login-msg').textContent = 'Signing in…';
+      auth.signInWithEmailAndPassword(e, p).catch(function (err) {
+        document.getElementById('lg-login-msg').textContent = err.message;
+      });
+    }
+    document.getElementById('lg-login-btn').onclick = submit;
+    document.getElementById('lg-pass').addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') submit();
+    });
+  }
+  function hideLogin() {
+    var o = document.getElementById('login-overlay');
+    if (o) o.remove();
+  }
+
+  // 7) -------- Boot: wait for auth, hydrate, then hand off to the app -------
+  //    The app's own boot line (loadCreator();loadConsulting();render();) must
+  //    be REMOVED from index.html — this drives the first render after login.
+  auth.onAuthStateChanged(function (user) {
+    if (user) {
+      uid = user.uid;
+      hideLogin();
+      hydrate()
+        .then(function () {
+          if (typeof loadCreator === 'function')    loadCreator();
+          if (typeof loadConsulting === 'function') loadConsulting();
+          if (typeof render === 'function')         render();
+        })
+        .catch(function (e) {
+          console.error('hydrate failed', e);
+          // Fall back to local cache so the app still opens.
+          if (typeof loadCreator === 'function')    loadCreator();
+          if (typeof loadConsulting === 'function') loadConsulting();
+          if (typeof render === 'function')         render();
+        });
+    } else {
+      uid = null;
+      showLogin();
+    }
+  });
+
+  // Optional: expose a sign-out helper you can wire to a button later.
+  window.lgSignOut = function () { auth.signOut(); };
+})();
+</script>
+</body>
+</html>
