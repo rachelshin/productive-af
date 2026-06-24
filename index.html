@@ -320,6 +320,7 @@ var CREATOR_CONFIG={
 };
 var PL=['SM','MFC','CB','SC','NF','SP','C4S'];
 var P='pending',U='uploaded',PR='promoted',N='na';
+var CAL_COLORS={LG:'#c4506a',BH:'#7272b8',LV:'#3a8c80'};  // per-creator calendar colour
 
 var CREATORS={
   LG:{name:'Lux Gray',      initials:'LG',grad:'linear-gradient(135deg,#d4637a,#9b7dbd)',accentVar:'--rose',accentBg:'--rose-bg',accentB:'--rose-b',isMe:true},
@@ -446,8 +447,11 @@ var consulting={hoursPerInvoice:10,rate:50,currency:'$',currentPeriodStart:new D
 var timerRunning=false,timerStartMs=0,timerInterval=null;
 var manualEntryOpen=false,editPeriodStart=false;
 
-function storageKey(){return 'lg-v8-'+creator;}
-function consultingKey(){return 'lg-consulting-'+creator;}
+// Single source of truth for per-creator storage keys + platform list.
+// Pass a creator code (LG/BH/LV) to target another creator; omit for the active one.
+function storageKey(cr){return 'lg-v8-'+(cr||creator);}
+function consultingKey(cr){return 'lg-consulting-'+(cr||creator);}
+function platformsFor(cr){return CREATOR_PLATFORMS[cr]||['C4S'];}
 function defaultConsulting(){
   var cfg=CREATOR_CONFIG[creator]||{rate:50,currency:'$'};
   return {hoursPerInvoice:10,rate:cfg.rate,currency:cfg.currency,currentPeriodStart:todayStr(),currentPeriodSeconds:0,sessions:[],invoices:[],nextSessionId:1,nextInvoiceId:1,nextInvoiceNum:1};
@@ -535,24 +539,26 @@ var BH_NUM_MAP=(function(){
   return m;
 })();
 function applyBHNums(){
-  if(creator!=='BH')return;
-  var changed=false;
-  function norm(t){return t.toLowerCase().replace(/[^a-z0-9]/g,'');}
-  clips.forEach(function(c){
-    if(c.num)return;
-    var k=norm(c.title);
-    if(BH_NUM_MAP[k]){c.num='#'+BH_NUM_MAP[k];changed=true;return;}
-    // partial: map key starts with clip key or vice versa (min 6 chars)
-    var keys=Object.keys(BH_NUM_MAP);
-    for(var i=0;i<keys.length;i++){
-      var mk=keys[i];
-      if(mk.length>=6&&k.length>=6&&(k.indexOf(mk)===0||mk.indexOf(k)===0)){
-        c.num='#'+BH_NUM_MAP[mk];changed=true;break;
+  // BH-only: fill missing numbers from the known title -> number map first.
+  if(creator==='BH'){
+    var changed=false;
+    var norm=function(t){return t.toLowerCase().replace(/[^a-z0-9]/g,'');};
+    clips.forEach(function(c){
+      if(c.num)return;
+      var k=norm(c.title);
+      if(BH_NUM_MAP[k]){c.num='#'+BH_NUM_MAP[k];changed=true;return;}
+      // partial: map key starts with clip key or vice versa (min 6 chars)
+      var keys=Object.keys(BH_NUM_MAP);
+      for(var i=0;i<keys.length;i++){
+        var mk=keys[i];
+        if(mk.length>=6&&k.length>=6&&(k.indexOf(mk)===0||mk.indexOf(k)===0)){
+          c.num='#'+BH_NUM_MAP[mk];changed=true;break;
+        }
       }
-    }
-  });
-  if(changed)saveCreator();
-  // Assign IDs to any remaining clips that still have no num
+    });
+    if(changed)saveCreator();
+  }
+  // All creators (LG/BH/LV): assign any clip still missing a number — highest+1.
   var maxId=0;
   clips.forEach(function(c){
     if(c.num){var n=parseInt(c.num.replace(/[^0-9]/g,''));if(n>maxId)maxId=n;}
@@ -589,8 +595,8 @@ function saveCreator(){
 function exportData(){
   var data={};
   ['LG','BH','LV'].forEach(function(k){
-    var cs=localStorage.getItem('lg-v8-'+k);
-    var co=localStorage.getItem('lg-consulting-'+k);
+    var cs=localStorage.getItem(storageKey(k));
+    var co=localStorage.getItem(consultingKey(k));
     if(cs)data['clips_'+k]=JSON.parse(cs);
     if(co)data['consulting_'+k]=JSON.parse(co);
   });
@@ -609,8 +615,8 @@ function importData(){
       try{
         var data=JSON.parse(ev.target.result);
         ['LG','BH','LV'].forEach(function(k){
-          if(data['clips_'+k])store.setItem('lg-v8-'+k,JSON.stringify(data['clips_'+k]));
-          if(data['consulting_'+k])store.setItem('lg-consulting-'+k,JSON.stringify(data['consulting_'+k]));
+          if(data['clips_'+k])store.setItem(storageKey(k),JSON.stringify(data['clips_'+k]));
+          if(data['consulting_'+k])store.setItem(consultingKey(k),JSON.stringify(data['consulting_'+k]));
         });
         loadCreator();normalizePlatforms(clips);saveCreator();loadConsulting();render();
         alert('Data restored! All your clips and timer data are back.');
@@ -624,7 +630,7 @@ function switchCreator(key){
   saveCreator();saveConsulting();
   if(timerRunning)stopTimer(true);
   creator=key;
-  PL=CREATOR_PLATFORMS[key]||['C4S'];
+  PL=platformsFor(key);
   expanded=false;editField=null;addingNew=false;
   openGroups={};tab='queue';
   var cr=CREATORS[key];
@@ -724,36 +730,34 @@ function getNextSimple(){
 function doneClipsSimple(){return clips.filter(function(c){return clipUploadedSimple(c);});}
 
 function dailyMsg(){return MESSAGES[(new Date().getDate()-1)%MESSAGES.length];}
-function getCalEvents(){
-  var evs={};
-  clips.forEach(function(c){
+// Shared calendar-event collector: walks clips × platforms, applies the same
+// visibility rules, and appends decorated events into `evs` keyed by date.
+function collectCalEvents(evs,clipArr,platList,decorate){
+  clipArr.forEach(function(c){
     var dates=c.platformDates||{};
-    PL.forEach(function(pl){
+    platList.forEach(function(pl){
       var d=dates[pl];if(!d||c.platforms[pl]===N)return;
       // LF shouldn't appear on calendar until C4S is uploaded
       if(pl==='LF'&&c.platforms['C4S']===P)return;
       if(!evs[d])evs[d]=[];
-      evs[d].push({clip:c,platform:pl,status:c.platforms[pl]});
+      evs[d].push(decorate(c,pl));
     });
   });
   return evs;
 }
+function getCalEvents(){
+  return collectCalEvents({},clips,PL,function(c,pl){
+    return {clip:c,platform:pl,status:c.platforms[pl]};
+  });
+}
 function getAllCalEvents(){
   var evs={};
-  var crColors={LG:'#c4506a',BH:'#7272b8',LV:'#3a8c80'};
-  var crPL={LG:['SM','MFC','CB','SC','NF','SP','C4S'],BH:['LF','C4S'],LV:['C4S']};
   ['LG','BH','LV'].forEach(function(cr){
-    var s=localStorage.getItem('lg-v8-'+cr);if(!s)return;
+    var s=localStorage.getItem(storageKey(cr));if(!s)return;
     try{
       var p=JSON.parse(s);
-      (p.clips||[]).forEach(function(c){
-        var dates=c.platformDates||{};
-        (crPL[cr]||[]).forEach(function(pl){
-          var d=dates[pl];if(!d||c.platforms[pl]===N)return;
-          if(pl==='LF'&&c.platforms['C4S']===P)return;
-          if(!evs[d])evs[d]=[];
-          evs[d].push({clip:c,platform:pl,status:c.platforms[pl],creator:cr,color:crColors[cr]});
-        });
+      collectCalEvents(evs,p.clips||[],platformsFor(cr),function(c,pl){
+        return {clip:c,platform:pl,status:c.platforms[pl],creator:cr,color:CAL_COLORS[cr]};
       });
     }catch(e){}
   });
@@ -845,6 +849,7 @@ function renderField(c,field,label,placeholder){
   if(isE){
     if(field==='desc')h+='<textarea id="'+eid+'">'+esc(c.desc||'')+'</textarea>';
     else if(field==='keywords')h+='<input type="text" id="'+eid+'" value="'+esc((c.keywords||[]).join(', '))+'" placeholder="comma, separated, tags">';
+    else if(field==='num')h+='<input type="text" id="'+eid+'" value="'+esc((c.num||'').replace(/^#+/,''))+'" placeholder="'+esc(placeholder)+'">';
     else h+='<input type="text" id="'+eid+'" value="'+esc(c[field]||'')+'" placeholder="'+esc(placeholder)+'">';
     h+='<div class="btn-row"><button class="btn btn-dark" onclick="saveF('+c.id+',\''+field+'\',document.getElementById(\''+eid+'\').value)">Save</button>';
     h+='<button class="btn btn-ghost" onclick="editField=null;render()">Cancel</button></div>';
@@ -1128,13 +1133,13 @@ function applyCalDrop(clipId,platform,creator,dateStr){
     // All-Creators view: the clip belongs to another creator. Edit that
     // creator's stored record directly (store.setItem syncs to Firestore).
     try{
-      var s=store.getItem('lg-v8-'+creator);if(!s)return;
+      var s=store.getItem(storageKey(creator));if(!s)return;
       var p=JSON.parse(s);
       var c=(p.clips||[]).find(function(x){return x.id===clipId;});
       if(!c)return;
       if(!c.platformDates)c.platformDates={};
       c.platformDates[platform]=dateStr;
-      store.setItem('lg-v8-'+creator,JSON.stringify(p));
+      store.setItem(storageKey(creator),JSON.stringify(p));
     }catch(err){}
   } else {
     // Per-creator calendar: the clip is in the active in-memory array.
@@ -1151,21 +1156,21 @@ function applyCalDrop(clipId,platform,creator,dateStr){
   render();
 }
 document.addEventListener('pointerdown',calPointerDown);
-function renderAllCalendar(){
+// Month grid is identical for both calendars; only the per-cell event markup
+// and the surrounding legend differ. calNavHtml = prev/month/next row;
+// calGridHtml = day headers + day cells, each cell's events supplied by the
+// renderCellEvents(evs) callback.
+function calNavHtml(){
   var MNAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  return '<div class="cal-nav-row">'
+    +'<button class="cal-nav-btn" onclick="prevMonth()">&#8592; Prev</button>'
+    +'<div class="cal-month-lbl">'+MNAMES[calMonth]+' '+calYear+'</div>'
+    +'<button class="cal-nav-btn" onclick="nextMonth()">Next &#8594;</button></div>';
+}
+function calGridHtml(evMap,renderCellEvents){
   var DNAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  var today=todayStr();var evMap=getAllCalEvents();
-  var crLabel={LG:'LG',BH:'BH',LV:'LV'};
-  var h='<div class="cal-nav-row">';
-  h+='<button class="cal-nav-btn" onclick="prevMonth()">&#8592; Prev</button>';
-  h+='<div class="cal-month-lbl">'+MNAMES[calMonth]+' '+calYear+'</div>';
-  h+='<button class="cal-nav-btn" onclick="nextMonth()">Next &#8594;</button></div>';
-  h+='<div class="cal-legend" style="margin-bottom:12px">';
-  h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:#c4506a"></div>Lux Gray</div>';
-  h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:#7272b8"></div>Brigit Heart</div>';
-  h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:#3a8c80"></div>Lady Venus</div>';
-  h+='</div>';
-  h+='<div class="cal-grid">';
+  var today=todayStr();
+  var h='<div class="cal-grid">';
   DNAMES.forEach(function(d){h+='<div class="cal-day-hdr">'+d+'</div>';});
   var firstDay=new Date(calYear,calMonth,1).getDay();
   var daysInMonth=new Date(calYear,calMonth+1,0).getDate();
@@ -1176,48 +1181,45 @@ function renderAllCalendar(){
     var evs=evMap[ds]||[];
     h+='<div class="cal-cell'+(isToday?' cal-today':'')+(isPast&&!isToday?' cal-past':'')+'" data-drop-date="'+ds+'">';
     h+='<div class="cal-day-n">'+d+'</div>';
-    evs.slice(0,4).forEach(function(ev){
-      var short=ev.clip.title.length>14?ev.clip.title.substring(0,13)+'…':ev.clip.title;
-      var stIcon=ev.status===U?' ✓':ev.status===PR?' ★':'';
-      h+='<div class="cal-event" data-drag-clip="'+ev.clip.id+'" data-drag-platform="'+ev.platform+'" data-drag-creator="'+ev.creator+'" style="background:'+ev.color+';border-color:'+ev.color+';color:#fff;cursor:grab" title="'+esc(ev.clip.title)+' ('+ev.creator+' / '+ev.platform+')">';
-      h+='<span class="cal-event-plat">'+ev.creator+'</span>'+esc(short)+stIcon+'</div>';
-    });
-    if(evs.length>4)h+='<div class="cal-more">+'+(evs.length-4)+' more</div>';
+    h+=renderCellEvents(evs);
     h+='</div>';
   }
   h+='</div>';
   return h;
 }
+function renderAllCalendar(){
+  var h=calNavHtml();
+  h+='<div class="cal-legend" style="margin-bottom:12px">';
+  ['LG','BH','LV'].forEach(function(cr){
+    h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:'+CAL_COLORS[cr]+'"></div>'+CREATORS[cr].name+'</div>';
+  });
+  h+='</div>';
+  h+=calGridHtml(getAllCalEvents(),function(evs){
+    var s='';
+    evs.slice(0,4).forEach(function(ev){
+      var short=ev.clip.title.length>14?ev.clip.title.substring(0,13)+'…':ev.clip.title;
+      var stIcon=ev.status===U?' ✓':ev.status===PR?' ★':'';
+      s+='<div class="cal-event" data-drag-clip="'+ev.clip.id+'" data-drag-platform="'+ev.platform+'" data-drag-creator="'+ev.creator+'" style="background:'+ev.color+';border-color:'+ev.color+';color:#fff;cursor:grab" title="'+esc(ev.clip.title)+' ('+ev.creator+' / '+ev.platform+')">';
+      s+='<span class="cal-event-plat">'+ev.creator+'</span>'+esc(short)+stIcon+'</div>';
+    });
+    if(evs.length>4)s+='<div class="cal-more">+'+(evs.length-4)+' more</div>';
+    return s;
+  });
+  return h;
+}
 function renderCalendar(){
-  var MNAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
-  var DNAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  var today=todayStr();var evMap=getCalEvents();
-  var h='';
-  h+='<div class="cal-nav-row">';
-  h+='<button class="cal-nav-btn" onclick="prevMonth()">&#8592; Prev</button>';
-  h+='<div class="cal-month-lbl">'+MNAMES[calMonth]+' '+calYear+'</div>';
-  h+='<button class="cal-nav-btn" onclick="nextMonth()">Next &#8594;</button></div>';
-  h+='<div class="cal-grid">';
-  DNAMES.forEach(function(d){h+='<div class="cal-day-hdr">'+d+'</div>';});
-  var firstDay=new Date(calYear,calMonth,1).getDay();
-  var daysInMonth=new Date(calYear,calMonth+1,0).getDate();
-  for(var i=0;i<firstDay;i++)h+='<div class="cal-cell cal-empty"></div>';
-  for(var d=1;d<=daysInMonth;d++){
-    var ds=calYear+'-'+String(calMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-    var isToday=ds===today;var isPast=ds<today;
-    var evs=evMap[ds]||[];
-    h+='<div class="cal-cell'+(isToday?' cal-today':'')+(isPast&&!isToday?' cal-past':'')+'" data-drop-date="'+ds+'">';
-    h+='<div class="cal-day-n">'+d+'</div>';
+  var h=calNavHtml();
+  h+=calGridHtml(getCalEvents(),function(evs){
+    var s='';
     evs.slice(0,3).forEach(function(ev){
       var stCls=isSimple()?(ev.platform==='C4S'?' is-c4s':ev.platform==='LF'?' is-lf':''):(ev.status===U?' is-up':ev.status===PR?' is-pr':'');
       var short=ev.clip.title.length>16?ev.clip.title.substring(0,15)+'…':ev.clip.title;
-      h+='<div class="cal-event'+stCls+'" data-drag-clip="'+ev.clip.id+'" data-drag-platform="'+ev.platform+'" onclick="jumpToClip('+ev.clip.id+')" style="cursor:grab">';
-      h+='<span class="cal-event-plat">'+ev.platform+'</span>'+esc(short)+'</div>';
+      s+='<div class="cal-event'+stCls+'" data-drag-clip="'+ev.clip.id+'" data-drag-platform="'+ev.platform+'" onclick="jumpToClip('+ev.clip.id+')" style="cursor:grab">';
+      s+='<span class="cal-event-plat">'+ev.platform+'</span>'+esc(short)+'</div>';
     });
-    if(evs.length>3)h+='<div class="cal-more">+' +(evs.length-3)+' more</div>';
-    h+='</div>';
-  }
-  h+='</div>';
+    if(evs.length>3)s+='<div class="cal-more">+' +(evs.length-3)+' more</div>';
+    return s;
+  });
   h+='<div class="cal-legend">';
   if(isSimple()){
     h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:#d4909e"></div>Upload to C4S</div>';
@@ -1312,9 +1314,7 @@ function fmtHours(s){
   return h+(m>0?'h '+m+'m':'h');
 }
 function fmtDateRange(start,end){
-  var mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  function fmt(d){var p=d.split('-');return mo[parseInt(p[1])-1]+' '+parseInt(p[2]);}
-  return fmt(start)+' – '+fmt(end);
+  return fmtDate(start)+' – '+fmtDate(end);  // fmtDate already produces "Mon D"
 }
 function daysDiff(dateStr){
   var d=new Date(dateStr+'T00:00:00');var now=new Date();
