@@ -302,6 +302,41 @@ input[type=number]{-moz-appearance:textfield}
 .session-row:last-child{border-bottom:none}
 .session-date{color:var(--faint);font-weight:600;min-width:80px}
 .session-dur{color:var(--text);font-weight:700;font-variant-numeric:tabular-nums}
+
+/* ===== Desktop (>=1024px): full-screen three-pane app — sidebar | list | edit ===== */
+@media (min-width:1024px){
+  html,body{height:100%}
+  body{background:var(--surface);padding-bottom:0;overflow:hidden;font-size:16px}
+  #root{height:100vh}
+  .dt{display:grid;grid-template-columns:250px minmax(330px,460px) 1fr;height:100vh}
+  .dt.dt-wide{grid-template-columns:250px 1fr}
+  .dt-side{background:#fbf6f2;border-right:1px solid var(--border);padding:22px 16px;display:flex;flex-direction:column;overflow-y:auto}
+  .dt-list{border-right:1px solid var(--border);overflow-y:auto;padding:16px 14px;background:var(--bg)}
+  .dt-detail,.dt-main{overflow-y:auto;background:var(--bg)}
+  .dt-detail{padding:30px 40px}
+  .dt-main{padding:26px 36px}
+  .dt-brand{display:flex;align-items:center;gap:11px;margin-bottom:8px}
+  .dt-brand .brand-name{font-size:18px;font-weight:800;color:var(--text)}
+  .dt-sec-lbl{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:16px 6px 8px}
+  .dt-cres,.dt-nav{display:flex;flex-direction:column;gap:3px}
+  .dt-cre,.dt-navitem{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;font-weight:600;color:var(--muted);font-size:15px;transition:background .12s,color .12s}
+  .dt-cre:hover,.dt-navitem:hover{background:rgba(120,70,50,.06);color:var(--text)}
+  .dt-cre.active,.dt-navitem.active{background:var(--surface);color:var(--text);box-shadow:0 1px 5px rgba(80,30,20,.08)}
+  .dt-cre-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0}
+  .dt-side-foot{margin-top:auto;padding-top:18px;display:flex;gap:8px}
+  .dt-grp{margin-bottom:20px}
+  .dt-grp-h{font-size:12px;font-weight:800;letter-spacing:.02em;margin:0 4px 8px;display:flex;align-items:center;gap:8px}
+  .dt-grp-h span{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:1px 9px;font-size:11px;color:var(--muted);font-weight:700}
+  .dt-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;border:1.5px solid transparent;margin-bottom:2px}
+  .dt-row:hover{background:var(--surface)}
+  .dt-row.sel{background:var(--surface);border-color:var(--accent);box-shadow:0 1px 6px rgba(80,30,20,.1)}
+  .dt-row-name{font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dt-detail-head{display:flex;align-items:center;gap:11px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+  .dt-detail-title{font-size:22px;font-weight:800;color:var(--text);line-height:1.2}
+  .dt-empty{color:var(--faint);font-size:16px;text-align:center;margin-top:90px}
+  .dt-form{max-width:720px}
+  .dt-main .cal-cell{height:128px}
+}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -797,6 +832,7 @@ function toggleCheck(id,field){
 }
 function saveF(id,field,value){
   var c=clips.find(function(x){return x.id===id;});if(!c)return;
+  if(field==='title'&&!value.trim()){editField=null;render();return;} // never blank the clip name
   if(field==='num'&&value.trim()){
     var norm=value.trim().replace(/^#+/,'');
     var dup=clips.find(function(x){return x.id!==id&&x.num&&x.num.replace(/^#+/,'')===norm;});
@@ -1156,6 +1192,8 @@ function applyCalDrop(clipId,platform,creator,dateStr){
   render();
 }
 document.addEventListener('pointerdown',calPointerDown);
+// Re-render when crossing the desktop/mobile breakpoint so the right layout shows.
+if(window.matchMedia){try{window.matchMedia('(min-width:1024px)').addEventListener('change',function(){if(typeof render==='function')render();});}catch(e){}}
 // Month grid is identical for both calendars; only the per-cell event markup
 // and the surrounding legend differ. calNavHtml = prev/month/next row;
 // calGridHtml = day headers + day cells, each cell's events supplied by the
@@ -1677,7 +1715,117 @@ function renderAllView(){
   h+='</div>';
   document.getElementById('root').innerHTML=h;
 }
+// ===== Desktop UI: full-screen three-pane app (sidebar | clip list | edit pane) =====
+function isDesktop(){return typeof window!=='undefined'&&!!window.matchMedia&&window.matchMedia('(min-width:1024px)').matches;}
+
+function dtSidebar(){
+  var cr=CREATORS[creator];
+  var h='<aside class="dt-side">';
+  h+='<div class="dt-brand"><div class="brand-mark" style="background:'+cr.grad+'">'+cr.initials+'</div><span class="brand-name">'+esc(cr.name)+'</span></div>';
+  h+='<div class="dt-sec-lbl">Creators</div><div class="dt-cres">';
+  Object.keys(CREATORS).forEach(function(key){
+    var c2=CREATORS[key],act=key===creator;
+    h+='<div class="dt-cre'+(act?' active':'')+'" onclick="switchCreator(\''+key+'\')"><span class="dt-cre-dot" style="background:'+(act?c2.grad:'var(--border)')+'"></span>'+esc(c2.name)+'</div>';
+  });
+  h+='</div>';
+  if(creator!=='ALL'){
+    h+='<div class="dt-sec-lbl">View</div><div class="dt-nav">';
+    function nav(t,label){return '<div class="dt-navitem'+(tab===t?' active':'')+'" onclick="tab=\''+t+'\';expanded=false;render()">'+label+'</div>';}
+    h+=nav('pipe','Pipeline')+nav('queue','Do This Next')+nav('cal','Calendar');
+    if(isSimple())h+=nav('inv','Invoicing');
+    h+='</div>';
+  }
+  h+='<div class="dt-side-foot">';
+  h+='<button class="btn btn-ghost" style="font-size:12px;padding:6px 10px" onclick="exportData()" title="Backup all data">&#11015; Backup</button>';
+  h+='<button class="btn btn-ghost" style="font-size:12px;padding:6px 10px" onclick="importData()" title="Restore from a backup file">&#11014; Restore</button>';
+  h+='</div></aside>';
+  return h;
+}
+
+function dtClipGroup(label,col,items){
+  if(!items.length)return '';
+  var h='<div class="dt-grp"><div class="dt-grp-h" style="color:'+col+'">'+esc(label)+'<span>'+items.length+'</span></div>';
+  items.forEach(function(c){
+    h+='<div class="dt-row'+(expanded===c.id?' sel':'')+'" onclick="expanded='+c.id+';render()">';
+    h+='<span class="id-badge">'+(c.num?esc(c.num):fid(c.id))+'</span><span class="dt-row-name">'+esc(c.title)+'</span></div>';
+  });
+  return h+'</div>';
+}
+
+function dtList(){
+  if(!clips.length)return '<div class="dt-empty">No clips yet.<br><small>Use Restore, or switch creators.</small></div>';
+  var h='';
+  if(isSimple()){
+    if(PL.length>1){
+      h+=dtClipGroup('Upload to C4S','var(--rose)',clips.filter(function(c){return c.platforms['C4S']===P;}));
+      h+=dtClipGroup('Upload to LF','var(--amber)',clips.filter(function(c){return c.platforms['C4S']!==P&&PL.some(function(pl){return c.platforms[pl]===P;});}));
+      h+=dtClipGroup('Uploaded','var(--green)',clips.filter(function(c){return clipUploadedSimple(c);}));
+    } else {
+      h+=dtClipGroup('To Upload','var(--rose)',clips.filter(function(c){return !clipUploadedSimple(c);}));
+      h+=dtClipGroup('Uploaded','var(--green)',clips.filter(function(c){return clipUploadedSimple(c);}));
+    }
+  } else {
+    [['upload','Ready to Upload','var(--rose)'],['promote','Ready to Promote','var(--teal)'],
+     ['write-desc','Needs Description','var(--violet)'],['write-title','Needs Title','var(--violet)'],
+     ['write-keywords','Needs Keywords','var(--violet)'],['assets','Needs Assets','var(--amber)'],
+     ['edit','Needs Editing','var(--sky)'],['film','Ideas to Film','var(--faint)']].forEach(function(g){
+      var types=g[0]==='assets'?['make-thumbnail','make-nfgbcover','make-preview']:[g[0]];
+      h+=dtClipGroup(g[1],g[2],clipsForTypes(types));
+    });
+    h+=dtClipGroup('All Done','var(--green)',doneClips());
+  }
+  return h;
+}
+
+// Full editable detail for one clip — reused by the desktop edit pane.
+function renderClipDetail(c){
+  var s=getClipStep(c);
+  var h='';
+  if(s){h+=renderActionPanel(s);h+='<div class="sep"></div>';}
+  h+=renderField(c,'title','Title','Clip title…');
+  if(!isSimple()){
+    h+=renderField(c,'uploadTitle','Upload Title','Same as working title');
+    h+=renderField(c,'desc','Description','No description yet');
+    h+=renderField(c,'keywords','Keywords','No keywords yet');
+  }
+  h+=renderField(c,'num','Clip #','e.g. 101');
+  h+=renderField(c,'length','Length','e.g. 15:52');
+  if(!isSimple())h+=renderAssets(c);
+  h+=renderPlatforms(c);
+  h+=renderField(c,'notes','Notes','Any notes…');
+  h+='<div style="margin-top:16px"><button class="btn btn-del" onclick="doRemove('+c.id+')">Remove clip</button></div>';
+  return h;
+}
+
+function dtDetail(){
+  var c=clips.find(function(x){return x.id===expanded;});
+  if(!c&&tab==='queue'){var nx=isSimple()?getNextSimple():getNext();if(nx)c=nx.clip;}
+  if(!c)return '<div class="dt-empty">Select a clip on the left to edit it.</div>';
+  var h='<div class="dt-detail-head"><span class="id-badge">'+(c.num?esc(c.num):fid(c.id))+'</span><span class="dt-detail-title">'+esc(c.title)+'</span></div>';
+  h+='<div class="dt-form">'+renderClipDetail(c)+'</div>';
+  return h;
+}
+
+function renderDesktop(){
+  var wide=(creator==='ALL'||tab==='cal'||tab==='inv');
+  var h='<div class="dt'+(wide?' dt-wide':'')+'">'+dtSidebar();
+  if(wide){
+    h+='<main class="dt-main">';
+    if(creator==='ALL')h+='<div class="sec-lbl">Combined Calendar</div>'+renderAllCalendar();
+    else if(tab==='inv'&&isSimple())h+=renderInvoicingTab();
+    else h+='<div class="sec-lbl">Upload Schedule</div>'+(clips.length?renderCalendar():'<div class="dt-empty">No clips scheduled yet.</div>');
+    h+='</main>';
+  } else {
+    h+='<section class="dt-list">'+dtList()+'</section>';
+    h+='<section class="dt-detail">'+dtDetail()+'</section>';
+  }
+  h+='</div>';
+  document.getElementById('root').innerHTML=h;
+  if(editField){var el=document.getElementById('fe_'+editField.id+'_'+editField.field);if(el){el.focus();if(el.tagName==='TEXTAREA')el.setSelectionRange(el.value.length,el.value.length);}}
+}
+
 function render(){
+  if(isDesktop()){renderDesktop();return;}
   if(creator==='ALL'){renderAllView();return;}
   var next=isSimple()?getNextSimple():getNext();
   var counts=isSimple()?null:getCounts();
@@ -1771,6 +1919,7 @@ function render(){
         h+='<div class="dtn-body open"><div class="dtn-divider"></div>';
         h+=renderActionPanel(next);
         h+='<div class="sep"></div>';
+        h+=renderField(next.clip,'title','Title','Clip title…');
         if(!isSimple()){
           h+=renderField(next.clip,'uploadTitle','Upload Title','Same as working title');
           h+=renderField(next.clip,'desc','Description','No description yet');
@@ -1831,6 +1980,7 @@ function render(){
           rh+='<div style="padding:16px 18px 18px;border-top:1px solid var(--border);background:var(--bg)">';
           if(showAction)rh+=renderActionPanel({type:'upload',clip:c,pl:pp||PL[0]});
           rh+=renderPlatforms(c);
+          rh+=renderField(c,'title','Title','Clip title…');
           rh+=renderField(c,'num','Clip #','e.g. 101');
           rh+=renderField(c,'length','Length','e.g. 15:52');
           rh+=renderField(c,'notes','Notes','Any notes…');
@@ -1867,6 +2017,34 @@ function render(){
         h+=pipeGrp('allDone','&#9733;','Uploaded','var(--green)',filteredDone2,false);
       }
     } else {
+      // LG clips are individually expandable/editable (mirrors BH/LV's clipRowS).
+      // Edit-focused: fields + assets + platforms; actions stay in "Do This Next".
+      function clipRowLG(c){
+        var s=getClipStep(c);
+        var sub=s&&s.pl?' → '+s.pl:'';
+        var isExp=expanded===c.id;
+        var rh='<div class="pipe-clip-row" onclick="expanded=expanded==='+c.id+'?false:'+c.id+';editField=null;render()">';
+        rh+='<span class="id-badge">'+fid(c.id)+'</span>';
+        rh+='<span class="pipe-clip-name">'+esc(c.title)+'</span>';
+        if(sub)rh+='<span class="pipe-clip-sub">'+esc(sub)+'</span>';
+        rh+='<span style="color:var(--faint);font-size:13px;margin-left:auto">'+(isExp?'&#9650;':'&#9660;')+'</span></div>';
+        if(isExp){
+          rh+='<div style="padding:16px 18px 18px;border-top:1px solid var(--border);background:var(--bg)">';
+          if(s){rh+=renderActionPanel(s);rh+='<div class="sep"></div>';}
+          rh+=renderField(c,'title','Title','Clip title…');
+          rh+=renderField(c,'uploadTitle','Upload Title','Same as working title');
+          rh+=renderField(c,'desc','Description','No description yet');
+          rh+=renderField(c,'keywords','Keywords','No keywords yet');
+          rh+=renderField(c,'num','Clip #','e.g. 101');
+          rh+=renderField(c,'length','Length','e.g. 15:52');
+          rh+=renderAssets(c);
+          rh+=renderPlatforms(c);
+          rh+=renderField(c,'notes','Notes','Any notes…');
+          rh+='<div style="margin-top:12px"><button class="btn btn-del" onclick="event.stopPropagation();doRemove('+c.id+')">Remove clip</button></div>';
+          rh+='</div>';
+        }
+        return rh;
+      }
       var groups=[
         {types:['upload'],icon:'&#11014;&#65039;',label:'Ready to Upload',col:'var(--rose)'},
         {types:['promote'],icon:'&#9733;',label:'Ready to Promote',col:'var(--teal)'},
@@ -1888,23 +2066,23 @@ function render(){
         h+='<div class="pipe-group-chev'+(isOpen?' open':'')+'">&#9662;</div></div>';
         if(isOpen){
           h+='<div class="pipe-group-body open">';
-          items.forEach(function(c){
-            var s=getClipStep(c);
-            var sub=s&&s.pl?' → '+s.pl:'';
-            h+='<div class="pipe-clip-row" onclick="jumpToClip('+c.id+')">';
-            h+='<span class="id-badge">'+fid(c.id)+'</span>';
-            h+='<span class="pipe-clip-name">'+esc(c.title)+'</span>';
-            if(sub)h+='<span class="pipe-clip-sub">'+esc(sub)+'</span>';
-            h+='</div>';
-          });
+          items.forEach(function(c){h+=clipRowLG(c);});
           h+='</div>';
         }
         h+='</div>';
       });
       if(!anyGroups&&!clips.length)h+='<div class="empty-state"><div class="big">&#128203;</div><p>No clips yet.</p><small>Add clips using the button below.</small></div>';
       if(done.length){
-        h+='<div class="sec-lbl">All Done ('+done.length+')</div><div class="done-grid">';
-        done.forEach(function(c){h+='<span class="done-chip"><span class="did">'+fid(c.id)+'</span>'+esc(c.title)+'</span>';});
+        var doneOpen=openGroups['lgDone']===true; // collapsed by default
+        h+='<div class="pipe-group">';
+        h+='<div class="pipe-group-head" onclick="openGroups[\'lgDone\']=!openGroups[\'lgDone\'];render()">';
+        h+='<div class="pipe-group-label" style="color:var(--green)">&#9733; All Done<span class="pipe-group-n">'+done.length+'</span></div>';
+        h+='<div class="pipe-group-chev'+(doneOpen?' open':'')+'">&#9662;</div></div>';
+        if(doneOpen){
+          h+='<div class="pipe-group-body open">';
+          done.forEach(function(c){h+=clipRowLG(c);});
+          h+='</div>';
+        }
         h+='</div>';
       }
     }
