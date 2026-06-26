@@ -335,6 +335,15 @@ input[type=number]{-moz-appearance:textfield}
   .dt-detail-title{font-size:22px;font-weight:800;color:var(--text);line-height:1.2}
   .dt-empty{color:var(--faint);font-size:16px;text-align:center;margin-top:90px}
   .dt-form{max-width:720px}
+  .dt-next{max-width:720px;margin-bottom:18px;padding:16px 18px;border-radius:12px;background:var(--surface);border:1px solid var(--border);box-shadow:0 1px 6px rgba(80,30,20,.06)}
+  .dt-next-eyebrow{font-size:12px;font-weight:800;letter-spacing:.06em;display:flex;align-items:center;gap:7px;margin-bottom:5px}
+  .dt-next-action{font-size:22px;font-weight:800;color:var(--text);line-height:1.25}
+  .dt-next-sub{font-size:13px;color:var(--muted);margin-top:5px}
+  .dt-logo{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#d4637a,#9b7dbd);color:#fff;font-size:15px;flex-shrink:0}
+  .dt-donext{width:100%;margin:2px 0 10px;padding:13px 14px;border:none;border-radius:11px;background:var(--accent);color:#fff;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 3px 12px rgba(196,80,106,.32);transition:filter .12s}
+  .dt-donext:hover{filter:brightness(1.06)}
+  .dt-list-head{position:sticky;top:0;background:var(--bg);padding:2px 6px 12px;margin-bottom:8px;border-bottom:1px solid var(--border);z-index:2}
+  .dt-list-title{font-size:17px;font-weight:800;color:var(--text)}
   .dt-main .cal-cell{height:128px}
 }
 </style>
@@ -1715,26 +1724,41 @@ function renderAllView(){
   h+='</div>';
   document.getElementById('root').innerHTML=h;
 }
-// ===== Desktop UI: full-screen three-pane app (sidebar | clip list | edit pane) =====
+// ===== Desktop UI: three-pane app — sidebar | clip list | right pane =====
 function isDesktop(){return typeof window!=='undefined'&&!!window.matchMedia&&window.matchMedia('(min-width:1024px)').matches;}
+var dtRightView='edit',dtNextId=null; // right pane: 'edit' | 'cal' | 'inv'
+
+// The single most pressing thing across ALL creators: soonest scheduled upload.
+function dtGlobalNext(){
+  var evMap=getAllCalEvents(),all=[];
+  Object.keys(evMap).forEach(function(d){(evMap[d]||[]).forEach(function(ev){if(ev.status===P)all.push({date:d,ev:ev});});});
+  all.sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:0;});
+  return all.length?all[0]:null;
+}
+function dtDoNext(){
+  dtRightView='edit';
+  var g=dtGlobalNext();
+  if(!g){expanded=false;dtNextId=null;render();return;}
+  if(creator!==g.ev.creator)switchCreator(g.ev.creator); // load that creator's clips into the middle pane
+  dtNextId=g.ev.clip.id;expanded=g.ev.clip.id;
+  render();
+}
 
 function dtSidebar(){
-  var cr=CREATORS[creator];
   var h='<aside class="dt-side">';
-  h+='<div class="dt-brand"><div class="brand-mark" style="background:'+cr.grad+'">'+cr.initials+'</div><span class="brand-name">'+esc(cr.name)+'</span></div>';
+  h+='<div class="dt-brand"><div class="dt-logo">&#9733;</div><span class="brand-name">Dashboard</span></div>';
+  h+='<button class="dt-donext" onclick="dtDoNext()">&#9889;&nbsp; Do This Next</button>';
+  h+='<div class="dt-navitem'+(dtRightView==='allcal'?' active':'')+'" style="margin-bottom:4px" onclick="dtRightView=\'allcal\';render()">&#128197;&nbsp; Combined Calendar</div>';
   h+='<div class="dt-sec-lbl">Creators</div><div class="dt-cres">';
-  Object.keys(CREATORS).forEach(function(key){
+  ['LG','BH','LV'].forEach(function(key){
     var c2=CREATORS[key],act=key===creator;
-    h+='<div class="dt-cre'+(act?' active':'')+'" onclick="switchCreator(\''+key+'\')"><span class="dt-cre-dot" style="background:'+(act?c2.grad:'var(--border)')+'"></span>'+esc(c2.name)+'</div>';
+    h+='<div class="dt-cre'+(act?' active':'')+'" onclick="dtRightView=\'edit\';switchCreator(\''+key+'\')"><span class="dt-cre-dot" style="background:'+(act?c2.grad:'var(--border)')+'"></span>'+esc(c2.name)+'</div>';
   });
   h+='</div>';
-  if(creator!=='ALL'){
-    h+='<div class="dt-sec-lbl">View</div><div class="dt-nav">';
-    function nav(t,label){return '<div class="dt-navitem'+(tab===t?' active':'')+'" onclick="tab=\''+t+'\';expanded=false;render()">'+label+'</div>';}
-    h+=nav('pipe','Pipeline')+nav('queue','Do This Next')+nav('cal','Calendar');
-    if(isSimple())h+=nav('inv','Invoicing');
-    h+='</div>';
-  }
+  h+='<div class="dt-sec-lbl">View</div><div class="dt-nav">';
+  h+='<div class="dt-navitem'+(dtRightView==='cal'?' active':'')+'" onclick="dtRightView=\'cal\';render()">Calendar</div>';
+  if(isSimple())h+='<div class="dt-navitem'+(dtRightView==='inv'?' active':'')+'" onclick="dtRightView=\'inv\';render()">Invoicing</div>';
+  h+='</div>';
   h+='<div class="dt-side-foot">';
   h+='<button class="btn btn-ghost" style="font-size:12px;padding:6px 10px" onclick="exportData()" title="Backup all data">&#11015; Backup</button>';
   h+='<button class="btn btn-ghost" style="font-size:12px;padding:6px 10px" onclick="importData()" title="Restore from a backup file">&#11014; Restore</button>';
@@ -1742,18 +1766,24 @@ function dtSidebar(){
   return h;
 }
 
+function dtListHeader(){
+  var cr=CREATORS[creator]||{name:''};
+  return '<div class="dt-list-head"><span class="dt-list-title">'+esc(cr.name)+'</span></div>';
+}
+
 function dtClipGroup(label,col,items){
   if(!items.length)return '';
   var h='<div class="dt-grp"><div class="dt-grp-h" style="color:'+col+'">'+esc(label)+'<span>'+items.length+'</span></div>';
   items.forEach(function(c){
-    h+='<div class="dt-row'+(expanded===c.id?' sel':'')+'" onclick="expanded='+c.id+';render()">';
+    var sel=(dtRightView==='edit'&&expanded===c.id);
+    h+='<div class="dt-row'+(sel?' sel':'')+'" onclick="dtRightView=\'edit\';expanded='+c.id+';render()">';
     h+='<span class="id-badge">'+(c.num?esc(c.num):fid(c.id))+'</span><span class="dt-row-name">'+esc(c.title)+'</span></div>';
   });
   return h+'</div>';
 }
 
 function dtList(){
-  if(!clips.length)return '<div class="dt-empty">No clips yet.<br><small>Use Restore, or switch creators.</small></div>';
+  if(!clips.length)return '<div class="dt-empty">No clips yet.<br><small>Use Restore, or pick another creator.</small></div>';
   var h='';
   if(isSimple()){
     if(PL.length>1){
@@ -1797,29 +1827,46 @@ function renderClipDetail(c){
   return h;
 }
 
-function dtDetail(){
-  var c=clips.find(function(x){return x.id===expanded;});
-  if(!c&&tab==='queue'){var nx=isSimple()?getNextSimple():getNext();if(nx)c=nx.clip;}
-  if(!c)return '<div class="dt-empty">Select a clip on the left to edit it.</div>';
-  var h='<div class="dt-detail-head"><span class="id-badge">'+(c.num?esc(c.num):fid(c.id))+'</span><span class="dt-detail-title">'+esc(c.title)+'</span></div>';
+function dtClipEditor(c,step){
+  var h='';
+  if(step){
+    var col=TCOLOR[step.type]||'var(--faint)';
+    var head=step.type==='upload'?'Upload to '+step.pl:step.type==='promote'?'Promote on '+step.pl:(TLABEL[step.type]||step.type).replace(/ for$/,'');
+    var dv=(step.pl&&c.platformDates&&c.platformDates[step.pl])?c.platformDates[step.pl]:'';
+    h+='<div class="dt-next" style="border-left:4px solid '+col+'">';
+    h+='<div class="dt-next-eyebrow" style="color:'+col+'"><span class="dtn-pulse" style="background:'+col+'"></span>DO THIS NEXT</div>';
+    h+='<div class="dt-next-action">'+esc(head)+'</div>';
+    h+='<div class="dt-next-sub">for '+(c.num?esc(c.num):fid(c.id))+' &ldquo;'+esc(c.title)+'&rdquo;'+(dv?' &middot; scheduled '+esc(fmtDate(dv)):'')+'</div>';
+    h+='</div>';
+  }
+  h+='<div class="dt-detail-head"><span class="id-badge">'+(c.num?esc(c.num):fid(c.id))+'</span><span class="dt-detail-title">'+esc(c.title)+'</span></div>';
   h+='<div class="dt-form">'+renderClipDetail(c)+'</div>';
   return h;
 }
+function dtDetail(){
+  var c=clips.find(function(x){return x.id===expanded;}),step=null;
+  if(!c){ // nothing selected → default to this creator's next action
+    var nx0=isSimple()?getNextSimple():getNext();
+    if(nx0){c=nx0.clip;step=nx0;}
+  }
+  if(!c)return '<div class="dt-empty">&#127881; All caught up for '+esc((CREATORS[creator]||{name:'this creator'}).name)+'.<br><small>Pick a clip on the left to edit it.</small></div>';
+  if(!step){ // a clip is selected — show the banner only if it's actually the next action
+    var nx=isSimple()?getNextSimple():getNext();
+    if(nx&&nx.clip.id===c.id)step=nx;
+    else if(c.id===dtNextId)step=getClipStep(c);
+  }
+  return dtClipEditor(c,step);
+}
 
 function renderDesktop(){
-  var wide=(creator==='ALL'||tab==='cal'||tab==='inv');
-  var h='<div class="dt'+(wide?' dt-wide':'')+'">'+dtSidebar();
-  if(wide){
-    h+='<main class="dt-main">';
-    if(creator==='ALL')h+='<div class="sec-lbl">Combined Calendar</div>'+renderAllCalendar();
-    else if(tab==='inv'&&isSimple())h+=renderInvoicingTab();
-    else h+='<div class="sec-lbl">Upload Schedule</div>'+(clips.length?renderCalendar():'<div class="dt-empty">No clips scheduled yet.</div>');
-    h+='</main>';
-  } else {
-    h+='<section class="dt-list">'+dtList()+'</section>';
-    h+='<section class="dt-detail">'+dtDetail()+'</section>';
-  }
-  h+='</div>';
+  var h='<div class="dt">'+dtSidebar();
+  h+='<section class="dt-list">'+dtListHeader()+dtList()+'</section>';
+  h+='<section class="dt-detail">';
+  if(dtRightView==='allcal')h+='<div class="sec-lbl">Combined Calendar — all creators</div>'+renderAllCalendar();
+  else if(dtRightView==='cal')h+='<div class="sec-lbl">'+esc((CREATORS[creator]||{name:''}).name)+' — Upload Schedule</div>'+(clips.length?renderCalendar():'<div class="dt-empty">No clips scheduled yet.</div>');
+  else if(dtRightView==='inv'&&isSimple())h+=renderInvoicingTab();
+  else h+=dtDetail();
+  h+='</section></div>';
   document.getElementById('root').innerHTML=h;
   if(editField){var el=document.getElementById('fe_'+editField.id+'_'+editField.field);if(el){el.focus();if(el.tagName==='TEXTAREA')el.setSelectionRange(el.value.length,el.value.length);}}
 }
