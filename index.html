@@ -898,8 +898,12 @@ function dtDefaultClip(){
     return unposted[0];
   }
   // Lux: closest to upload-ready (most fields filled); random tie-break.
-  var cands=clips.filter(function(c){return getClipStep(c);}); // exclude already-done clips
-  if(!cands.length)return null;
+  var hasStep=clips.filter(function(c){return getClipStep(c);}); // still has work to do
+  if(!hasStep.length)return null;
+  // Promotion is a secondary concern — skip clips whose next step is 'promote',
+  // unless that's all that's left.
+  var cands=hasStep.filter(function(c){return getClipStep(c).type!=='promote';});
+  if(!cands.length)cands=hasStep;
   var best=-1;cands.forEach(function(c){var r=lgReadiness(c);if(r>best)best=r;});
   var top=cands.filter(function(c){return lgReadiness(c)===best;});
   var sig=top.map(function(c){return c.id;}).sort(function(a,b){return a-b;}).join(',');
