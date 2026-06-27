@@ -79,6 +79,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .dtn-action{font-size:24px;font-weight:700;letter-spacing:-.4px;line-height:1.25;margin-bottom:8px}
 .dtn-clip{font-size:16px;color:var(--muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .id-badge{display:inline-flex;align-items:center;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:3px 9px;font-size:13px;font-weight:700;color:var(--faint);flex-shrink:0}
+.id-badge-input{width:70px;flex-shrink:0;background:var(--surface);border:1.5px solid var(--accent-b);border-radius:5px;padding:3px 9px;font-size:13px;font-weight:700;color:var(--text);font-family:inherit;outline:none}
 .dtn-chev{flex-shrink:0;color:var(--faint);font-size:14px;margin-top:8px;transition:transform .2s}
 .dtn-chev.open{transform:rotate(180deg)}
 .dtn-body{display:none;padding:0 24px 24px}
@@ -352,7 +353,7 @@ input[type=number]{-moz-appearance:textfield}
   .dt-next{margin-bottom:18px;padding:16px 18px;border-radius:12px;background:var(--surface);border:1px solid var(--border);box-shadow:0 1px 6px rgba(80,30,20,.06);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
   .dt-next-eyebrow{font-size:12px;font-weight:800;letter-spacing:.06em;display:flex;align-items:center;gap:7px;flex-shrink:0}
   .dt-next-action{font-size:22px;font-weight:800;color:var(--text);line-height:1.25}
-  .dt-next-sub{font-size:13px;color:var(--muted);margin-left:auto;text-align:right}
+  .dt-next-sub{font-size:16px;color:var(--muted)}
   .dt-logo{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#d4637a,#9b7dbd);color:#fff;font-size:15px;flex-shrink:0}
   .dt-donext{width:100%;margin:4px 0 10px;padding:14px;border:none;border-radius:12px;background:linear-gradient(135deg,#d4637a,#9b7dbd);color:#fff;font-size:15px;font-weight:800;letter-spacing:.2px;cursor:pointer;font-family:inherit;box-shadow:0 4px 14px rgba(155,90,150,.34);transition:transform .12s,box-shadow .12s}
   .dt-donext:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(155,90,150,.45)}
@@ -1925,23 +1926,21 @@ function renderClipDetail(c){
     SL+=renderField(c,'keywords','Keywords','No keywords yet');
     SL+=renderField(c,'notes','Notes','Any notes…');
     SR+=renderPlatforms(c);
-    SR+=renderField(c,'num','Clip #','e.g. 101');
     SR+=renderField(c,'length','Length','e.g. 15:52');
     SR+=del;
     return '<div class="dt-cols2"><div class="dt-col">'+SL+'</div><div class="dt-col">'+SR+'</div></div>';
   }
-  // LG: two columns — writing on the left, assets/platforms/meta on the right.
+  // LG: writing on the left, schedule + assets on the right; remove spans full width.
   var L='',R='';
   L+=action;
   L+=renderField(c,'desc','Description','No description yet');
   L+=renderField(c,'keywords','Keywords','No keywords yet');
+  L+=renderField(c,'length','Length','e.g. 15:52');
   L+=renderField(c,'notes','Notes','Any notes…');
-  R+=renderField(c,'num','Clip #','e.g. 101');
-  R+=renderField(c,'length','Length','e.g. 15:52');
-  R+=renderAssets(c);
   R+=renderPlatforms(c);
-  R+=del;
-  return '<div class="dt-cols2"><div class="dt-col">'+L+'</div><div class="dt-col">'+R+'</div></div>';
+  R+=renderAssets(c);
+  var delWide='<div style="margin-top:18px"><button class="btn btn-del" style="width:100%;font-size:16px;padding:12px" onclick="doRemove('+c.id+')">Remove clip</button></div>';
+  return '<div class="dt-cols2"><div class="dt-col">'+L+'</div><div class="dt-col">'+R+'</div></div>'+delWide;
 }
 
 function dtClipEditor(c,step){
@@ -1957,7 +1956,10 @@ function dtClipEditor(c,step){
     h+='</div>';
   }
   var titleEditing=editField&&editField.id===c.id&&editField.field==='title';
-  h+='<div class="dt-detail-head"><span class="id-badge">'+(c.num?esc(c.num):fid(c.id))+'</span>';
+  var numEditing=editField&&editField.id===c.id&&editField.field==='num';
+  h+='<div class="dt-detail-head">';
+  if(numEditing)h+='<input class="id-badge-input" id="fe_'+c.id+'_num" value="'+esc((c.num||'').replace(/^#+/,''))+'" onkeydown="if(event.key===\'Enter\')saveF('+c.id+',\'num\',this.value)" onblur="saveF('+c.id+',\'num\',this.value)">';
+  else h+='<span class="id-badge" title="Click to edit clip #" style="cursor:pointer" onclick="editField={id:'+c.id+',field:\'num\'};render()">'+(c.num?esc(c.num):fid(c.id))+'</span>';
   if(titleEditing)h+='<input class="dt-title-input" id="fe_'+c.id+'_title" value="'+esc(c.title)+'" onkeydown="if(event.key===\'Enter\')saveF('+c.id+',\'title\',this.value)" onblur="saveF('+c.id+',\'title\',this.value)">';
   else h+='<span class="dt-detail-title" title="Click to rename" onclick="editField={id:'+c.id+',field:\'title\'};render()">'+esc(c.title)+'</span>';
   h+='</div>';
