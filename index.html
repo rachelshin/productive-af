@@ -347,9 +347,12 @@ input[type=number]{-moz-appearance:textfield}
   .dt-side .timer-btn{padding:9px 16px}
   .dt-side .timer-period{min-width:100%}
   .dt-side-foot{margin-top:auto;padding-top:18px;display:flex;gap:8px}
-  .dt-grp{margin-bottom:20px}
-  .dt-grp-h{font-size:12px;font-weight:800;letter-spacing:.02em;margin:0 4px 8px;display:flex;align-items:center;gap:8px}
-  .dt-grp-h span{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:1px 9px;font-size:11px;color:var(--muted);font-weight:700}
+  .dt-grp{margin-bottom:8px}
+  .dt-grp.open{margin-bottom:20px}
+  .dt-grp-h{font-size:12px;font-weight:800;letter-spacing:.02em;margin:0 4px 8px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;padding:6px 8px;border-radius:9px;background:var(--surface);border:1px solid var(--border)}
+  .dt-grp-h:hover{background:var(--bg)}
+  .dt-grp-caret{font-size:10px;opacity:.7;width:10px;flex:none}
+  .dt-grp-count{margin-left:auto;background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:1px 9px;font-size:11px;color:var(--muted);font-weight:700}
   .dt-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;border:1.5px solid transparent;margin-bottom:2px}
   .dt-row:hover{background:var(--surface)}
   .dt-row.sel{background:var(--surface);border-color:var(--accent);box-shadow:0 1px 6px rgba(80,30,20,.1)}
@@ -550,6 +553,7 @@ function expandRow(r){
 var creator='LG';
 var clips=[],tab='queue',expanded=false,editField=null,addingNew=false,nextId=200;
 var openGroups={};
+var dtGrpOpen={}; // desktop clip-list accordion: which group headers are expanded (collapsed by default)
 var detailsOpen=false; // collapsed "Clip details" section in the edit pane (posted clips)
 var calDrag=null;
 var pipeSearch='';
@@ -1918,8 +1922,14 @@ function dtHeaderBand(){
 }
 function dtClipGroup(label,col,items){
   if(!items.length)return '';
-  var h='<div class="dt-grp"><div class="dt-grp-h" style="color:'+col+'">'+esc(label)+'<span>'+items.length+'</span></div>';
-  items.forEach(function(c){
+  // Each group is a collapsible accordion — click the header to drop it down.
+  // Auto-open the group holding the currently selected clip so it never hides.
+  var hasSel=(dtRightView==='edit')&&items.some(function(c){return c.id===expanded;});
+  var open=(dtGrpOpen[label]===true)||hasSel;
+  var key=label.replace(/'/g,"\\'");
+  var h='<div class="dt-grp'+(open?' open':'')+'"><div class="dt-grp-h" style="color:'+col+'" onclick="dtGrpOpen[\''+key+'\']=!('+(open?'true':'false')+');render()">';
+  h+='<span class="dt-grp-caret">'+(open?'&#9662;':'&#9656;')+'</span>'+esc(label)+'<span class="dt-grp-count">'+items.length+'</span></div>';
+  if(open)items.forEach(function(c){
     var sel=(dtRightView==='edit'&&expanded===c.id);
     var st=isSimple()?getClipStepSimple(c):getClipStep(c);
     var scol=st?(TCOLOR[st.type]||'var(--faint)'):'var(--green)';
