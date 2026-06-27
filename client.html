@@ -70,22 +70,24 @@
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
   .cal-dow{text-align:center;font-size:12px;font-weight:800;color:var(--faint);padding-bottom:4px}
   .cal-cell{aspect-ratio:1/1.08;border-radius:11px;background:var(--surface);
-    border:1px solid var(--border);padding:5px 0 0;display:flex;flex-direction:column;
-    align-items:center;gap:3px}
+    border:1px solid var(--border);display:flex;align-items:center;justify-content:center}
   .cal-cell.blank{background:transparent;border:none}
-  .cal-cell.today{border-color:var(--accent);border-width:2px}
-  .cal-cell .dnum{font-size:13.5px;font-weight:700;color:var(--text)}
+  /* day fill is set inline: hue = site (C4S rose / LF amber), opacity = status */
+  .cal-cell.has{cursor:pointer}
+  .cal-cell.today{box-shadow:inset 0 0 0 2px var(--accent)}
+  .cal-cell.sel{box-shadow:inset 0 0 0 2.5px var(--text)}
+  .cal-cell .dnum{font-size:15px;font-weight:700;color:var(--text)}
   .cal-cell.today .dnum{color:var(--accent);font-weight:800}
-  .cal-dots{display:flex;gap:3px;flex-wrap:wrap;justify-content:center;padding:0 3px}
-  .cal-dot{width:7px;height:7px;border-radius:50%}
+  .cal-hint{text-align:center;color:var(--faint);font-size:13px;font-weight:600;margin-top:16px}
 
-  .day-list .day-hd{font-size:13px;font-weight:800;color:var(--muted);margin:16px 4px 8px}
-  .ev{display:flex;align-items:center;gap:11px;padding:12px 14px;border-radius:13px;
-    background:var(--surface);border:1px solid var(--border);margin-bottom:8px}
-  .ev .when{font-weight:800;font-size:15px;min-width:54px;text-align:center;flex:none}
-  .ev .when.over{color:var(--rose)}
-  .ev .etitle{flex:1;min-width:0;font-weight:700;font-size:15px;
-    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* ---- day detail (read-only) ---- */
+  .ptag{margin-top:9px;font-size:13px;font-weight:700;color:var(--muted)}
+  .salegrid{display:flex;gap:9px}
+  .stat{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:11px;
+    padding:11px 8px;text-align:center}
+  .stat .sv{font-size:18px;font-weight:800}
+  .stat .sl{font-size:12px;font-weight:700;color:var(--muted);margin-top:3px}
+  .fval{font-size:15px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
 
   /* ---- invoices ---- */
   .inv{display:flex;align-items:center;gap:12px;padding:14px 15px}
@@ -165,6 +167,7 @@
   var gCreator=null, gClips=[], gConsulting=null;
   var tab='cal';
   var calY=new Date().getFullYear(), calM=new Date().getMonth();
+  var selDay=null; // tapped calendar day -> shows that day's clip detail
 
   // ---- helpers -------------------------------------------------------------
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
@@ -175,12 +178,9 @@
   function fmtDate(d){ if(!d) return ''; var p=d.split('-'); return MSHORT[parseInt(p[1],10)-1]+' '+parseInt(p[2],10); }
   function fmtRange(a,b){ if(!a&&!b) return ''; return fmtDate(a)+' – '+fmtDate(b); }
   function platsFor(cr){ return CREATOR_PLATFORMS[cr]||['C4S']; }
-  function plColor(pl){ return pl==='LF' ? '#bd8a2e' : pl==='C4S' ? '#c4506a' : '#6a6ab5'; }
   function clipUploaded(c, cr){ return platsFor(cr).every(function(pl){ return (c.platforms||{})[pl] !== PEND; }); }
-  function chip(pl, st){
-    if(st!==PEND) return '<span class="chip done">'+esc(pl)+' ✓</span>';
-    return '<span class="chip '+(pl==='LF'?'lf':'c4s')+'">'+esc(pl)+'</span>';
-  }
+  // site colour as an "r,g,b" string so the calendar can vary opacity by status
+  function plRGB(pl){ return pl==='LF' ? '189,138,46' : pl==='C4S' ? '196,80,106' : '106,106,181'; }
 
   // collect every dated platform event -> { 'YYYY-MM-DD': [ {pl,st,title,num} ] }
   function calEvents(clips, cr){
@@ -214,38 +214,74 @@
     for(var d=1; d<=daysIn; d++){
       var key = ds(calY, calM, d);
       var evs = ev[key] || [];
-      var isToday = key===today;
-      h += '<div class="cal-cell'+(isToday?' today':'')+'">'
-         + '<span class="dnum">'+d+'</span><div class="cal-dots">';
-      // up to 4 colored dots (pending = platform color, done = green)
-      evs.slice(0,4).forEach(function(e){
-        var col = e.st===PEND ? plColor(e.pl) : '#2f8a5f';
-        h += '<span class="cal-dot" style="background:'+col+'"></span>';
-      });
-      h += '</div></div>';
+      var cls = 'cal-cell', style = '', click = '';
+      if(evs.length){
+        // one clip per day; if somehow two, a pending one wins so the day never looks "done"
+        var e = evs[0];
+        for(var j=0;j<evs.length;j++){ if(evs[j].st===PEND){ e=evs[j]; break; } }
+        // hue = site (C4S rose / LF amber); opacity = status (scheduled faint, uploaded solid)
+        style = ' style="background:rgba('+plRGB(e.pl)+','+(e.st===PEND?'0.18':'0.72')+')"';
+        cls += ' has';
+        click = ' onclick="window.__day(\''+key+'\')"';
+      }
+      if(key===today) cls += ' today';
+      if(key===selDay) cls += ' sel';
+      h += '<div class="'+cls+'"'+style+click+'><span class="dnum">'+d+'</span></div>';
     }
     h += '</div>';
+    // the tapped day's clip detail appears right under the grid
+    var sc = selDay ? clipForDay(selDay) : null;
+    if(sc) h += '<div id="dayDetail">'+renderDayDetail(sc, selDay)+'</div>';
+    else h += '<div class="cal-hint">Tap a colored day to see the clip &amp; its details.</div>';
+    return h;
+  }
 
-    // list of this month's events, chronological
-    var keys = Object.keys(ev).filter(function(k){
-      var p=k.split('-'); return parseInt(p[0],10)===calY && parseInt(p[1],10)-1===calM;
-    }).sort();
-    h += '<div class="day-list">';
-    if(keys.length){
-      keys.forEach(function(k){
-        h += '<div class="day-hd">'+esc(fmtDate(k))+'</div>';
-        ev[k].forEach(function(e){
-          var over = k<today && e.st===PEND;
-          h += '<div class="ev">'
-             + '<span class="when'+(over?' over':'')+'">'+esc(fmtDate(k))+'</span>'
-             + chip(e.pl, e.st)
-             + '<span class="etitle">'+esc(e.title)+'</span></div>';
-        });
-      });
-    } else {
-      h += '<div class="card"><div class="empty">Nothing scheduled this month.</div></div>';
+  // find the single clip scheduled on a given day (mirrors the calendar's visibility)
+  function clipForDay(d){
+    var plats = platsFor(gCreator);
+    for(var i=0;i<gClips.length;i++){
+      var c = gClips[i], dates = c.platformDates || {};
+      for(var k=0;k<plats.length;k++){
+        var pl = plats[k];
+        if(dates[pl]===d && (c.platforms||{})[pl]!==NA){
+          if(pl==='LF' && (c.platforms||{})['C4S']===PEND) continue; // LF hidden until C4S up
+          return c;
+        }
+      }
     }
-    h += '</div>';
+    return null;
+  }
+  function fld(label, val){
+    if(val==null || val==='') return '';
+    return '<div class="sec-lbl">'+label+'</div><div class="card"><div class="fval">'+esc(val)+'</div></div>';
+  }
+  // full read-only detail for the clip scheduled on the tapped day
+  function renderDayDetail(c, d){
+    var dates = c.platformDates || {};
+    var h = '<div class="sec-lbl" style="margin-top:20px">Scheduled · '+esc(fmtDate(d))+'</div>';
+    h += '<div class="card"><div class="row">'
+       + '<span class="id">'+esc(c.num || ('#'+c.id))+'</span>'
+       + '<span class="ttl">'+esc(c.title)+'</span></div>';
+    if(c.type==='photoset') h += '<div class="ptag">📷 Photoset</div>';
+    h += '<div class="chips">';
+    platsFor(gCreator).forEach(function(pl){
+      var st = (c.platforms||{})[pl]; if(st===NA) return;
+      var dd = dates[pl];
+      if(st===PEND) h += '<span class="chip '+(pl==='LF'?'lf':'c4s')+'">'+esc(pl)+(dd?'<span class="dt">'+esc(fmtDate(dd))+'</span>':'')+'</span>';
+      else h += '<span class="chip done">'+esc(pl)+' ✓</span>';
+    });
+    h += '</div></div>';
+    // sales — only if there's something to show
+    if(c.totalSales || c.clipsSold || c.price){
+      var stat = function(label, val){ return '<div class="stat"><div class="sv">'+esc(val||'—')+'</div><div class="sl">'+label+'</div></div>'; };
+      h += '<div class="sec-lbl">Sales</div><div class="card"><div class="salegrid">'
+         + stat('Total sales', c.totalSales) + stat('Clips sold', c.clipsSold) + stat('Price', c.price)
+         + '</div></div>';
+    }
+    h += fld('Description', c.desc);
+    h += fld('Keywords', (c.keywords && c.keywords.length) ? c.keywords.join(', ') : '');
+    h += fld('Length', c.length);
+    h += fld('Notes', c.notes);
     return h;
   }
 
@@ -324,11 +360,19 @@
     document.getElementById('app').innerHTML = h;
   }
 
-  window.__tab = function(t){ tab=t; renderApp(); };
+  window.__tab = function(t){ tab=t; selDay=null; renderApp(); };
   window.__mon = function(delta){
-    calM += delta;
+    calM += delta; selDay=null;
     if(calM<0){ calM=11; calY--; } else if(calM>11){ calM=0; calY++; }
     renderApp();
+  };
+  window.__day = function(d){
+    selDay = (selDay===d ? null : d); // tap again to close
+    renderApp();
+    if(selDay) requestAnimationFrame(function(){
+      var el = document.getElementById('dayDetail');
+      if(el) el.scrollIntoView({behavior:'smooth', block:'center'});
+    });
   };
   window.__signout = function(){ auth.signOut(); };
 
