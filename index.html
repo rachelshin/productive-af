@@ -120,6 +120,13 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .btn-dark{background:var(--accent);color:#fff}
 .btn-ghost{background:var(--bg);color:var(--muted);border:1px solid var(--border)}
 .btn-del{background:var(--rose-bg);color:var(--rose);border:1px solid var(--rose-b);font-size:13px;padding:6px 13px}
+.sales-panel{background:var(--green-bg);border:1.5px solid var(--green-b);border-radius:12px;padding:16px;margin-bottom:16px}
+.sales-row{display:flex;gap:12px;flex-wrap:wrap}
+.sales-field{flex:1;min-width:130px}
+.clip-details-box{border:1.5px solid var(--border);border-radius:12px;overflow:hidden}
+.clip-details-summary{display:flex;justify-content:space-between;align-items:center;padding:13px 16px;font-size:15px;font-weight:700;color:var(--muted);cursor:pointer;background:var(--bg);user-select:none}
+.clip-details-summary:hover{color:var(--text)}
+.clip-details-body{padding:16px}
 
 /* asset checks */
 .asset-checks{display:flex;gap:8px;flex-wrap:wrap}
@@ -539,6 +546,7 @@ function expandRow(r){
 var creator='LG';
 var clips=[],tab='queue',expanded=false,editField=null,addingNew=false,nextId=200;
 var openGroups={};
+var detailsOpen=false; // collapsed "Clip details" section in the edit pane (posted clips)
 var calDrag=null;
 var pipeSearch='';
 var calMonth=new Date().getMonth(),calYear=new Date().getFullYear();
@@ -914,6 +922,29 @@ function saveF(id,field,value){
   if(field==='keywords')c.keywords=value.split(',').map(function(k){return k.trim();}).filter(Boolean);
   else c[field]=value;
   editField=null;saveCreator();render();
+}
+// A clip counts as "posted" once it's uploaded or promoted on at least one platform.
+function clipIsPosted(c){
+  return platformsFor(creator).some(function(pl){var st=c.platforms[pl];return st===U||st===PR;});
+}
+// Sales fields save quietly (no re-render) so you can tab between the three inputs.
+function setSale(id,field,value){
+  var c=clips.find(function(x){return x.id===id;});if(!c)return;
+  c[field]=value;saveCreator();
+}
+function numOnly(v){var n=parseFloat(String(v||'').replace(/[^0-9.]/g,''));return isNaN(n)?null:n;}
+// Multiply clips-sold × price into Total Sales — only when the button is clicked.
+function calcSales(id){
+  var c=clips.find(function(x){return x.id===id;});if(!c)return;
+  var soldEl=document.getElementById('sale_'+id+'_clipsSold');
+  var priceEl=document.getElementById('sale_'+id+'_price');
+  var sold=numOnly(soldEl?soldEl.value:c.clipsSold);
+  var price=numOnly(priceEl?priceEl.value:c.price);
+  if(sold===null||price===null){alert('Enter both Number of Clips Sold and Price first.');return;}
+  c.clipsSold=soldEl?soldEl.value:c.clipsSold;
+  c.price=priceEl?priceEl.value:c.price;
+  c.totalSales=String(Math.round(sold*price*100)/100);
+  saveCreator();render();
 }
 function advanceStatus(id){
   var c=clips.find(function(x){return x.id===id;});if(!c)return;
@@ -1890,6 +1921,24 @@ function dtList(){
 // No redundant action cards: upload/promote live in the schedule, assets in the
 // checkboxes, text in the fields. The only action panel kept is film/edit status
 // advance (idea→filmed→edited), which has no other home.
+// Sales tracking shown above the details once a clip is posted (uploaded anywhere).
+function renderSales(c){
+  var f=function(field,label){
+    return '<div class="sales-field"><div class="field-lbl">'+label+'</div>'+
+      '<input type="text" id="sale_'+c.id+'_'+field+'" value="'+esc(c[field]||'')+'" inputmode="decimal" '+
+      'onchange="setSale('+c.id+',\''+field+'\',this.value)"></div>';
+  };
+  return '<div class="sales-panel"><div class="sales-row">'+
+    f('totalSales','Total Sales')+f('clipsSold','Number of Clips Sold')+f('price','Price')+
+    '</div><button class="btn btn-dark" style="margin-top:12px" onclick="calcSales('+c.id+')">Calculate total</button></div>';
+}
+// Posted clips: surface the sales panel and tuck the editable info into a collapsible.
+function wrapDetail(c,body,del){
+  if(!clipIsPosted(c))return body+del;
+  var head='<div class="clip-details-summary" onclick="detailsOpen=!detailsOpen;render()"><span>Clip details</span><span>'+(detailsOpen?'&#9662;':'&#9656;')+'</span></div>';
+  var box='<div class="clip-details-box">'+head+(detailsOpen?'<div class="clip-details-body">'+body+del+'</div>':'')+'</div>';
+  return renderSales(c)+box;
+}
 function renderClipDetail(c){
   var s=isSimple()?getClipStepSimple(c):getClipStep(c);
   // Remove button spans the full width below both columns, bigger font.
@@ -1905,7 +1954,7 @@ function renderClipDetail(c){
     // Venus (C4S only) has a short right column — put Notes at its bottom to even things out.
     if(creator==='LV')SR+=renderField(c,'notes','Notes','Any notes…');
     else SL+=renderField(c,'notes','Notes','Any notes…');
-    return '<div class="dt-cols2"><div class="dt-col">'+SL+'</div><div class="dt-col">'+SR+'</div></div>'+del;
+    return wrapDetail(c,'<div class="dt-cols2"><div class="dt-col">'+SL+'</div><div class="dt-col">'+SR+'</div></div>',del);
   }
   // LG: writing on the left, schedule + assets on the right; remove spans full width.
   var L='',R='';
@@ -1917,7 +1966,7 @@ function renderClipDetail(c){
   L+=renderField(c,'notes','Notes','Any notes…');
   R+=renderPlatforms(c);
   // Right column holds only the schedule — vertically center it so it doesn't look top-heavy.
-  return '<div class="dt-cols2"><div class="dt-col">'+L+'</div><div class="dt-col" style="align-self:stretch;display:flex;flex-direction:column;justify-content:center">'+R+'</div></div>'+del;
+  return wrapDetail(c,'<div class="dt-cols2"><div class="dt-col">'+L+'</div><div class="dt-col" style="align-self:stretch;display:flex;flex-direction:column;justify-content:center">'+R+'</div></div>',del);
 }
 
 function dtClipEditor(c,step){
