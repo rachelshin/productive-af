@@ -190,14 +190,14 @@
     LF: {s:'#bd8a2e', l:'#ecdcb0', t:'#8a611c', rgb:'189,138,46'}
   };
   var CREATORS = {
-    LG:{name:'Lux Gray',     initials:'LG',grad:'linear-gradient(135deg,#d4637a,#9b7dbd)',accent:'#c4506a',
+    LG:{name:'Lux Gray',     initials:'LG',accent:'#c4506a',
         sec:{sched:'#c4506a', tbs:'#c08a3e', up:'#2f8a5f'}, plat:PLAT_DEFAULT},
     // Brigit's theme is built around the 💜 purple-heart shade + colours that pair with it
-    BH:{name:'Brigit Heart', initials:'BH',grad:'linear-gradient(135deg,#9d4edd,#6f5bd6)',accent:'#9d4edd',
+    BH:{name:'Brigit Heart', initials:'BH',accent:'#9d4edd',
         sec:{sched:'#9d4edd', tbs:'#d6519e', up:'#34a06b'},
         plat:{ C4S:{s:'#cf5aa8', l:'#f6d8ea', t:'#a8347f', rgb:'207,90,168'},
                LF: {s:'#2ba89e', l:'#cdebe7', t:'#1c7a72', rgb:'43,168,158'} }},
-    LV:{name:'Lady Venus',   initials:'LV',grad:'linear-gradient(135deg,#3a8c80,#4a8c68)',accent:'#2f8a7d',
+    LV:{name:'Lady Venus',   initials:'LV',accent:'#2f8a7d',
         sec:{sched:'#2f8a7d', tbs:'#c08a3e', up:'#4a8c68'}, plat:PLAT_DEFAULT}
   };
   var CREATOR_PLATFORMS = {LG:['SM','MFC','CB','SC','NF','SP','C4S'], BH:['LF','C4S'], LV:['C4S']};
@@ -450,14 +450,14 @@
       + '<span class="ti">'+icon+'</span><span class="tl">'+label+'</span></button>';
   }
   function renderApp(){
-    var cr = CREATORS[gCreator] || {name:gCreator, initials:gCreator, grad:'linear-gradient(135deg,#5a6a8a,#7a5a8a)', accent:'#7a5a8a'};
+    var cr = CREATORS[gCreator] || {name:gCreator, initials:gCreator, accent:'#7a5a8a'};
     var rs = document.documentElement.style;
     rs.setProperty('--accent', cr.accent);
     var p = cr.plat || PLAT_DEFAULT;
     rs.setProperty('--c4s', p.C4S.s); rs.setProperty('--c4s-lt', p.C4S.l); rs.setProperty('--c4s-tx', p.C4S.t);
     rs.setProperty('--lf',  p.LF.s);  rs.setProperty('--lf-lt',  p.LF.l);  rs.setProperty('--lf-tx',  p.LF.t);
     var body = tab==='cal' ? renderCalendar() : tab==='db' ? renderDatabase() : renderInvoices();
-    var h = '<div class="appbar" style="background:'+cr.grad+'">'
+    var h = '<div class="appbar" style="background:'+cr.accent+'">'
       + '<div class="av">'+esc(cr.initials)+'</div>'
       + '<div><div class="nm">'+esc(cr.name)+'</div><div class="sub">Content Dashboard</div></div>'
       + '<button class="signout" onclick="window.__signout()">Sign out</button></div>'
