@@ -560,6 +560,7 @@ var detailsOpen=false; // collapsed "Clip details" section in the edit pane (pos
 var calDrag=null;
 var pipeSearch='';
 var addPlatforms=null; // per-platform upload status chosen in the Lux add form (null until used)
+var addStatusFlags={}; // Lux add-form status checkboxes: {filmed,edited} for clips, {up} for photosets
 var calMonth=new Date().getMonth(),calYear=new Date().getFullYear();
 var calPlatFilter='C4S';
 var calSearch='';
@@ -1059,7 +1060,7 @@ function doAddClip(title,status,num,length,date,type,desc,keywords){
     length:type==='photoset'?'':(length||''),desc:desc||'',descDone:prepDone,kwDone:prepDone,
     thumbnail:prepDone,nfGbCover:prepDone,preview:prepDone,
     platforms:pl,platformDates:pld,notes:''});
-  addingNew=false;addPlatforms=null;saveCreator();render();
+  addingNew=false;addPlatforms=null;addStatusFlags={};saveCreator();render();
 }
 function doRemove(id){
   if(!confirm('Remove clip #'+id+'?'))return;
@@ -1231,7 +1232,7 @@ function renderActionPanel(step){
 }
 
 function renderAddForm(){
-  if(!addingNew)return '<div class="add-wrap"><button class="add-btn" onclick="addingNew=true;addPlatforms=null;render()">+ '+(isSimple()?'Add clip':'Add content')+'</button></div>';
+  if(!addingNew)return '<div class="add-wrap"><button class="add-btn" onclick="addingNew=true;addPlatforms=null;addStatusFlags={};render()">+ '+(isSimple()?'Add clip':'Add content')+'</button></div>';
   if(isSimple()){
     return '<div class="add-wrap"><div class="add-form">'+
       '<input type="hidden" id="new-status" value="uploaded">'+
@@ -1262,10 +1263,9 @@ function renderAddForm(){
       '<div style="flex:1"><div class="field-lbl">ID # (optional)</div><input type="text" id="new-num" style="width:100%;box-sizing:border-box"></div>'+
       '<div style="flex:1" id="new-length-wrap"><div class="field-lbl">Length</div><input type="text" id="new-length" style="width:100%;box-sizing:border-box"></div>'+
     '</div>'+
-    '<div class="field-lbl">Status</div>'+
-    '<select id="new-status"><option value="idea">Idea — not filmed yet</option>'+
-    '<option value="filmed">Filmed — needs editing</option>'+
-    '<option value="edited">Edited — needs prep</option></select>'+
+    '<div class="field-lbl">Status (leave unchecked for just an Idea)</div>'+
+    '<input type="hidden" id="new-status" value="'+addStatusValue('clip')+'">'+
+    '<div class="asset-checks" id="new-status-wrap">'+addStatusGroupHtml('clip')+'</div>'+
     '<div class="field-lbl">Description (optional)</div>'+
     '<textarea id="new-desc"></textarea>'+
     '<div class="field-lbl">Keywords (optional, comma-separated)</div>'+
@@ -1273,7 +1273,7 @@ function renderAddForm(){
     '<div class="field-lbl">Already uploaded? Tap each platform to cycle: Pending → Uploaded → Promoted → N/A</div>'+
     '<div class="add-plat-grid" id="add-plat-grid">'+addPlatGridHtml()+'</div>'+
     '<div class="btn-row"><button class="btn btn-dark" onclick="doAdd()">Add</button>'+
-    '<button class="btn btn-ghost" onclick="addingNew=false;addPlatforms=null;render()">Cancel</button></div></div></div>';
+    '<button class="btn btn-ghost" onclick="addingNew=false;addPlatforms=null;addStatusFlags={};render()">Cancel</button></div></div></div>';
 }
 
 // Per-platform upload-status grid in the Lux add form, so a backlog clip that's
@@ -1294,6 +1294,35 @@ function cycleAddPlatform(pl){
   var b=document.getElementById('addplat_'+pl);
   if(b){b.className='pst-btn '+((ADDPLAT_STATES[st]||ADDPLAT_STATES[P]).c);b.innerHTML=addPlatBtnInner(pl,st);}
 }
+// Status as progressive checkboxes (instead of a dropdown) in the Lux add form.
+// Clips: ☐ Filmed → ☐ Edited (nothing checked = just an Idea). Photosets: ☐ Uploaded.
+// Whatever's checked derives the stored status; kept in a hidden #new-status input
+// so doAdd() reads it the same as before.
+var ADDSTAT_CHECK='<svg width="11" height="9" viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3 5-6" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+function addStatusBox(key,label){
+  var on=!!addStatusFlags[key];
+  return '<div class="ack'+(on?' done':'')+'" onclick="toggleAddStatus(\''+key+'\')"><div class="ack-box">'+(on?ADDSTAT_CHECK:'')+'</div><span class="ack-lbl">'+label+'</span></div>';
+}
+function addStatusGroupHtml(type){
+  if(type==='photoset')return addStatusBox('up','Uploaded');
+  return addStatusBox('filmed','Filmed')+addStatusBox('edited','Edited');
+}
+function addStatusValue(type){
+  if(type==='photoset')return addStatusFlags.up?'up':'notup';
+  return addStatusFlags.edited?'edited':(addStatusFlags.filmed?'filmed':'idea');
+}
+function syncAddStatus(){
+  var ty=document.getElementById('new-type');ty=ty?ty.value:'clip';
+  var h=document.getElementById('new-status');if(h)h.value=addStatusValue(ty);
+  var wrap=document.getElementById('new-status-wrap');if(wrap)wrap.innerHTML=addStatusGroupHtml(ty);
+}
+function toggleAddStatus(key){
+  addStatusFlags[key]=!addStatusFlags[key];
+  // Cumulative for clips: Edited implies Filmed; un-Filmed clears Edited.
+  if(key==='edited'&&addStatusFlags.edited)addStatusFlags.filmed=true;
+  if(key==='filmed'&&!addStatusFlags.filmed)addStatusFlags.edited=false;
+  syncAddStatus();
+}
 // Clip/Photoset toggle in the Lux add form. DOM-only (no render) so what you've
 // already typed isn't wiped; photosets hide the Length field.
 function setAddType(type){
@@ -1303,10 +1332,7 @@ function setAddType(type){
   if(bp)bp.classList.toggle('active',type==='photoset');
   var lw=document.getElementById('new-length-wrap');
   if(lw)lw.style.display=(type==='photoset')?'none':'';
-  var ss=document.getElementById('new-status');
-  if(ss)ss.innerHTML=(type==='photoset')
-    ?'<option value="notup">Not uploaded</option><option value="up">Uploaded</option>'
-    :'<option value="idea">Idea — not filmed yet</option><option value="filmed">Filmed — needs editing</option><option value="edited">Edited — needs prep</option>';
+  addStatusFlags={};syncAddStatus(); // reset status checkboxes for the new type
 }
 function setUploadDate(id,pl,date){
   var c=clips.find(function(x){return x.id===id;});if(!c)return;
