@@ -48,7 +48,9 @@
     border-radius:999px;padding:5px 13px;color:#fff;letter-spacing:.01em}
   .chip.c4s{background:var(--rose)}
   .chip.lf{background:var(--amber)}
-  .chip.done{background:#eaf4ee;color:var(--green);border:1px solid #cfe7d8}
+  /* a platform that isn't scheduled yet reads lighter, still in its own site colour */
+  .chip.light.c4s{background:#f0cdd5;color:#a83b54}
+  .chip.light.lf{background:#ecdcb0;color:#8a611c}
   .chip .dt{font-weight:700;opacity:.92;font-size:13px}
   .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
 
@@ -57,6 +59,15 @@
   .row .ttl{font-weight:700;font-size:16px;flex:1;min-width:0}
   .row .id{font-size:13px;font-weight:800;color:var(--muted);
     background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:2px 9px;flex:none}
+  /* ---- Database accordion headers ---- */
+  .db-head{display:flex;align-items:center;gap:11px;width:100%;text-align:left;
+    background:var(--surface);border:1px solid var(--border);border-radius:13px;
+    padding:14px 16px;margin-bottom:11px;font-size:16px;font-weight:800;color:var(--text);
+    cursor:pointer;-webkit-appearance:none}
+  .db-caret{font-size:16px;color:var(--muted);width:15px;flex:none;line-height:1}
+  .db-count{margin-left:auto;font-size:14px;font-weight:800;color:var(--muted);
+    background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:2px 12px}
+
   /* not-yet-uploaded clips read lighter / softer than the crisp "uploaded" ones */
   .card.todo{background:#faf3ed;border-color:#efe5dd;box-shadow:none}
   .card.todo .ttl{color:#9b897f}
@@ -78,7 +89,10 @@
   .cal-cell.sel{box-shadow:inset 0 0 0 2.5px var(--text)}
   .cal-cell .dnum{font-size:15px;font-weight:700;color:var(--text)}
   .cal-cell.today .dnum{color:var(--accent);font-weight:800}
-  .cal-hint{text-align:center;color:var(--faint);font-size:13px;font-weight:600;margin-top:16px}
+  .cal-legend{display:flex;gap:20px;justify-content:center;margin:15px 0 0;
+    font-size:13px;font-weight:700;color:var(--muted)}
+  .cal-legend>span{display:inline-flex;align-items:center;gap:7px}
+  .cal-legend .sw{width:15px;height:15px;border-radius:5px;border:1px solid rgba(0,0,0,.06)}
 
   /* ---- day detail (read-only) ---- */
   .ptag{margin-top:9px;font-size:13px;font-weight:700;color:var(--muted)}
@@ -88,6 +102,15 @@
   .stat .sv{font-size:18px;font-weight:800}
   .stat .sl{font-size:12px;font-weight:700;color:var(--muted);margin-top:3px}
   .fval{font-size:15px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+
+  /* ---- invoicing progress ---- */
+  .prog-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:11px}
+  .prog-since{font-size:15px;font-weight:700}
+  .prog-pct{font-size:19px;font-weight:800;color:var(--accent)}
+  .prog-bar{height:14px;border-radius:999px;background:var(--bg);border:1px solid var(--border);overflow:hidden}
+  .prog-fill{height:100%;background:var(--accent);border-radius:999px;transition:width .35s ease}
+  .prog-fill.done{background:var(--green)}
+  .prog-sub{margin-top:10px;font-size:14px;font-weight:700;color:var(--muted)}
 
   /* ---- invoices ---- */
   .inv{display:flex;align-items:center;gap:12px;padding:14px 15px}
@@ -168,6 +191,7 @@
   var tab='cal';
   var calY=new Date().getFullYear(), calM=new Date().getMonth();
   var selDay=null; // tapped calendar day -> shows that day's clip detail
+  var dbOpen={todo:true, c4s:true, lf:false, up:false}; // Database accordion: which sections are expanded
 
   // ---- helpers -------------------------------------------------------------
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
@@ -177,10 +201,24 @@
   function ds(y,m,d){ return y+'-'+pad(m+1)+'-'+pad(d); }
   function fmtDate(d){ if(!d) return ''; var p=d.split('-'); return MSHORT[parseInt(p[1],10)-1]+' '+parseInt(p[2],10); }
   function fmtRange(a,b){ if(!a&&!b) return ''; return fmtDate(a)+' – '+fmtDate(b); }
+  function fmtHours(s){ var h=Math.floor(s/3600), m=Math.round((s%3600)/60); if(m===60){h++;m=0;} return h+(m>0?'h '+m+'m':'h'); }
   function platsFor(cr){ return CREATOR_PLATFORMS[cr]||['C4S']; }
   function clipUploaded(c, cr){ return platsFor(cr).every(function(pl){ return (c.platforms||{})[pl] !== PEND; }); }
   // site colour as an "r,g,b" string so the calendar can vary opacity by status
   function plRGB(pl){ return pl==='LF' ? '189,138,46' : pl==='C4S' ? '196,80,106' : '106,106,181'; }
+  // one platform's chip for a clip. Site colour = identity; lighter when not yet
+  // scheduled (pending, no date); a ✓ once uploaded (still the site colour, not green).
+  function platChip(c, pl){
+    var st = (c.platforms||{})[pl];
+    if(st===NA) return '';
+    var base = pl==='LF' ? 'lf' : 'c4s';
+    var d = (c.platformDates||{})[pl];
+    var dt = d ? '<span class="dt">'+esc(fmtDate(d))+'</span>' : '';
+    if(st===PEND) return d
+      ? '<span class="chip '+base+'">'+esc(pl)+dt+'</span>'        // scheduled
+      : '<span class="chip '+base+' light">'+esc(pl)+'</span>';    // not scheduled yet
+    return '<span class="chip '+base+'">'+esc(pl)+' ✓'+dt+'</span>'; // uploaded
+  }
 
   // collect every dated platform event -> { 'YYYY-MM-DD': [ {pl,st,title,num} ] }
   function calEvents(clips, cr){
@@ -229,10 +267,17 @@
       h += '<div class="'+cls+'"'+style+click+'><span class="dnum">'+d+'</span></div>';
     }
     h += '</div>';
+    // legend: row 1 = which site (only this creator's), row 2 = scheduled vs uploaded
+    var sites = platsFor(gCreator).map(function(pl){
+      return '<span><span class="sw" style="background:rgba('+plRGB(pl)+',.72)"></span>'+esc(pl)+'</span>';
+    }).join('');
+    h += '<div class="cal-legend">'+sites+'</div>'
+      + '<div class="cal-legend" style="margin-top:9px">'
+      + '<span><span class="sw" style="background:rgba(120,95,90,.18)"></span>Scheduled</span>'
+      + '<span><span class="sw" style="background:rgba(120,95,90,.72)"></span>Uploaded</span></div>';
     // the tapped day's clip detail appears right under the grid
     var sc = selDay ? clipForDay(selDay) : null;
     if(sc) h += '<div id="dayDetail">'+renderDayDetail(sc, selDay)+'</div>';
-    else h += '<div class="cal-hint">Tap a colored day to see the clip &amp; its details.</div>';
     return h;
   }
 
@@ -257,20 +302,12 @@
   }
   // full read-only detail for the clip scheduled on the tapped day
   function renderDayDetail(c, d){
-    var dates = c.platformDates || {};
     var h = '<div class="sec-lbl" style="margin-top:20px">Scheduled · '+esc(fmtDate(d))+'</div>';
     h += '<div class="card"><div class="row">'
        + '<span class="id">'+esc(c.num || ('#'+c.id))+'</span>'
        + '<span class="ttl">'+esc(c.title)+'</span></div>';
     if(c.type==='photoset') h += '<div class="ptag">📷 Photoset</div>';
-    h += '<div class="chips">';
-    platsFor(gCreator).forEach(function(pl){
-      var st = (c.platforms||{})[pl]; if(st===NA) return;
-      var dd = dates[pl];
-      if(st===PEND) h += '<span class="chip '+(pl==='LF'?'lf':'c4s')+'">'+esc(pl)+(dd?'<span class="dt">'+esc(fmtDate(dd))+'</span>':'')+'</span>';
-      else h += '<span class="chip done">'+esc(pl)+' ✓</span>';
-    });
-    h += '</div></div>';
+    h += '<div class="chips">'+platsFor(gCreator).map(function(pl){ return platChip(c, pl); }).join('')+'</div></div>';
     // sales — only if there's something to show
     if(c.totalSales || c.clipsSold || c.price){
       var stat = function(label, val){ return '<div class="stat"><div class="sv">'+esc(val||'—')+'</div><div class="sl">'+label+'</div></div>'; };
@@ -287,40 +324,63 @@
 
   // ---- tab: DATABASE -------------------------------------------------------
   function clipCard(c){
-    var dates = c.platformDates || {};
     var up = clipUploaded(c, gCreator);
     var h = '<div class="card'+(up?'':' todo')+'"><div class="row">'
       + '<span class="id">'+esc(c.num || ('#'+c.id))+'</span>'
-      + '<span class="ttl">'+esc(c.title)+'</span></div><div class="chips">';
-    platsFor(gCreator).forEach(function(pl){
-      var st = (c.platforms||{})[pl];
-      if(st === NA) return;
-      var d = dates[pl];
-      if(st === PEND){
-        h += '<span class="chip '+(pl==='LF'?'lf':'c4s')+'">'+esc(pl)
-           + (d?'<span class="dt">'+esc(fmtDate(d))+'</span>':'')+'</span>';
-      } else {
-        h += '<span class="chip done">'+esc(pl)+' ✓</span>';
-      }
-    });
-    return h + '</div></div>';
+      + '<span class="ttl">'+esc(c.title)+'</span></div>'
+      + '<div class="chips">'+platsFor(gCreator).map(function(pl){ return platChip(c, pl); }).join('')+'</div>';
+    return h + '</div>';
+  }
+  function dbSection(key, label, list, emptyMsg){
+    var open = dbOpen[key];
+    var h = '<button class="db-head" onclick="window.__db(\''+key+'\')">'
+      + '<span class="db-caret">'+(open?'&#9662;':'&#9656;')+'</span>'+label
+      + '<span class="db-count">'+list.length+'</span></button>';
+    if(open) h += list.length ? list.map(clipCard).join('')
+      : '<div class="card"><div class="empty">'+emptyMsg+'</div></div>';
+    return h;
   }
   function renderDatabase(){
+    var plats = platsFor(gCreator);
+    var done = gClips.filter(function(c){ return clipUploaded(c, gCreator); });
+    if(plats.length > 1){
+      // Brigit: C4S must go up first, then LF, then fully uploaded
+      var c4s = gClips.filter(function(c){ return (c.platforms||{})['C4S']===PEND; });
+      var lf  = gClips.filter(function(c){
+        return (c.platforms||{})['C4S']!==PEND
+          && plats.some(function(pl){ return pl!=='C4S' && (c.platforms||{})[pl]===PEND; });
+      });
+      return dbSection('c4s', 'To upload to C4S',   c4s,  'None waiting for C4S.')
+           + dbSection('lf',  'To upload to LF',    lf,   'None waiting for LF.')
+           + dbSection('up',  'Uploaded everywhere', done, 'Nothing uploaded yet.');
+    }
     var toUpload = gClips.filter(function(c){ return !clipUploaded(c, gCreator); });
-    var done     = gClips.filter(function(c){ return  clipUploaded(c, gCreator); });
-    var h = '<div class="sec-lbl">To upload ('+toUpload.length+')</div>';
-    h += toUpload.length ? toUpload.map(clipCard).join('') : '<div class="card"><div class="empty">All caught up!</div></div>';
-    h += '<div class="sec-lbl">Uploaded ('+done.length+')</div>';
-    h += done.length ? done.map(clipCard).join('') : '<div class="card"><div class="empty">Nothing uploaded yet.</div></div>';
-    return h;
+    return dbSection('todo', 'To upload', toUpload, 'All caught up!')
+         + dbSection('up', 'Uploaded', done, 'Nothing uploaded yet.');
   }
 
   // ---- tab: INVOICING ------------------------------------------------------
   function renderInvoices(){
-    var invoices = (gConsulting && gConsulting.invoices) ? gConsulting.invoices.slice() : [];
-    if(!invoices.length) return '<div class="sec-lbl">Invoices</div><div class="card"><div class="empty">No invoices yet.</div></div>';
+    var cons = gConsulting || {};
+    var hpi  = cons.hoursPerInvoice || 10;
+    var secs = cons.currentPeriodSeconds || 0;
+    var threshold = Math.max(1, Math.round(hpi*3600));
+    var pct = Math.min(100, Math.round(secs/threshold*100));
+
+    // progress toward the next invoice
+    var h = '<div class="sec-lbl" style="margin-top:6px">Time logged this period</div>';
+    h += '<div class="card">'
+       + '<div class="prog-head"><span class="prog-since">'
+       + (cons.currentPeriodStart ? 'Since '+esc(fmtDate(cons.currentPeriodStart)) : 'Current period')
+       + '</span><span class="prog-pct">'+pct+'%</span></div>'
+       + '<div class="prog-bar"><div class="prog-fill'+(pct>=100?' done':'')+'" style="width:'+pct+'%"></div></div>'
+       + '<div class="prog-sub">'+fmtHours(secs)+' of '+hpi+'h logged</div></div>';
+
+    // invoices, newest first, under the bar
+    var invoices = (cons.invoices || []).slice();
+    h += '<div class="sec-lbl">Invoices</div>';
+    if(!invoices.length){ h += '<div class="card"><div class="empty">No invoices yet.</div></div>'; return h; }
     invoices.sort(function(a,b){ return (b.invoiceNum||b.id||0) - (a.invoiceNum||a.id||0); });
-    var h = '<div class="sec-lbl">Invoices</div>';
     invoices.forEach(function(inv){
       var sym = inv.currency || (gConsulting && gConsulting.currency) || '$';
       var rate = inv.rate || (gConsulting && gConsulting.rate) || 0;
@@ -374,6 +434,7 @@
       if(el) el.scrollIntoView({behavior:'smooth', block:'center'});
     });
   };
+  window.__db = function(k){ dbOpen[k] = !dbOpen[k]; renderApp(); };
   window.__signout = function(){ auth.signOut(); };
 
   function fail(msg){
