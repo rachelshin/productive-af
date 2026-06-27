@@ -353,6 +353,9 @@ input[type=number]{-moz-appearance:textfield}
   .dt-brand{display:flex;align-items:center;gap:11px;margin-bottom:8px}
   .dt-brand .brand-name{font-size:19px;font-weight:900;letter-spacing:-.3px;background:linear-gradient(120deg,#d4637a,#9b7dbd);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
   .dt-sec-lbl{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:16px 6px 8px}
+  .dt-sec-toggle{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+  .dt-sec-toggle:hover{color:var(--muted)}
+  .dt-sec-caret{font-size:13px;width:12px;flex:none}
   .dt-cres,.dt-nav{display:flex;flex-direction:column;gap:3px}
   .dt-cre,.dt-navitem{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;font-weight:600;color:var(--muted);font-size:15px;transition:background .12s,color .12s}
   .dt-cre:hover,.dt-navitem:hover{background:rgba(120,70,50,.06);color:var(--text)}
@@ -580,6 +583,7 @@ var creator='LG';
 var clips=[],tab='queue',expanded=false,editField=null,addingNew=false,nextId=200;
 var openGroups={};
 var dtGrpOpen={}; // desktop clip-list accordion: which group headers are expanded (collapsed by default)
+var dtByPlatOpen=false; // desktop "By Platform" section: whole block collapsed by default
 var detailsOpen=false; // collapsed "Clip details" section in the edit pane (posted clips)
 var salesOpen=null;    // Sales dropdown: null = per-layout default (open on All Done, closed elsewhere); else explicit
 var calDrag=null;
@@ -2198,7 +2202,13 @@ function dtList(){
     var byPlat=platformsFor(creator).map(function(pl){
       return dtClipGroup('Posted on '+pl,'var(--green)',clips.filter(function(c){return isPosted(c.platforms[pl]);}),true);
     }).join('');
-    if(byPlat)h+='<div class="dt-sec-lbl">By Platform</div>'+byPlat;
+    if(byPlat){
+      // Whole "By Platform" block is collapsible under its heading; search forces it open.
+      var bpOpen=pipeSearch.trim().length>0?true:dtByPlatOpen;
+      h+='<div class="dt-sec-lbl dt-sec-toggle" onclick="dtByPlatOpen=!dtByPlatOpen;render()">'+
+         '<span class="dt-sec-caret">'+(bpOpen?'&#9662;':'&#9656;')+'</span>By Platform</div>';
+      if(bpOpen)h+=byPlat;
+    }
   }
   if(!h&&pipeSearch.trim())return '<div class="dt-empty"><div class="dt-emoji">&#128269;</div>No clips match &ldquo;'+esc(pipeSearch)+'&rdquo;.</div>';
   return h;
