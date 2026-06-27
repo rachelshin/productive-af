@@ -55,10 +55,16 @@
   .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
 
   /* ---- clip rows (Database) ---- */
-  .row{display:flex;align-items:center;gap:11px}
-  .row .ttl{font-weight:700;font-size:16px;flex:1;min-width:0}
-  .row .id{font-size:13px;font-weight:800;color:var(--muted);
+  .row,.clip-head{display:flex;align-items:center;gap:11px}
+  .clip-head{cursor:pointer}
+  .row .ttl,.clip-head .ttl{font-weight:700;font-size:16px;flex:1;min-width:0}
+  .row .id,.clip-head .id{font-size:13px;font-weight:800;color:var(--muted);
     background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:2px 9px;flex:none}
+  .clip-caret{font-size:16px;color:var(--muted);flex:none;line-height:1}
+  .clip-body{margin-top:13px;padding-top:13px;border-top:1px solid var(--border)}
+  .clip-body>:first-child{margin-top:0}
+  .dlbl{font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+    color:var(--faint);margin:15px 0 7px}
   /* ---- Database accordion headers ---- */
   .db-head{display:flex;align-items:center;gap:11px;width:100%;text-align:left;
     background:var(--surface);border:1px solid var(--border);border-radius:13px;
@@ -192,6 +198,7 @@
   var calY=new Date().getFullYear(), calM=new Date().getMonth();
   var selDay=null; // tapped calendar day -> shows that day's clip detail
   var dbOpen={todo:true, c4s:true, lf:false, up:false}; // Database accordion: which sections are expanded
+  var clipOpen=null; // id of the expanded clip card in the Database tab
 
   // ---- helpers -------------------------------------------------------------
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
@@ -296,39 +303,46 @@
     }
     return null;
   }
-  function fld(label, val){
+  function dfield(label, val){
     if(val==null || val==='') return '';
-    return '<div class="sec-lbl">'+label+'</div><div class="card"><div class="fval">'+esc(val)+'</div></div>';
+    return '<div class="dlbl">'+label+'</div><div class="fval">'+esc(val)+'</div>';
   }
-  // full read-only detail for the clip scheduled on the tapped day
-  function renderDayDetail(c, d){
-    var h = '<div class="sec-lbl" style="margin-top:20px">Scheduled · '+esc(fmtDate(d))+'</div>';
-    h += '<div class="card"><div class="row">'
-       + '<span class="id">'+esc(c.num || ('#'+c.id))+'</span>'
-       + '<span class="ttl">'+esc(c.title)+'</span></div>';
+  // shared read-only body of a clip: platforms, sales (if any), then text fields
+  function clipBody(c){
+    var h = '';
     if(c.type==='photoset') h += '<div class="ptag">📷 Photoset</div>';
-    h += '<div class="chips">'+platsFor(gCreator).map(function(pl){ return platChip(c, pl); }).join('')+'</div></div>';
-    // sales — only if there's something to show
+    h += '<div class="chips">'+platsFor(gCreator).map(function(pl){ return platChip(c, pl); }).join('')+'</div>';
     if(c.totalSales || c.clipsSold || c.price){
       var stat = function(label, val){ return '<div class="stat"><div class="sv">'+esc(val||'—')+'</div><div class="sl">'+label+'</div></div>'; };
-      h += '<div class="sec-lbl">Sales</div><div class="card"><div class="salegrid">'
-         + stat('Total sales', c.totalSales) + stat('Clips sold', c.clipsSold) + stat('Price', c.price)
-         + '</div></div>';
+      h += '<div class="dlbl">Sales</div><div class="salegrid">'
+         + stat('Total sales', c.totalSales) + stat('Clips sold', c.clipsSold) + stat('Price', c.price) + '</div>';
     }
-    h += fld('Description', c.desc);
-    h += fld('Keywords', (c.keywords && c.keywords.length) ? c.keywords.join(', ') : '');
-    h += fld('Length', c.length);
-    h += fld('Notes', c.notes);
+    h += dfield('Description', c.desc);
+    h += dfield('Keywords', (c.keywords && c.keywords.length) ? c.keywords.join(', ') : '');
+    h += dfield('Length', c.length);
+    h += dfield('Notes', c.notes);
     return h;
+  }
+  // full detail for the clip scheduled on the tapped calendar day (always expanded)
+  function renderDayDetail(c, d){
+    return '<div class="sec-lbl" style="margin-top:20px">Scheduled · '+esc(fmtDate(d))+'</div>'
+      + '<div class="card"><div class="row">'
+      + '<span class="id">'+esc(c.num || ('#'+c.id))+'</span>'
+      + '<span class="ttl">'+esc(c.title)+'</span></div>'
+      + '<div class="clip-body">'+clipBody(c)+'</div></div>';
   }
 
   // ---- tab: DATABASE -------------------------------------------------------
+  // collapsed: just ID# + title; tap to expand the full details, tap again to close
   function clipCard(c){
     var up = clipUploaded(c, gCreator);
-    var h = '<div class="card'+(up?'':' todo')+'"><div class="row">'
+    var open = (clipOpen === c.id);
+    var h = '<div class="card'+(up?'':' todo')+'">'
+      + '<div class="clip-head" onclick="window.__clip('+c.id+')">'
       + '<span class="id">'+esc(c.num || ('#'+c.id))+'</span>'
-      + '<span class="ttl">'+esc(c.title)+'</span></div>'
-      + '<div class="chips">'+platsFor(gCreator).map(function(pl){ return platChip(c, pl); }).join('')+'</div>';
+      + '<span class="ttl">'+esc(c.title)+'</span>'
+      + '<span class="clip-caret">'+(open?'&#9662;':'&#9656;')+'</span></div>';
+    if(open) h += '<div class="clip-body">'+clipBody(c)+'</div>';
     return h + '</div>';
   }
   function dbSection(key, label, list, emptyMsg){
@@ -435,6 +449,7 @@
     });
   };
   window.__db = function(k){ dbOpen[k] = !dbOpen[k]; renderApp(); };
+  window.__clip = function(id){ clipOpen = (clipOpen===id ? null : id); renderApp(); };
   window.__signout = function(){ auth.signOut(); };
 
   function fail(msg){
