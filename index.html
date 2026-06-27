@@ -349,15 +349,16 @@ input[type=number]{-moz-appearance:textfield}
   .dt-detail .field-val{background:#fff;border-color:#e0d0c4}
   .dt-detail .field-val:hover{border-color:var(--accent)}
   .dt-detail input[type=text],.dt-detail textarea,.dt-detail select,.dt-detail input[type=date]{border-color:#e0d0c4}
-  .dt-next{margin-bottom:18px;padding:16px 18px;border-radius:12px;background:var(--surface);border:1px solid var(--border);box-shadow:0 1px 6px rgba(80,30,20,.06)}
-  .dt-next-eyebrow{font-size:12px;font-weight:800;letter-spacing:.06em;display:flex;align-items:center;gap:7px;margin-bottom:5px}
+  .dt-next{margin-bottom:18px;padding:16px 18px;border-radius:12px;background:var(--surface);border:1px solid var(--border);box-shadow:0 1px 6px rgba(80,30,20,.06);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .dt-next-eyebrow{font-size:12px;font-weight:800;letter-spacing:.06em;display:flex;align-items:center;gap:7px;flex-shrink:0}
   .dt-next-action{font-size:22px;font-weight:800;color:var(--text);line-height:1.25}
-  .dt-next-sub{font-size:13px;color:var(--muted);margin-top:5px}
+  .dt-next-sub{font-size:13px;color:var(--muted);margin-left:auto;text-align:right}
   .dt-logo{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#d4637a,#9b7dbd);color:#fff;font-size:15px;flex-shrink:0}
   .dt-donext{width:100%;margin:4px 0 10px;padding:14px;border:none;border-radius:12px;background:linear-gradient(135deg,#d4637a,#9b7dbd);color:#fff;font-size:15px;font-weight:800;letter-spacing:.2px;cursor:pointer;font-family:inherit;box-shadow:0 4px 14px rgba(155,90,150,.34);transition:transform .12s,box-shadow .12s}
   .dt-donext:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(155,90,150,.45)}
   .dt-donext:active{transform:translateY(0)}
-  .dt-why{margin-bottom:14px}
+  .dt-why{margin-bottom:14px;align-items:center}
+  .dt-why .goal-eyebrow{margin-bottom:0;flex-shrink:0}
   .dt-quote{margin:0 0 18px}
   /* entrance animation — only on navigation (dt-anim), never on edits */
   .dt-detail.dt-anim>*{animation:dtUp .26s ease both}
@@ -757,7 +758,6 @@ function getClipStep(c){
   if(c.status==='idea')  return {type:'film',clip:c,pl:null};
   if(c.status==='filmed')return {type:'edit',clip:c,pl:null};
   if(!c.desc||c.desc.trim().length<10)       return {type:'write-desc',    clip:c,pl:null};
-  if(!c.uploadTitle||!c.uploadTitle.trim())  return {type:'write-title',   clip:c,pl:null};
   if(!c.keywords||!c.keywords.length)        return {type:'write-keywords',clip:c,pl:null};
   if(!c.thumbnail)                           return {type:'make-thumbnail',clip:c,pl:null};
   if(creator==='LG'&&!c.nfGbCover)           return {type:'make-nfgbcover',clip:c,pl:null};
@@ -951,9 +951,9 @@ function renderField(c,field,label,placeholder){
   var h='<div class="field-row"><div class="field-lbl">'+label+'</div>';
   if(isE){
     if(field==='desc')h+='<textarea id="'+eid+'">'+esc(c.desc||'')+'</textarea>';
-    else if(field==='keywords')h+='<input type="text" id="'+eid+'" value="'+esc((c.keywords||[]).join(', '))+'" placeholder="comma, separated, tags">';
-    else if(field==='num')h+='<input type="text" id="'+eid+'" value="'+esc((c.num||'').replace(/^#+/,''))+'" placeholder="'+esc(placeholder)+'">';
-    else h+='<input type="text" id="'+eid+'" value="'+esc(c[field]||'')+'" placeholder="'+esc(placeholder)+'">';
+    else if(field==='keywords')h+='<input type="text" id="'+eid+'" value="'+esc((c.keywords||[]).join(', '))+'">';
+    else if(field==='num')h+='<input type="text" id="'+eid+'" value="'+esc((c.num||'').replace(/^#+/,''))+'">';
+    else h+='<input type="text" id="'+eid+'" value="'+esc(c[field]||'')+'">';
     h+='<div class="btn-row"><button class="btn btn-dark" onclick="saveF('+c.id+',\''+field+'\',document.getElementById(\''+eid+'\').value)">Save</button>';
     h+='<button class="btn btn-ghost" onclick="editField=null;render()">Cancel</button></div>';
   } else {
@@ -966,7 +966,7 @@ function renderField(c,field,label,placeholder){
     } else {
       var val=c[field]||'';
       h+='<div class="field-val'+(val?'':' empty')+'" onclick="editField={id:'+c.id+',field:\''+field+'\'};render()">';
-      h+=val?esc(val):esc(placeholder)+' — click to add';h+='</div>';
+      h+=val?esc(val):'Click to add';h+='</div>';
     }
   }
   h+='</div>';return h;
@@ -1032,7 +1032,7 @@ function renderPlatforms(c){
       if(st===PR){h+='<div style="font-size:14px;color:var(--green);font-weight:600">★ Promoted</div>';}
       else if(st===U){
         h+='<div style="display:flex;flex-direction:column;gap:4px">';
-        h+='<input type="date" value="'+esc(dateVal)+'" placeholder="Upload date" onchange="setUploadDate('+c.id+',\''+pl+'\',this.value)" style="font-size:13px">';
+        h+='<input type="date" value="'+esc(dateVal)+'" onchange="setUploadDate('+c.id+',\''+pl+'\',this.value)" style="font-size:13px">';
         if(!dateVal)h+='<div style="font-size:11px;color:var(--faint)">Date unknown</div>';
         h+='</div>';
       }
@@ -1084,7 +1084,7 @@ function renderActionPanel(step){
     h+='<div class="action-panel-lbl">Upload title</div>';
     var isE2=editField&&editField.id===c.id&&editField.field==='uploadTitle';
     if(isE2){
-      h+='<input type="text" id="fe_'+c.id+'_uploadTitle" value="'+esc(c.uploadTitle||'')+'" placeholder="How it will appear on the platform">';
+      h+='<input type="text" id="fe_'+c.id+'_uploadTitle" value="'+esc(c.uploadTitle||'')+'">';
       h+='<div class="btn-row"><button class="btn btn-dark" onclick="saveF('+c.id+',\'uploadTitle\',document.getElementById(\'fe_'+c.id+'_uploadTitle\').value)">Save title</button>';
       h+='<button class="btn btn-ghost" onclick="editField=null;render()">Cancel</button></div>';
     } else {
@@ -1095,7 +1095,7 @@ function renderActionPanel(step){
     h+='<div class="action-panel-lbl">Keywords</div>';
     var isE3=editField&&editField.id===c.id&&editField.field==='keywords';
     if(isE3){
-      h+='<input type="text" id="fe_'+c.id+'_keywords" value="'+esc((c.keywords||[]).join(', '))+'" placeholder="comma, separated, tags">';
+      h+='<input type="text" id="fe_'+c.id+'_keywords" value="'+esc((c.keywords||[]).join(', '))+'">';
       h+='<div class="btn-row"><button class="btn btn-dark" onclick="saveF('+c.id+',\'keywords\',document.getElementById(\'fe_'+c.id+'_keywords\').value)">Save keywords</button>';
       h+='<button class="btn btn-ghost" onclick="editField=null;render()">Cancel</button></div>';
     } else {
@@ -1127,10 +1127,11 @@ function renderAddForm(){
   if(isSimple()){
     return '<div class="add-wrap"><div class="add-form">'+
       '<input type="hidden" id="new-status" value="uploaded">'+
-      '<input type="text" id="new-title" placeholder="Clip title…" onkeydown="if(event.key===\'Enter\')doAdd()">'+
+      '<div class="field-lbl">Title</div>'+
+      '<input type="text" id="new-title" onkeydown="if(event.key===\'Enter\')doAdd()">'+
       '<div style="display:flex;gap:8px">'+
-        '<input type="text" id="new-num" placeholder="Clip # (e.g. 101)" style="flex:1">'+
-        '<input type="text" id="new-length" placeholder="Length (e.g. 12:34)" style="flex:1">'+
+        '<div style="flex:1"><div class="field-lbl">Clip #</div><input type="text" id="new-num" style="width:100%;box-sizing:border-box"></div>'+
+        '<div style="flex:1"><div class="field-lbl">Length</div><input type="text" id="new-length" style="width:100%;box-sizing:border-box"></div>'+
       '</div>'+
       '<div style="display:flex;align-items:center;gap:8px">'+
         '<label style="font-size:13px;color:var(--muted);white-space:nowrap">Upload by</label>'+
@@ -1141,7 +1142,8 @@ function renderAddForm(){
     '</div></div>';
   }
   return '<div class="add-wrap"><div class="add-form">'+
-    '<input type="text" id="new-title" placeholder="Clip title…" onkeydown="if(event.key===\'Enter\')doAdd()">'+
+    '<div class="field-lbl">Title</div>'+
+    '<input type="text" id="new-title" onkeydown="if(event.key===\'Enter\')doAdd()">'+
     '<select id="new-status"><option value="idea">Idea — not filmed yet</option>'+
     '<option value="filmed">Filmed — needs editing</option>'+
     '<option value="edited">Edited — needs prep</option></select>'+
@@ -1392,7 +1394,8 @@ function renderCalendar(){
       h+='</div>';
     }
     h+='</div>';
-    h+='<input type="text" id="cal-search" value="'+esc(calSearch)+'" placeholder="Search unscheduled clips…" oninput="calSearch=this.value;render();var el=document.getElementById(\'cal-search\');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}" style="width:100%;box-sizing:border-box;padding:8px 14px;border:1.5px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:14px">';
+    h+='<div class="field-lbl">Search unscheduled clips</div>';
+    h+='<input type="text" id="cal-search" value="'+esc(calSearch)+'" oninput="calSearch=this.value;render();var el=document.getElementById(\'cal-search\');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}" style="width:100%;box-sizing:border-box;padding:8px 14px;border:1.5px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:14px">';
     if(calSearch)h+='<div style="font-size:12px;color:var(--muted);margin-top:6px">C4S &amp; LF results for &ldquo;'+esc(calSearch)+'&rdquo; &mdash; <a onclick="calSearch=\'\';render()" style="cursor:pointer;color:var(--accent)">clear</a></div>';
     h+='</div>';
   } else if(!isSimple()||PL.length<=1){
@@ -1908,35 +1911,33 @@ function dtList(){
 }
 
 // Full editable detail for one clip — reused by the desktop edit pane.
-// Which form field the action panel is already editing, so we don't render it twice.
-var ACTION_FIELD={'write-desc':'desc','write-title':'uploadTitle','write-keywords':'keywords'};
+// No redundant action cards: upload/promote live in the schedule, assets in the
+// checkboxes, text in the fields. The only action panel kept is film/edit status
+// advance (idea→filmed→edited), which has no other home.
 function renderClipDetail(c){
   var s=isSimple()?getClipStepSimple(c):getClipStep(c);
   var del='<div style="margin-top:18px"><button class="btn btn-del" onclick="doRemove('+c.id+')">Remove clip</button></div>';
-  var dupF=s?ACTION_FIELD[s.type]:null; // field shown in the action panel — skip it in the form
-  function fld(field,label,ph){return field===dupF?'':renderField(c,field,label,ph);}
+  var action=(s&&(s.type==='film'||s.type==='edit'))?(renderActionPanel(s)+'<div class="sep"></div>'):'';
   if(isSimple()){
     // BH/LV: two columns that fill the pane — writing left, schedule + meta right.
     var SL='',SR='';
-    if(s){SL+=renderActionPanel(s);SL+='<div class="sep"></div>';}
-    SL+=fld('desc','Description','No description yet');
-    SL+=fld('keywords','Keywords','No keywords yet');
-    SL+=fld('notes','Notes','Any notes…');
+    SL+=renderField(c,'desc','Description','No description yet');
+    SL+=renderField(c,'keywords','Keywords','No keywords yet');
+    SL+=renderField(c,'notes','Notes','Any notes…');
     SR+=renderPlatforms(c);
-    SR+=fld('num','Clip #','e.g. 101');
-    SR+=fld('length','Length','e.g. 15:52');
+    SR+=renderField(c,'num','Clip #','e.g. 101');
+    SR+=renderField(c,'length','Length','e.g. 15:52');
     SR+=del;
     return '<div class="dt-cols2"><div class="dt-col">'+SL+'</div><div class="dt-col">'+SR+'</div></div>';
   }
   // LG: two columns — writing on the left, assets/platforms/meta on the right.
   var L='',R='';
-  if(s){L+=renderActionPanel(s);L+='<div class="sep"></div>';}
-  L+=fld('uploadTitle','Upload Title','Same as working title');
-  L+=fld('desc','Description','No description yet');
-  L+=fld('keywords','Keywords','No keywords yet');
-  L+=fld('notes','Notes','Any notes…');
-  R+=fld('num','Clip #','e.g. 101');
-  R+=fld('length','Length','e.g. 15:52');
+  L+=action;
+  L+=renderField(c,'desc','Description','No description yet');
+  L+=renderField(c,'keywords','Keywords','No keywords yet');
+  L+=renderField(c,'notes','Notes','Any notes…');
+  R+=renderField(c,'num','Clip #','e.g. 101');
+  R+=renderField(c,'length','Length','e.g. 15:52');
   R+=renderAssets(c);
   R+=renderPlatforms(c);
   R+=del;
@@ -1978,8 +1979,8 @@ function dtDetail(){
 // The "why" reminder (shown on every right-pane screen) + the rotating quote.
 function dtWhyCard(){
   return '<div class="goal-card dt-why"><div class="goal-icon">&#10024;</div>'
-    +'<div><div class="goal-eyebrow">Your why</div>'
-    +'<div class="goal-body">Keep my <em>inner child</em> financially safe.</div></div></div>';
+    +'<div class="goal-eyebrow">Your why</div>'
+    +'<div class="goal-body">Keep my <em>inner child</em> financially safe.</div></div>';
 }
 function dtQuoteCard(){
   return '<div class="msg-card dt-quote"><div class="msg-icon">&#128140;</div><div class="msg-text">'+esc(dailyMsg())+'</div></div>';
@@ -2097,7 +2098,6 @@ function render(){
         h+='<div class="sep"></div>';
         h+=renderField(next.clip,'title','Title','Clip title…');
         if(!isSimple()){
-          h+=renderField(next.clip,'uploadTitle','Upload Title','Same as working title');
           h+=renderField(next.clip,'desc','Description','No description yet');
           h+=renderField(next.clip,'keywords','Keywords','No keywords yet');
           h+=renderAssets(next.clip);
@@ -2137,7 +2137,8 @@ function render(){
     if(isSimple()){
       // Search bar
       h+='<div style="padding:0 0 14px 0">';
-      h+='<input type="text" id="pipe-search" value="'+esc(pipeSearch)+'" placeholder="Search clips…" oninput="pipeSearch=this.value;render();var el=document.getElementById(\'pipe-search\');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}" style="width:100%;box-sizing:border-box;padding:9px 14px;border:1.5px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:14px">';
+      h+='<div class="field-lbl">Search clips</div>';
+      h+='<input type="text" id="pipe-search" value="'+esc(pipeSearch)+'" oninput="pipeSearch=this.value;render();var el=document.getElementById(\'pipe-search\');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}" style="width:100%;box-sizing:border-box;padding:9px 14px;border:1.5px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:14px">';
       if(pipeSearch)h+='<div style="font-size:12px;color:var(--muted);margin-top:6px">Results for &ldquo;'+esc(pipeSearch)+'&rdquo; &mdash; <a onclick="pipeSearch=\'\';render()" style="cursor:pointer;color:var(--accent)">clear</a></div>';
       h+='</div>';
 
@@ -2210,7 +2211,6 @@ function render(){
           rh+='<div style="padding:16px 18px 18px;border-top:1px solid var(--border);background:var(--bg)">';
           if(s){rh+=renderActionPanel(s);rh+='<div class="sep"></div>';}
           rh+=renderField(c,'title','Title','Clip title…');
-          rh+=renderField(c,'uploadTitle','Upload Title','Same as working title');
           rh+=renderField(c,'desc','Description','No description yet');
           rh+=renderField(c,'keywords','Keywords','No keywords yet');
           rh+=renderField(c,'num','Clip #','e.g. 101');
@@ -2440,10 +2440,12 @@ function doAdd(){
       '<div style="background:#fff;border:1px solid #ede4de;border-radius:16px;' +
         'padding:32px;width:320px;box-shadow:0 6px 24px rgba(80,30,20,.1)">' +
         '<div style="font-size:20px;font-weight:700;color:#2a1f1c;margin-bottom:18px">Sign in</div>' +
-        '<input id="lg-email" type="email" placeholder="email" autocomplete="username" ' +
+        '<label for="lg-email" style="display:block;font-size:13px;color:#7a6a63;margin-bottom:5px">Email</label>' +
+        '<input id="lg-email" type="email" autocomplete="username" ' +
           'style="width:100%;padding:11px 14px;margin-bottom:10px;border:1.5px solid #ede4de;' +
           'border-radius:10px;font-size:15px;box-sizing:border-box">' +
-        '<input id="lg-pass" type="password" placeholder="password" autocomplete="current-password" ' +
+        '<label for="lg-pass" style="display:block;font-size:13px;color:#7a6a63;margin-bottom:5px">Password</label>' +
+        '<input id="lg-pass" type="password" autocomplete="current-password" ' +
           'style="width:100%;padding:11px 14px;margin-bottom:14px;border:1.5px solid #ede4de;' +
           'border-radius:10px;font-size:15px;box-sizing:border-box">' +
         '<button id="lg-login-btn" style="width:100%;padding:12px;border:none;border-radius:10px;' +
