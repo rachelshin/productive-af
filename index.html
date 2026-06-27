@@ -79,6 +79,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .dtn-action{font-size:24px;font-weight:700;letter-spacing:-.4px;line-height:1.25;margin-bottom:8px}
 .dtn-clip{font-size:16px;color:var(--muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .id-badge{display:inline-flex;align-items:center;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:3px 9px;font-size:13px;font-weight:700;color:var(--faint);flex-shrink:0}
+.ps-tag{display:inline-flex;align-items:center;gap:3px;background:var(--violet-bg);color:var(--violet);border:1px solid var(--violet-b);border-radius:5px;padding:2px 7px;font-size:11px;font-weight:800;letter-spacing:.02em;flex-shrink:0}
 .id-badge-input{width:70px;flex-shrink:0;background:var(--surface);border:1.5px solid var(--accent-b);border-radius:5px;padding:3px 9px;font-size:13px;font-weight:700;color:var(--text);font-family:inherit;outline:none}
 .dtn-chev{flex-shrink:0;color:var(--faint);font-size:14px;margin-top:8px;transition:transform .2s}
 .dtn-chev.open{transform:rotate(180deg)}
@@ -1926,6 +1927,7 @@ function dtClipGroup(label,col,items){
     h+='<div class="dt-card'+(sel?' sel':'')+'" style="--row:'+scol+'" onclick="dtRightView=\'edit\';dtNextId=null;dtAnimate=true;expanded='+c.id+';render()">';
     h+='<span class="dt-card-dot" style="background:'+scol+'"></span>';
     h+='<span class="id-badge">'+(c.num?esc(c.num):fid(c.id))+'</span>';
+    if(c.type==='photoset')h+='<span class="ps-tag">&#128247; Photoset</span>';
     h+='<span class="dt-row-name">'+esc(c.title)+'</span>';
     h+='<span class="dt-pill" style="color:'+scol+';border-color:'+scol+'">'+pill+'</span></div>';
   });
