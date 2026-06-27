@@ -162,6 +162,7 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .pst-btn{padding:5px 11px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);font-family:inherit;white-space:nowrap;transition:all .12s}
 .pst-btn:hover{border-color:var(--rose-mid)}
 .pst-btn.is-up{background:var(--sky-bg);border-color:var(--sky-b);color:var(--sky)}
+.pst-btn.is-ppv{background:var(--violet-bg);border-color:var(--violet-b);color:var(--violet)}
 .pst-btn.is-pr{background:var(--green-bg);border-color:var(--green-b);color:var(--green)}
 .pst-btn.is-na{background:var(--rose-bg);border-color:var(--rose-b);color:var(--rose)}
 .add-plat-grid{display:flex;flex-wrap:wrap;gap:7px}
@@ -228,6 +229,7 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .cal-event-plat{font-weight:800;font-size:11px;margin-right:4px;opacity:.85}
 .cal-event.is-c4s .cal-event-plat,.cal-event.is-lf .cal-event-plat{display:none}
 .cal-event.is-up{background:var(--sky);border-color:var(--sky);color:#fff}
+.cal-event.is-ppv{background:var(--violet);border-color:var(--violet);color:#fff}
 .cal-event.is-pr{background:var(--green-bg);border-color:var(--green-b);color:var(--green)}
 .cal-event.is-c4s{background:#f5d5da;border-color:#d4909e;color:#6a1f2e}
 .cal-event.is-lf{background:#d5dff5;border-color:#90a0d4;color:#1f2e6a}
@@ -451,7 +453,12 @@ var CREATOR_CONFIG={
   LV:{rate:37,currency:'£',platformDesc:'OF & C4S management'}
 };
 var PL=['SM','MFC','CB','SC','NF','SP','C4S'];
-var P='pending',U='uploaded',PR='promoted',N='na';
+var P='pending',U='uploaded',PR='promoted',N='na',PPV='ppv';
+// PPV (sent as pay-per-view) is a terminal state like Promoted — it's both uploaded
+// AND promoted in one, so it's the end of a platform's cycle (no promote step left).
+// isPosted = live anywhere; isPromoted = done/terminal for that platform.
+function isPosted(st){return st===U||st===PR||st===PPV;}
+function isPromoted(st){return st===PR||st===PPV;}
 var CAL_COLORS={LG:'#c4506a',BH:'#7272b8',LV:'#3a8c80'};  // per-creator calendar colour
 
 var CREATORS={
@@ -976,13 +983,17 @@ function fmtDate(d){
 // auto-check "description done" — a posted clip won't get a description after the fact.
 function autoDescDone(c){
   if(!c.platforms)return;
-  if((!c.desc||!c.desc.trim())&&Object.keys(c.platforms).some(function(p){return c.platforms[p]===U||c.platforms[p]===PR;}))c.descDone=true;
+  if((!c.desc||!c.desc.trim())&&Object.keys(c.platforms).some(function(p){return isPosted(c.platforms[p]);}))c.descDone=true;
 }
 function cyclePlatform(id,pl){
   var c=clips.find(function(x){return x.id===id;});if(!c)return;
   var cur=c.platforms[pl];
-  if(cur===P)c.platforms[pl]=U;else if(cur===U)c.platforms[pl]=PR;else c.platforms[pl]=P;
-  var allDone=PL.every(function(q){return c.platforms[q]===PR||c.platforms[q]===N;});
+  // Lux can also mark a platform as PPV (sent as pay-per-view) — a terminal state
+  // like Promoted, so it's the last stop in the cycle.
+  // Cycle: Pending → Uploaded → Promoted → [PPV] → Pending. (unknown/N → Pending)
+  var order=creator==='LG'?[P,U,PR,PPV]:[P,U,PR];
+  c.platforms[pl]=order[(order.indexOf(cur)+1)%order.length];
+  var allDone=PL.every(function(q){return isPromoted(c.platforms[q])||c.platforms[q]===N;});
   if(allDone&&c.status!=='uploaded')c.status='uploaded';
   autoDescDone(c);
   saveCreator();render();
@@ -1019,7 +1030,7 @@ function saveF(id,field,value){
 }
 // A clip counts as "posted" once it's uploaded or promoted on at least one platform.
 function clipIsPosted(c){
-  return platformsFor(creator).some(function(pl){var st=c.platforms[pl];return st===U||st===PR;});
+  return platformsFor(creator).some(function(pl){return isPosted(c.platforms[pl]);});
 }
 function numOnly(v){var n=parseFloat(String(v||'').replace(/[^0-9.]/g,''));return isNaN(n)?null:n;}
 // Per-platform sales live under c.platformSales[platform] = {total, clips, price}.
@@ -1081,7 +1092,7 @@ function doAddClip(title,status,num,length,date,type,desc,keywords){
   // "Backlog" detection: a clip that's already out somewhere had its prep done by
   // definition, so mark assets/desc/keywords complete and skip the film/edit steps.
   // Fully out everywhere (no platform still pending) → it lands straight in All Done.
-  var anyDone=PL.some(function(p){return pl[p]===U||pl[p]===PR;});
+  var anyDone=PL.some(function(p){return isPosted(pl[p]);});
   var published=PL.every(function(p){return pl[p]!==P;});
   if(published)status='uploaded';
   else if(anyDone&&(status==='idea'||status==='filmed'))status='edited';
@@ -1171,6 +1182,7 @@ function renderPlatforms(c){
     h+='<div class="plat-date-col">';
     if(!isNA){
       if(st===PR){h+='<div style="font-size:14px;color:var(--green);font-weight:600">★ Promoted</div>';}
+      else if(st===PPV){h+='<div style="font-size:14px;color:var(--violet);font-weight:600">$ PPV</div>';}
       else if(st===U){
         h+='<div style="display:flex;flex-direction:column;gap:4px">';
         h+='<input type="date" value="'+esc(dateVal)+'" onchange="setUploadDate('+c.id+',\''+pl+'\',this.value)" style="font-size:13px">';
@@ -1189,6 +1201,7 @@ function renderPlatforms(c){
     if(!isNA){
       if(st===P)h+='<button class="pst-btn" onclick="cyclePlatform('+c.id+',\''+pl+'\')">□ Pending</button>';
       else if(st===U)h+='<button class="pst-btn is-up" onclick="cyclePlatform('+c.id+',\''+pl+'\')">▲ Uploaded</button>';
+      else if(st===PPV)h+='<button class="pst-btn is-ppv" onclick="cyclePlatform('+c.id+',\''+pl+'\')">$ PPV</button>';
       else if(st===PR)h+='<button class="pst-btn is-pr" onclick="cyclePlatform('+c.id+',\''+pl+'\')">★ Promoted</button>';
     }
     h+='</div>';
@@ -1310,14 +1323,14 @@ function renderAddForm(){
     '<textarea id="new-desc"></textarea>'+
     '<div class="field-lbl">Keywords (comma-separated)</div>'+
     '<input type="text" id="new-keywords">'+
-    '<div class="field-lbl">Already uploaded? Tap each platform to cycle: Pending → Uploaded → Promoted → N/A</div>'+
+    '<div class="field-lbl">Already uploaded? Tap each platform to cycle: Pending → Uploaded → Promoted → PPV → N/A</div>'+
     '<div class="add-plat-grid" id="add-plat-grid">'+addPlatGridHtml()+'</div>'+
     '<div class="btn-row"><button class="btn btn-dark" onclick="doAdd()">Add</button></div></div></div>';
 }
 
 // Per-platform upload-status grid in the Lux add form, so a backlog clip that's
 // already out can be marked uploaded/promoted/NA right when it's added.
-var ADDPLAT_STATES={pending:{l:'□ Pending',c:''},uploaded:{l:'▲ Uploaded',c:'is-up'},promoted:{l:'★ Promoted',c:'is-pr'},na:{l:'N/A',c:'is-na'}};
+var ADDPLAT_STATES={pending:{l:'□ Pending',c:''},uploaded:{l:'▲ Uploaded',c:'is-up'},ppv:{l:'$ PPV',c:'is-ppv'},promoted:{l:'★ Promoted',c:'is-pr'},na:{l:'N/A',c:'is-na'}};
 function addPlatBtnInner(pl,st){var m=ADDPLAT_STATES[st]||ADDPLAT_STATES[P];return '<span style="font-weight:700">'+pl+'</span><span>'+m.l+'</span>';}
 function addPlatGridHtml(){
   return platformsFor('LG').map(function(pl){
@@ -1328,7 +1341,7 @@ function addPlatGridHtml(){
 // DOM-only update (like setAddType) so typed Title/Description aren't wiped.
 function cycleAddPlatform(pl){
   if(!addPlatforms)addPlatforms={};
-  var order=[P,U,PR,N];var cur=addPlatforms[pl]||P;var st=order[(order.indexOf(cur)+1)%order.length];
+  var order=[P,U,PR,PPV,N];var cur=addPlatforms[pl]||P;var st=order[(order.indexOf(cur)+1)%order.length];
   addPlatforms[pl]=st;
   var b=document.getElementById('addplat_'+pl);
   if(b){b.className='pst-btn '+((ADDPLAT_STATES[st]||ADDPLAT_STATES[P]).c);b.innerHTML=addPlatBtnInner(pl,st);}
@@ -1379,7 +1392,7 @@ function setUploadDate(id,pl,date){
   var c=clips.find(function(x){return x.id===id;});if(!c)return;
   if(!c.platformDates)c.platformDates={};
   c.platformDates[pl]=date;
-  if(date)c.platforms[pl]=U; // entering a date auto-marks as uploaded
+  if(date&&c.platforms[pl]===P)c.platforms[pl]=U; // entering a date on a pending platform auto-marks uploaded
   autoDescDone(c);
   saveCreator();render();
 }
@@ -1530,7 +1543,7 @@ function renderAllCalendar(){
     var s='';
     evs.slice(0,4).forEach(function(ev){
       var short=ev.clip.title.length>14?ev.clip.title.substring(0,13)+'…':ev.clip.title;
-      var done=ev.status===U||ev.status===PR;
+      var done=isPosted(ev.status);
       var stStyle=done?('background:'+ev.color+';border-color:'+ev.color+';color:#fff')
         :('background:'+hexA(ev.color,.16)+';border-color:'+hexA(ev.color,.45)+';color:'+ev.color);
       s+='<div class="cal-event" data-drag-clip="'+ev.clip.id+'" data-drag-platform="'+ev.platform+'" data-drag-creator="'+ev.creator+'" style="'+stStyle+';cursor:grab" title="'+esc(ev.clip.title)+' ('+ev.creator+' / '+ev.platform+')">';
@@ -1546,7 +1559,7 @@ function renderCalendar(){
   h+=calGridHtml(getCalEvents(),function(evs){
     var s='';
     evs.slice(0,3).forEach(function(ev){
-      var stCls=isSimple()?(ev.platform==='C4S'?' is-c4s':ev.platform==='LF'?' is-lf':''):(ev.status===U?' is-up':ev.status===PR?' is-pr':'');
+      var stCls=isSimple()?(ev.platform==='C4S'?' is-c4s':ev.platform==='LF'?' is-lf':''):(ev.status===U?' is-up':ev.status===PPV?' is-ppv':ev.status===PR?' is-pr':'');
       var short=ev.clip.title.length>16?ev.clip.title.substring(0,15)+'…':ev.clip.title;
       // Simple creators colour by platform; solidify the chip once uploaded (pending stays lighter).
       var solid='';
@@ -2110,7 +2123,7 @@ function dtHeaderBand(){
   var grad=isAll?'linear-gradient(120deg,#d4637a,#7272b8,#3a8c80)':cr.grad;
   return '<div class="dt-band" style="background:'+grad+'"><div class="dt-band-av">'+(isAll?'&#9733;':esc(cr.initials))+'</div><span class="dt-band-name">'+esc(isAll?'All Creators':cr.name)+'</span></div>';
 }
-function dtClipGroup(label,col,items){
+function dtClipGroup(label,col,items,noAutoOpen){
   items=items.filter(dtMatch); // honor the middle-pane search box
   if(!items.length)return '';
   // Each group is a collapsible accordion — click the header to drop it down.
@@ -2118,8 +2131,11 @@ function dtClipGroup(label,col,items){
   // hasn't touched this group do we auto-open the one holding the selected clip
   // (so a fresh creator switch reveals it, but every header can still collapse).
   // While searching, force every matching group open so results are visible.
+  // noAutoOpen: skip the auto-open-on-selection (used by the "Posted on …"
+  // platform groups, where a posted clip lives in several groups at once and
+  // auto-opening all of them would be noisy — they stay click-to-open).
   var searching=pipeSearch.trim().length>0;
-  var hasSel=(dtRightView==='edit')&&items.some(function(c){return c.id===expanded;});
+  var hasSel=(!noAutoOpen)&&(dtRightView==='edit')&&items.some(function(c){return c.id===expanded;});
   var open=searching?true:dtGrpOpen[label]===true?true:dtGrpOpen[label]===false?false:hasSel;
   var key=label.replace(/'/g,"\\'");
   var h='<div class="dt-grp'+(open?' open':'')+'"><div class="dt-grp-h" style="color:'+col+'" onclick="dtGrpOpen[\''+key+'\']=!('+(open?'true':'false')+');render()">';
@@ -2164,6 +2180,12 @@ function dtList(){
     });
     // All Done sorted by total sales, highest first (no/blank sales sink to the bottom).
     h+=dtClipGroup('All Done','var(--green)',doneClips().sort(function(a,b){return clipGrandSales(b)-clipGrandSales(a);}));
+    // "By platform" — one collapsed dropdown per platform listing every clip that's
+    // live (uploaded/promoted/PPV) there. Lets you pull up everything on SM, MFC, etc.
+    var byPlat=platformsFor(creator).map(function(pl){
+      return dtClipGroup('Posted on '+pl,'var(--green)',clips.filter(function(c){return isPosted(c.platforms[pl]);}),true);
+    }).join('');
+    if(byPlat)h+='<div class="dt-sec-lbl">By Platform</div>'+byPlat;
   }
   if(!h&&pipeSearch.trim())return '<div class="dt-empty"><div class="dt-emoji">&#128269;</div>No clips match &ldquo;'+esc(pipeSearch)+'&rdquo;.</div>';
   return h;
@@ -2177,7 +2199,7 @@ function dtList(){
 // One row per platform that's actually live (uploaded or promoted): Total Sales,
 // Number of Clips, Price + a Calculate button, then a grand total at the bottom.
 function renderSales(c){
-  var plats=platformsFor(creator).filter(function(pl){var st=c.platforms[pl];return st===U||st===PR;});
+  var plats=platformsFor(creator).filter(function(pl){return isPosted(c.platforms[pl]);});
   var fld=function(pl,field,label){
     var ps=(c.platformSales&&c.platformSales[pl])||{};
     return '<div class="sales-field"><div class="field-lbl">'+label+'</div>'+
