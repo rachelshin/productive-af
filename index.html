@@ -757,7 +757,7 @@ function switchCreator(key){
   document.documentElement.style.setProperty('--accent-bg','var('+cr.accentBg+')');
   document.documentElement.style.setProperty('--accent-b','var('+cr.accentB+')');
   if(key==='ALL'){clips=[];nextId=1;loadConsulting();render();}
-  else{loadCreator();loadConsulting();render();}
+  else{loadCreator();loadConsulting();if(isDesktop()){var dp=dtDefaultClip();expanded=dp?dp.id:false;}render();}
 }
 
 // ── LOGIC ──────────────────────────────────────────────────────
@@ -851,6 +851,62 @@ function getNextSimple(){
   return getClipStepSimple(pending[0]);
 }
 function doneClipsSimple(){return clips.filter(function(c){return clipUploadedSimple(c);});}
+
+// ── DEFAULT CLIP shown in the right pane when a creator is opened ──────────
+// Primary rule (all creators): the next clip on their calendar — the soonest
+// scheduled pending upload. Fallbacks when nothing is scheduled:
+//   • Lux (LG): the clip closest to upload-ready (most prep fields filled in);
+//     ties are broken at random (kept stable across re-renders via _lgPick).
+//   • Brigit / Venus: the not-yet-posted clip with the lowest ID #.
+function nextCalDate(c){ // earliest scheduled pending-upload date for this creator, or null
+  var dates=c.platformDates||{},best=null;
+  platformsFor(creator).forEach(function(pl){
+    var d=dates[pl];
+    if(!d||c.platforms[pl]!==P)return;
+    if(pl==='LF'&&c.platforms['C4S']===P)return; // mirrors calendar visibility
+    if(best===null||d<best)best=d;
+  });
+  return best;
+}
+function clipNumVal(c){var n=c.num?parseInt(c.num.replace(/[^0-9]/g,'')):NaN;return isNaN(n)?c.id:n;}
+function lgReadiness(c){ // how many upload prerequisites are already satisfied
+  var n=0;
+  if(c.status==='edited'||c.status==='uploaded')n+=2;else if(c.status==='filmed')n+=1;
+  if(c.thumbnail)n++;
+  if(c.nfGbCover)n++;
+  if(c.type!=='photoset'){
+    if(c.desc&&c.desc.trim().length>=10)n++;
+    if(c.keywords&&c.keywords.length)n++;
+    if(c.preview)n++;
+  }
+  return n;
+}
+var _lgPick={sig:'',id:null}; // remembers the random tie-break pick so it doesn't jump on every render
+function dtDefaultClip(){
+  if(!clips.length)return null;
+  // 1) Soonest clip scheduled on the calendar.
+  var dated=clips.filter(function(c){return nextCalDate(c);});
+  if(dated.length){
+    dated.sort(function(a,b){var da=nextCalDate(a),db=nextCalDate(b);return da<db?-1:da>db?1:a.id-b.id;});
+    return dated[0];
+  }
+  // 2) Nothing scheduled → creator-specific fallback.
+  if(isSimple()){
+    var unposted=clips.filter(function(c){return !clipUploadedSimple(c);});
+    if(!unposted.length)return null;
+    unposted.sort(function(a,b){return clipNumVal(a)-clipNumVal(b);});
+    return unposted[0];
+  }
+  // Lux: closest to upload-ready (most fields filled); random tie-break.
+  var cands=clips.filter(function(c){return getClipStep(c);}); // exclude already-done clips
+  if(!cands.length)return null;
+  var best=-1;cands.forEach(function(c){var r=lgReadiness(c);if(r>best)best=r;});
+  var top=cands.filter(function(c){return lgReadiness(c)===best;});
+  var sig=top.map(function(c){return c.id;}).sort(function(a,b){return a-b;}).join(',');
+  if(_lgPick.sig!==sig||!top.some(function(c){return c.id===_lgPick.id;}))
+    _lgPick={sig:sig,id:top[Math.floor(Math.random()*top.length)].id};
+  return top.filter(function(c){return c.id===_lgPick.id;})[0]||top[0];
+}
 
 function dailyMsg(){return MESSAGES[(new Date().getDate()-1)%MESSAGES.length];}
 // Shared calendar-event collector: walks clips × platforms, applies the same
@@ -2047,10 +2103,7 @@ function dtClipEditor(c,step){
 }
 function dtDetail(){
   var c=clips.find(function(x){return x.id===expanded;});
-  if(!c){ // nothing selected → default to this creator's next clip (no card)
-    var nx0=isSimple()?getNextSimple():getNext();
-    if(nx0)c=nx0.clip;
-  }
+  if(!c)c=dtDefaultClip(); // nothing selected → this creator's next clip (no card)
   if(!c)return '<div class="dt-empty"><div class="dt-emoji">&#127881;</div>Nothing left for '+esc((CREATORS[creator]||{name:'this creator'}).name)+'!<br><small>All caught up — your inner child says thanks.</small></div>';
   // The "DO THIS NEXT" card only appears for the cross-creator pick (the Do This Next button).
   var step=(c.id===dtNextId)?(isSimple()?getClipStepSimple(c):getClipStep(c)):null;
