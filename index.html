@@ -161,6 +161,7 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .plat-status-col{display:flex;justify-content:flex-end}
 .pst-btn{padding:5px 11px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);font-family:inherit;white-space:nowrap;transition:all .12s}
 .pst-btn:hover{border-color:var(--rose-mid)}
+.pst-btn.is-review{background:var(--amber-bg);border-color:var(--amber-b);color:var(--amber)}
 .pst-btn.is-up{background:var(--sky-bg);border-color:var(--sky-b);color:var(--sky)}
 .pst-btn.is-ppv{background:var(--violet-bg);border-color:var(--violet-b);color:var(--violet)}
 .pst-btn.is-pr{background:var(--green-bg);border-color:var(--green-b);color:var(--green)}
@@ -228,6 +229,7 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .cal-event:hover{background:var(--violet-b)}
 .cal-event-plat{font-weight:800;font-size:11px;margin-right:4px;opacity:.85}
 .cal-event.is-c4s .cal-event-plat,.cal-event.is-lf .cal-event-plat{display:none}
+.cal-event.is-review{background:var(--amber-bg);border-color:var(--amber-b);color:var(--amber)}
 .cal-event.is-up{background:var(--sky);border-color:var(--sky);color:#fff}
 .cal-event.is-ppv{background:var(--violet);border-color:var(--violet);color:#fff}
 .cal-event.is-pr{background:var(--green-bg);border-color:var(--green-b);color:var(--green)}
@@ -453,9 +455,11 @@ var CREATOR_CONFIG={
   LV:{rate:37,currency:'£',platformDesc:'OF & C4S management'}
 };
 var PL=['SM','MFC','CB','SC','NF','SP','C4S'];
-var P='pending',U='uploaded',PR='promoted',N='na',PPV='ppv';
+var P='pending',U='uploaded',PR='promoted',N='na',PPV='ppv',IR='inreview';
 // PPV (sent as pay-per-view) is a terminal state like Promoted — it's both uploaded
 // AND promoted in one, so it's the end of a platform's cycle (no promote step left).
+// IR (in review) sits between Pending and Uploaded — Lux only: you've submitted the
+// clip but it's awaiting approval, so it's NOT yet live (isPosted stays false for IR).
 // isPosted = live anywhere; isPromoted = done/terminal for that platform.
 function isPosted(st){return st===U||st===PR||st===PPV;}
 function isPromoted(st){return st===PR||st===PPV;}
@@ -810,17 +814,18 @@ function getClipStep(c){
   if(creator==='LG'&&!c.nfGbCover)           return {type:'make-nfgbcover',clip:c,pl:null};
   if(c.type!=='photoset'&&!c.preview)        return {type:'make-preview',  clip:c,pl:null};
   var pp=firstIn(c,P);if(pp)return {type:'upload', clip:c,pl:pp};
+  var ir=firstIn(c,IR);if(ir)return {type:'approve',clip:c,pl:ir};
   var up=firstIn(c,U);if(up)return {type:'promote',clip:c,pl:up};
   return null;
 }
 
-var GPRI={'upload':0,'promote':1,'make-thumbnail':2,'make-nfgbcover':3,'make-preview':4,'write-desc':5,'write-title':6,'write-keywords':7,'edit':8,'film':9};
-var TCOLOR={'upload':'var(--rose)','promote':'var(--teal)','make-thumbnail':'var(--amber)','make-nfgbcover':'var(--amber)','make-preview':'var(--amber)','write-desc':'var(--violet)','write-title':'var(--violet)','write-keywords':'var(--violet)','edit':'var(--sky)','film':'var(--faint)'};
-var TLABEL={'upload':'Upload to','promote':'Promote on','make-thumbnail':'Make a thumbnail for','make-nfgbcover':'Make an NF GB Cover for','make-preview':'Make a trailer for','write-desc':'Write a description for','write-title':'Write a title for','write-keywords':'Add keywords for','edit':'Edit','film':'Film'};
+var GPRI={'upload':0,'approve':0.5,'promote':1,'make-thumbnail':2,'make-nfgbcover':3,'make-preview':4,'write-desc':5,'write-title':6,'write-keywords':7,'edit':8,'film':9};
+var TCOLOR={'upload':'var(--rose)','approve':'var(--amber)','promote':'var(--teal)','make-thumbnail':'var(--amber)','make-nfgbcover':'var(--amber)','make-preview':'var(--amber)','write-desc':'var(--violet)','write-title':'var(--violet)','write-keywords':'var(--violet)','edit':'var(--sky)','film':'var(--faint)'};
+var TLABEL={'upload':'Upload to','approve':'Awaiting approval on','promote':'Promote on','make-thumbnail':'Make a thumbnail for','make-nfgbcover':'Make an NF GB Cover for','make-preview':'Make a trailer for','write-desc':'Write a description for','write-title':'Write a title for','write-keywords':'Add keywords for','edit':'Edit','film':'Film'};
 
 function actionTitle(s){
   var t=TLABEL[s.type]||s.type;
-  if(s.type==='upload'||s.type==='promote')return t+' '+s.pl;
+  if(s.type==='upload'||s.type==='promote'||s.type==='approve')return t+' '+s.pl;
   return t+' "'+s.clip.title+'"';
 }
 function getNext(){
@@ -830,10 +835,11 @@ function getNext(){
   return all[0];
 }
 function getCounts(){
-  var o={upload:0,promote:0,assets:0,desc:0,title:0,keywords:0,edit:0,film:0,done:0};
+  var o={upload:0,review:0,promote:0,assets:0,desc:0,title:0,keywords:0,edit:0,film:0,done:0};
   clips.forEach(function(c){
     var s=getClipStep(c);if(!s){o.done++;return;}
     if(s.type==='upload')o.upload++;
+    else if(s.type==='approve')o.review++;
     else if(s.type==='promote')o.promote++;
     else if(s.type.indexOf('make-')===0)o.assets++;
     else if(s.type==='write-desc')o.desc++;
@@ -990,8 +996,9 @@ function cyclePlatform(id,pl){
   var cur=c.platforms[pl];
   // Lux can also mark a platform as PPV (sent as pay-per-view) — a terminal state
   // like Promoted, so it's the last stop in the cycle.
-  // Cycle: Pending → Uploaded → Promoted → [PPV] → Pending. (unknown/N → Pending)
-  var order=creator==='LG'?[P,U,PR,PPV]:[P,U,PR];
+  // Cycle: Pending → In Review → Uploaded → Promoted → [PPV] → Pending. (unknown/N → Pending)
+  // In Review is Lux-only; other creators skip straight Pending → Uploaded → Promoted.
+  var order=creator==='LG'?[P,IR,U,PR,PPV]:[P,U,PR];
   c.platforms[pl]=order[(order.indexOf(cur)+1)%order.length];
   var allDone=PL.every(function(q){return isPromoted(c.platforms[q])||c.platforms[q]===N;});
   if(allDone&&c.status!=='uploaded')c.status='uploaded';
@@ -1199,7 +1206,8 @@ function renderPlatforms(c){
     h+='</div>';
     h+='<div class="plat-status-col">';
     if(!isNA){
-      if(st===P)h+='<button class="pst-btn" onclick="cyclePlatform('+c.id+',\''+pl+'\')">□ Pending</button>';
+      if(st===P)h+='<button class="pst-btn" onclick="cyclePlatform('+c.id+',\''+pl+'\')">□ To Upload</button>';
+      else if(st===IR)h+='<button class="pst-btn is-review" onclick="cyclePlatform('+c.id+',\''+pl+'\')">◷ In Review</button>';
       else if(st===U)h+='<button class="pst-btn is-up" onclick="cyclePlatform('+c.id+',\''+pl+'\')">▲ Uploaded</button>';
       else if(st===PPV)h+='<button class="pst-btn is-ppv" onclick="cyclePlatform('+c.id+',\''+pl+'\')">$ PPV</button>';
       else if(st===PR)h+='<button class="pst-btn is-pr" onclick="cyclePlatform('+c.id+',\''+pl+'\')">★ Promoted</button>';
@@ -1216,8 +1224,13 @@ function renderActionPanel(step){
   var h='<div class="action-panel">';
   if(t==='upload'){
     var dv=c.platformDates&&c.platformDates[pl]?fmtDate(c.platformDates[pl]):'';
-    h+='<div class="action-panel-lbl">Mark as uploaded to '+pl+(dv?' (scheduled '+dv+')':'')+'</div>';
-    h+='<button class="plat-action-btn upload-btn" onclick="cyclePlatform('+c.id+',\''+pl+'\');confetti()">▲&nbsp; Done — Uploaded to '+pl+'</button>';
+    // For Lux, uploading sends the clip to "In Review" (awaiting approval), not live yet.
+    var toReview=(creator==='LG');
+    h+='<div class="action-panel-lbl">'+(toReview?'Submit to '+pl+' for review':'Mark as uploaded to '+pl)+(dv?' (scheduled '+dv+')':'')+'</div>';
+    h+='<button class="plat-action-btn upload-btn" onclick="cyclePlatform('+c.id+',\''+pl+'\')">▲&nbsp; '+(toReview?'Submitted — In Review on '+pl:'Done — Uploaded to '+pl)+'</button>';
+  } else if(t==='approve'){
+    h+='<div class="action-panel-lbl">In review on '+pl+' — mark live once it\'s approved</div>';
+    h+='<button class="plat-action-btn upload-btn" onclick="cyclePlatform('+c.id+',\''+pl+'\');confetti()">✓&nbsp; Approved — now live on '+pl+'</button>';
   } else if(t==='promote'){
     h+='<div class="action-panel-lbl">Mark as promoted on '+pl+'</div>';
     h+='<button class="plat-action-btn promo-btn" onclick="cyclePlatform('+c.id+',\''+pl+'\');confetti()">★&nbsp; Done — Promoted on '+pl+'</button>';
@@ -1323,14 +1336,14 @@ function renderAddForm(){
     '<textarea id="new-desc"></textarea>'+
     '<div class="field-lbl">Keywords (comma-separated)</div>'+
     '<input type="text" id="new-keywords">'+
-    '<div class="field-lbl">Already uploaded? Tap each platform to cycle: Pending → Uploaded → Promoted → PPV → N/A</div>'+
+    '<div class="field-lbl">Already uploaded? Tap each platform to cycle: To Upload → In Review → Uploaded → Promoted → PPV → N/A</div>'+
     '<div class="add-plat-grid" id="add-plat-grid">'+addPlatGridHtml()+'</div>'+
     '<div class="btn-row"><button class="btn btn-dark" onclick="doAdd()">Add</button></div></div></div>';
 }
 
 // Per-platform upload-status grid in the Lux add form, so a backlog clip that's
 // already out can be marked uploaded/promoted/NA right when it's added.
-var ADDPLAT_STATES={pending:{l:'□ Pending',c:''},uploaded:{l:'▲ Uploaded',c:'is-up'},ppv:{l:'$ PPV',c:'is-ppv'},promoted:{l:'★ Promoted',c:'is-pr'},na:{l:'N/A',c:'is-na'}};
+var ADDPLAT_STATES={pending:{l:'□ To Upload',c:''},inreview:{l:'◷ In Review',c:'is-review'},uploaded:{l:'▲ Uploaded',c:'is-up'},ppv:{l:'$ PPV',c:'is-ppv'},promoted:{l:'★ Promoted',c:'is-pr'},na:{l:'N/A',c:'is-na'}};
 function addPlatBtnInner(pl,st){var m=ADDPLAT_STATES[st]||ADDPLAT_STATES[P];return '<span style="font-weight:700">'+pl+'</span><span>'+m.l+'</span>';}
 function addPlatGridHtml(){
   return platformsFor('LG').map(function(pl){
@@ -1341,7 +1354,7 @@ function addPlatGridHtml(){
 // DOM-only update (like setAddType) so typed Title/Description aren't wiped.
 function cycleAddPlatform(pl){
   if(!addPlatforms)addPlatforms={};
-  var order=[P,U,PR,PPV,N];var cur=addPlatforms[pl]||P;var st=order[(order.indexOf(cur)+1)%order.length];
+  var order=[P,IR,U,PR,PPV,N];var cur=addPlatforms[pl]||P;var st=order[(order.indexOf(cur)+1)%order.length];
   addPlatforms[pl]=st;
   var b=document.getElementById('addplat_'+pl);
   if(b){b.className='pst-btn '+((ADDPLAT_STATES[st]||ADDPLAT_STATES[P]).c);b.innerHTML=addPlatBtnInner(pl,st);}
@@ -1559,7 +1572,7 @@ function renderCalendar(){
   h+=calGridHtml(getCalEvents(),function(evs){
     var s='';
     evs.slice(0,3).forEach(function(ev){
-      var stCls=isSimple()?(ev.platform==='C4S'?' is-c4s':ev.platform==='LF'?' is-lf':''):(ev.status===U?' is-up':ev.status===PPV?' is-ppv':ev.status===PR?' is-pr':'');
+      var stCls=isSimple()?(ev.platform==='C4S'?' is-c4s':ev.platform==='LF'?' is-lf':''):(ev.status===IR?' is-review':ev.status===U?' is-up':ev.status===PPV?' is-ppv':ev.status===PR?' is-pr':'');
       var short=ev.clip.title.length>16?ev.clip.title.substring(0,15)+'…':ev.clip.title;
       // Simple creators colour by platform; solidify the chip once uploaded (pending stays lighter).
       var solid='';
@@ -2115,8 +2128,8 @@ function dtMatch(c){
     ||(c.uploadTitle&&c.uploadTitle.toLowerCase().indexOf(q)>=0);
 }
 
-var DT_SHORT={upload:'Upload',promote:'Promote','write-desc':'Description','write-title':'Title','write-keywords':'Keywords','make-thumbnail':'Thumbnail','make-nfgbcover':'NF Cover','make-preview':'Trailer',edit:'Edit',film:'Film'};
-function dtStepShort(st){var b=DT_SHORT[st.type]||st.type;return (st.type==='upload'||st.type==='promote')?b+' '+st.pl:b;}
+var DT_SHORT={upload:'Upload',approve:'In Review',promote:'Promote','write-desc':'Description','write-title':'Title','write-keywords':'Keywords','make-thumbnail':'Thumbnail','make-nfgbcover':'NF Cover','make-preview':'Trailer',edit:'Edit',film:'Film'};
+function dtStepShort(st){var b=DT_SHORT[st.type]||st.type;return (st.type==='upload'||st.type==='promote'||st.type==='approve')?b+' '+st.pl:b;}
 function dtHeaderBand(){
   var isAll=(dtRightView==='allcal');
   var cr=CREATORS[creator]||{name:'',grad:'',initials:''};
@@ -2171,7 +2184,7 @@ function dtList(){
       h+=dtClipGroup('Uploaded','var(--green)',clips.filter(function(c){return clipUploadedSimple(c);}));
     }
   } else {
-    [['upload','Ready to Upload','var(--rose)'],['promote','Ready to Promote','var(--teal)'],
+    [['upload','Ready to Upload','var(--rose)'],['approve','In Review','var(--amber)'],['promote','Ready to Promote','var(--teal)'],
      ['write-desc','Needs Description','var(--violet)'],['write-title','Needs Title','var(--violet)'],
      ['write-keywords','Needs Keywords','var(--violet)'],['assets','Needs Assets','var(--amber)'],
      ['edit','Needs Editing','var(--sky)'],['film','Ideas to Film','var(--faint)']].forEach(function(g){
@@ -2441,7 +2454,7 @@ function render(){
     }
     if(!isSimple()){
       var cats=[
-        {l:'Upload',n:counts.upload,c:'var(--rose)'},{l:'Promote',n:counts.promote,c:'var(--teal)'},
+        {l:'Upload',n:counts.upload,c:'var(--rose)'},{l:'In Review',n:counts.review,c:'var(--amber)'},{l:'Promote',n:counts.promote,c:'var(--teal)'},
         {l:'Description',n:counts.desc,c:'var(--violet)'},{l:'Title',n:counts.title,c:'var(--violet)'},
         {l:'Keywords',n:counts.keywords,c:'var(--violet)'},{l:'Assets',n:counts.assets,c:'var(--amber)'},
         {l:'Edit',n:counts.edit,c:'var(--sky)'},{l:'Film',n:counts.film,c:'var(--faint)'}
@@ -2551,6 +2564,7 @@ function render(){
       }
       var groups=[
         {types:['upload'],icon:'&#11014;&#65039;',label:'Ready to Upload',col:'var(--rose)'},
+        {types:['approve'],icon:'&#9203;',label:'In Review',col:'var(--amber)'},
         {types:['promote'],icon:'&#9733;',label:'Ready to Promote',col:'var(--teal)'},
         {types:['write-desc'],icon:'&#9997;&#65039;',label:'Needs Description',col:'var(--violet)'},
         {types:['write-title'],icon:'&#127991;&#65039;',label:'Needs Title',col:'var(--violet)'},
