@@ -1273,6 +1273,12 @@ function calNavHtml(){
     +'<div class="cal-month-lbl">'+MNAMES[calMonth]+' '+calYear+'</div>'
     +'<button class="cal-nav-btn" onclick="nextMonth()">Next &#8594;</button></div>';
 }
+// Lighter tint of a #rrggbb colour (for not-yet-uploaded calendar chips).
+function hexA(hex,a){
+  var h=hex.replace('#','');
+  var r=parseInt(h.substring(0,2),16),g=parseInt(h.substring(2,4),16),b=parseInt(h.substring(4,6),16);
+  return 'rgba('+r+','+g+','+b+','+a+')';
+}
 function calGridHtml(evMap,renderCellEvents){
   var DNAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   var today=todayStr();
@@ -1299,14 +1305,17 @@ function renderAllCalendar(){
   ['LG','BH','LV'].forEach(function(cr){
     h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:'+CAL_COLORS[cr]+'"></div>'+CREATORS[cr].name+'</div>';
   });
+  h+='<div class="cal-leg-item" style="opacity:.6">Faded = not yet uploaded</div>';
   h+='</div>';
   h+=calGridHtml(getAllCalEvents(),function(evs){
     var s='';
     evs.slice(0,4).forEach(function(ev){
       var short=ev.clip.title.length>14?ev.clip.title.substring(0,13)+'…':ev.clip.title;
-      var stIcon=ev.status===U?' ✓':ev.status===PR?' ★':'';
-      s+='<div class="cal-event" data-drag-clip="'+ev.clip.id+'" data-drag-platform="'+ev.platform+'" data-drag-creator="'+ev.creator+'" style="background:'+ev.color+';border-color:'+ev.color+';color:#fff;cursor:grab" title="'+esc(ev.clip.title)+' ('+ev.creator+' / '+ev.platform+')">';
-      s+='<span class="cal-event-plat">'+ev.creator+'</span>'+esc(short)+stIcon+'</div>';
+      var done=ev.status===U||ev.status===PR;
+      var stStyle=done?('background:'+ev.color+';border-color:'+ev.color+';color:#fff')
+        :('background:'+hexA(ev.color,.16)+';border-color:'+hexA(ev.color,.45)+';color:'+ev.color);
+      s+='<div class="cal-event" data-drag-clip="'+ev.clip.id+'" data-drag-platform="'+ev.platform+'" data-drag-creator="'+ev.creator+'" style="'+stStyle+';cursor:grab" title="'+esc(ev.clip.title)+' ('+ev.creator+' / '+ev.platform+')">';
+      s+='<span class="cal-event-plat">'+ev.creator+'</span>'+esc(short)+'</div>';
     });
     if(evs.length>4)s+='<div class="cal-more">+'+(evs.length-4)+' more</div>';
     return s;
@@ -1320,7 +1329,10 @@ function renderCalendar(){
     evs.slice(0,3).forEach(function(ev){
       var stCls=isSimple()?(ev.platform==='C4S'?' is-c4s':ev.platform==='LF'?' is-lf':''):(ev.status===U?' is-up':ev.status===PR?' is-pr':'');
       var short=ev.clip.title.length>16?ev.clip.title.substring(0,15)+'…':ev.clip.title;
-      s+='<div class="cal-event'+stCls+'" data-drag-clip="'+ev.clip.id+'" data-drag-platform="'+ev.platform+'" onclick="jumpToClip('+ev.clip.id+')" style="cursor:grab">';
+      // Simple creators colour by platform; solidify the chip once uploaded (pending stays lighter).
+      var solid='';
+      if(isSimple()&&(ev.status===U||ev.status===PR)){var base=ev.platform==='C4S'?'#d4909e':'#90a0d4';solid='background:'+base+';border-color:'+base+';color:#fff;';}
+      s+='<div class="cal-event'+stCls+'" data-drag-clip="'+ev.clip.id+'" data-drag-platform="'+ev.platform+'" onclick="jumpToClip('+ev.clip.id+')" style="'+solid+'cursor:grab">';
       s+='<span class="cal-event-plat">'+ev.platform+'</span>'+esc(short)+'</div>';
     });
     if(evs.length>3)s+='<div class="cal-more">+' +(evs.length-3)+' more</div>';
@@ -1328,9 +1340,9 @@ function renderCalendar(){
   });
   h+='<div class="cal-legend">';
   if(isSimple()){
-    h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:#d4909e"></div>Upload to C4S</div>';
-    h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:#90a0d4"></div>Upload to LF</div>';
-    h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--sky-b)"></div>Uploaded</div>';
+    h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:#d4909e"></div>C4S</div>';
+    if(platformsFor(creator).indexOf('LF')>=0)h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:#90a0d4"></div>LF</div>';
+    h+='<div class="cal-leg-item" style="opacity:.6">Faded = not yet uploaded</div>';
   } else {
     h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--violet-b)"></div>Scheduled</div>';
     h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--sky-b)"></div>Uploaded</div>';
@@ -1908,6 +1920,7 @@ function renderClipDetail(c){
     var SL='',SR='';
     if(s){SL+=renderActionPanel(s);SL+='<div class="sep"></div>';}
     SL+=fld('desc','Description','No description yet');
+    SL+=fld('keywords','Keywords','No keywords yet');
     SL+=fld('notes','Notes','Any notes…');
     SR+=renderPlatforms(c);
     SR+=fld('num','Clip #','e.g. 101');
