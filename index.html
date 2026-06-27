@@ -755,7 +755,7 @@ function switchCreator(key){
   creator=key;
   PL=platformsFor(key);
   expanded=false;editField=null;addingNew=false;
-  openGroups={};dtGrpOpen={};tab='queue';
+  openGroups={};dtGrpOpen={};tab='queue';pipeSearch='';
   var cr=CREATORS[key];
   document.documentElement.style.setProperty('--accent','var('+cr.accentVar+')');
   document.documentElement.style.setProperty('--accent-bg','var('+cr.accentBg+')');
@@ -1148,8 +1148,6 @@ function renderPlatforms(c){
         h+='<div style="display:flex;flex-direction:column;gap:4px">';
         h+='<input type="date" value="'+esc(dateVal)+'" onchange="setPlatformDate('+c.id+',\''+pl+'\',this.value)" style="font-size:13px">';
         if(isOverdue)h+='<div class="plat-date-due">⚠ Overdue</div>';
-        h+='<label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);cursor:pointer">';
-        h+='<input type="checkbox" onchange="if(this.checked)markUploadedUnknown('+c.id+',\''+pl+'\')"> No date</label>';
         h+='</div>';
       }
     } else {h+='<span class="no-date">Not applicable</span>';}
@@ -1257,18 +1255,18 @@ function renderAddForm(){
       '<button type="button" id="addtype-photoset" class="seg-btn" onclick="setAddType(\'photoset\')">Photoset</button>'+
     '</div>'+
     '<input type="hidden" id="new-type" value="clip">'+
-    '<div class="field-lbl">Title (required)</div>'+
+    '<div class="field-lbl">Title</div>'+
     '<input type="text" id="new-title" onkeydown="if(event.key===\'Enter\')doAdd()">'+
     '<div style="display:flex;gap:8px">'+
-      '<div style="flex:1"><div class="field-lbl">ID # (optional)</div><input type="text" id="new-num" style="width:100%;box-sizing:border-box"></div>'+
+      '<div style="flex:1"><div class="field-lbl">ID #</div><input type="text" id="new-num" style="width:100%;box-sizing:border-box"></div>'+
       '<div style="flex:1" id="new-length-wrap"><div class="field-lbl">Length</div><input type="text" id="new-length" style="width:100%;box-sizing:border-box"></div>'+
     '</div>'+
     '<div class="field-lbl">Status (leave unchecked for just an Idea)</div>'+
     '<input type="hidden" id="new-status" value="'+addStatusValue('clip')+'">'+
     '<div class="asset-checks" id="new-status-wrap">'+addStatusGroupHtml('clip')+'</div>'+
-    '<div class="field-lbl">Description (optional)</div>'+
+    '<div class="field-lbl">Description</div>'+
     '<textarea id="new-desc"></textarea>'+
-    '<div class="field-lbl">Keywords (optional, comma-separated)</div>'+
+    '<div class="field-lbl">Keywords (comma-separated)</div>'+
     '<input type="text" id="new-keywords">'+
     '<div class="field-lbl">Already uploaded? Tap each platform to cycle: Pending → Uploaded → Promoted → N/A</div>'+
     '<div class="add-plat-grid" id="add-plat-grid">'+addPlatGridHtml()+'</div>'+
@@ -1339,13 +1337,6 @@ function setUploadDate(id,pl,date){
   if(!c.platformDates)c.platformDates={};
   c.platformDates[pl]=date;
   if(date)c.platforms[pl]=U; // entering a date auto-marks as uploaded
-  saveCreator();render();
-}
-function markUploadedUnknown(id,pl){
-  var c=clips.find(function(x){return x.id===id;});if(!c)return;
-  c.platforms[pl]=U;
-  if(!c.platformDates)c.platformDates={};
-  c.platformDates[pl]=''; // no date
   saveCreator();render();
 }
 // ── Pointer-based calendar drag (works on touch AND mouse) ─────────
@@ -2042,7 +2033,20 @@ function dtSidebar(){
 
 function dtListHeader(){
   var cr=CREATORS[creator]||{name:''};
-  return '<div class="dt-list-head"><span class="dt-list-title">'+esc(cr.name)+'</span></div>';
+  var h='<div class="dt-list-head"><span class="dt-list-title">'+esc(cr.name)+'</span>';
+  h+='<div class="field-lbl" style="margin-top:10px">Search clips</div>';
+  h+='<input type="text" id="dt-search" value="'+esc(pipeSearch)+'" oninput="pipeSearch=this.value;render();var el=document.getElementById(\'dt-search\');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}" style="width:100%;box-sizing:border-box;padding:9px 14px;border:1.5px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:15px">';
+  if(pipeSearch)h+='<div style="font-size:13px;color:var(--muted);margin-top:6px">Results for &ldquo;'+esc(pipeSearch)+'&rdquo; &mdash; <a onclick="pipeSearch=\'\';render()" style="cursor:pointer;color:var(--accent)">clear</a></div>';
+  return h+'</div>';
+}
+
+// Title / ID / upload-title match for the middle-pane search box.
+function dtMatch(c){
+  var q=pipeSearch.trim().toLowerCase();
+  if(!q)return true;
+  return (c.title&&c.title.toLowerCase().indexOf(q)>=0)
+    ||(c.num&&String(c.num).toLowerCase().indexOf(q)>=0)
+    ||(c.uploadTitle&&c.uploadTitle.toLowerCase().indexOf(q)>=0);
 }
 
 var DT_SHORT={upload:'Upload',promote:'Promote','write-desc':'Description','write-title':'Title','write-keywords':'Keywords','make-thumbnail':'Thumbnail','make-nfgbcover':'NF Cover','make-preview':'Trailer',edit:'Edit',film:'Film'};
@@ -2054,13 +2058,16 @@ function dtHeaderBand(){
   return '<div class="dt-band" style="background:'+grad+'"><div class="dt-band-av">'+(isAll?'&#9733;':esc(cr.initials))+'</div><span class="dt-band-name">'+esc(isAll?'All Creators':cr.name)+'</span></div>';
 }
 function dtClipGroup(label,col,items){
+  items=items.filter(dtMatch); // honor the middle-pane search box
   if(!items.length)return '';
   // Each group is a collapsible accordion — click the header to drop it down.
   // Tri-state: an explicit open/closed choice always wins; only when the user
   // hasn't touched this group do we auto-open the one holding the selected clip
   // (so a fresh creator switch reveals it, but every header can still collapse).
+  // While searching, force every matching group open so results are visible.
+  var searching=pipeSearch.trim().length>0;
   var hasSel=(dtRightView==='edit')&&items.some(function(c){return c.id===expanded;});
-  var open=dtGrpOpen[label]===true?true:dtGrpOpen[label]===false?false:hasSel;
+  var open=searching?true:dtGrpOpen[label]===true?true:dtGrpOpen[label]===false?false:hasSel;
   var key=label.replace(/'/g,"\\'");
   var h='<div class="dt-grp'+(open?' open':'')+'"><div class="dt-grp-h" style="color:'+col+'" onclick="dtGrpOpen[\''+key+'\']=!('+(open?'true':'false')+');render()">';
   h+='<span class="dt-grp-caret">'+(open?'&#9662;':'&#9656;')+'</span>'+esc(label)+'<span class="dt-grp-count">'+items.length+'</span></div>';
@@ -2105,6 +2112,7 @@ function dtList(){
     // All Done sorted by total sales, highest first (no/blank sales sink to the bottom).
     h+=dtClipGroup('All Done','var(--green)',doneClips().sort(function(a,b){return (numOnly(b.totalSales)||0)-(numOnly(a.totalSales)||0);}));
   }
+  if(!h&&pipeSearch.trim())return '<div class="dt-empty"><div class="dt-emoji">&#128269;</div>No clips match &ldquo;'+esc(pipeSearch)+'&rdquo;.</div>';
   return h;
 }
 
