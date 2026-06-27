@@ -157,6 +157,8 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .pst-btn:hover{border-color:var(--rose-mid)}
 .pst-btn.is-up{background:var(--sky-bg);border-color:var(--sky-b);color:var(--sky)}
 .pst-btn.is-pr{background:var(--green-bg);border-color:var(--green-b);color:var(--green)}
+.pst-btn.is-na{background:var(--rose-bg);border-color:var(--rose-b);color:var(--rose)}
+.add-plat-grid{display:flex;flex-wrap:wrap;gap:7px}
 .pna-btn{padding:4px 9px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--bg);color:var(--faint);font-family:inherit;transition:all .12s}
 .pna-btn.na-on{background:var(--rose-bg);color:var(--rose);border-color:var(--rose-b)}
 .plat-date-due{color:var(--rose);font-size:12px;font-weight:600;margin-top:2px}
@@ -557,6 +559,7 @@ var dtGrpOpen={}; // desktop clip-list accordion: which group headers are expand
 var detailsOpen=false; // collapsed "Clip details" section in the edit pane (posted clips)
 var calDrag=null;
 var pipeSearch='';
+var addPlatforms=null; // per-platform upload status chosen in the Lux add form (null until used)
 var calMonth=new Date().getMonth(),calYear=new Date().getFullYear();
 var calPlatFilter='C4S';
 var calSearch='';
@@ -778,8 +781,8 @@ function firstIn(c,state){
 function getClipStep(c){
   if(c.status==='idea')  return {type:'film',clip:c,pl:null};
   if(c.status==='filmed')return {type:'edit',clip:c,pl:null};
-  if(c.type!=='photoset'&&(!c.desc||c.desc.trim().length<10))   return {type:'write-desc',    clip:c,pl:null};
-  if(c.type!=='photoset'&&(!c.keywords||!c.keywords.length))    return {type:'write-keywords',clip:c,pl:null};
+  if(c.type!=='photoset'&&!c.descDone&&(!c.desc||c.desc.trim().length<10))   return {type:'write-desc',    clip:c,pl:null};
+  if(c.type!=='photoset'&&!c.kwDone&&(!c.keywords||!c.keywords.length))    return {type:'write-keywords',clip:c,pl:null};
   if(!c.thumbnail)                           return {type:'make-thumbnail',clip:c,pl:null};
   if(creator==='LG'&&!c.nfGbCover)           return {type:'make-nfgbcover',clip:c,pl:null};
   if(c.type!=='photoset'&&!c.preview)        return {type:'make-preview',  clip:c,pl:null};
@@ -875,7 +878,7 @@ function lgReadiness(c){ // how many upload prerequisites are already satisfied
   if(c.thumbnail)n++;
   if(c.nfGbCover)n++;
   if(c.type!=='photoset'){
-    if(c.desc&&c.desc.trim().length>=10)n++;
+    if(c.descDone||(c.desc&&c.desc.trim().length>=10))n++;
     if(c.keywords&&c.keywords.length)n++;
     if(c.preview)n++;
   }
@@ -1033,14 +1036,30 @@ function doAddClip(title,status,num,length,date,type,desc,keywords){
   // so it has no remaining step and lands under All Done.
   var done=false;
   if(type==='photoset'){done=(status==='up');status='edited';}
-  var pl={};PL.forEach(function(p){pl[p]=done?PR:P;});
+  // Per-platform status from the Lux add form (Pending/Uploaded/Promoted/N/A).
+  // A finished photoset still forces all-promoted. Other creators / no selection
+  // fall back to the old all-pending default.
+  var pl={};PL.forEach(function(p){
+    if(type==='photoset'&&done)pl[p]=PR;
+    else if(creator==='LG'&&addPlatforms&&addPlatforms[p])pl[p]=addPlatforms[p];
+    else pl[p]=P;
+  });
+  // "Backlog" detection: a clip that's already out somewhere had its prep done by
+  // definition, so mark assets/desc/keywords complete and skip the film/edit steps.
+  // Fully out everywhere (no platform still pending) → it lands straight in All Done.
+  var anyDone=PL.some(function(p){return pl[p]===U||pl[p]===PR;});
+  var published=PL.every(function(p){return pl[p]!==P;});
+  if(published)status='uploaded';
+  else if(anyDone&&(status==='idea'||status==='filmed'))status='edited';
+  var prepDone=done||anyDone||published;
   var pld={};PL.forEach(function(p){pld[p]=date||'';});
   var assignedNum=num&&num.trim()?num.trim():nextClipNum();
   var kw=keywords?keywords.split(',').map(function(x){return x.trim();}).filter(Boolean):[];
   clips.push({id:nextId++,num:assignedNum,title:title.trim(),uploadTitle:'',keywords:kw,status:status,type:type,
-    length:type==='photoset'?'':(length||''),desc:desc||'',thumbnail:done,nfGbCover:done,preview:done,
+    length:type==='photoset'?'':(length||''),desc:desc||'',descDone:prepDone,kwDone:prepDone,
+    thumbnail:prepDone,nfGbCover:prepDone,preview:prepDone,
     platforms:pl,platformDates:pld,notes:''});
-  addingNew=false;saveCreator();render();
+  addingNew=false;addPlatforms=null;saveCreator();render();
 }
 function doRemove(id){
   if(!confirm('Remove clip #'+id+'?'))return;
@@ -1081,9 +1100,16 @@ function renderField(c,field,label,placeholder){
       h+=val?esc(val):'Click to add';h+='</div>';
     }
   }
+  if(field==='desc')h+=descDoneCheck(c);
   h+='</div>';return h;
 }
 
+function descDoneCheck(c){
+  var done=c.descDone;
+  return '<div class="ack'+(done?' done':'')+'" onclick="toggleCheck('+c.id+',\'descDone\')" style="margin-top:8px">'+
+    '<div class="ack-box">'+(done?'<svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3 5-6" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>':'')+'</div>'+
+    '<span class="ack-lbl">Description done (skip in pipeline)</span></div>';
+}
 function renderAssets(c){
   var items=[{f:'thumbnail',l:'Thumbnail'}];
   if(creator==='LG')items.push({f:'nfGbCover',l:'NF GB Cover'});
@@ -1161,6 +1187,7 @@ function renderActionPanel(step){
       h+='<div class="field-val'+(c.desc&&c.desc.trim()?'':' empty')+'" onclick="editField={id:'+c.id+',field:\'desc\'};render()" style="min-height:70px">';
       h+=(c.desc&&c.desc.trim())?esc(c.desc):'Click to write description…';h+='</div>';
     }
+    h+=descDoneCheck(c);
   } else if(t==='write-title'){
     h+='<div class="action-panel-lbl">Upload title</div>';
     var isE2=editField&&editField.id===c.id&&editField.field==='uploadTitle';
@@ -1204,7 +1231,7 @@ function renderActionPanel(step){
 }
 
 function renderAddForm(){
-  if(!addingNew)return '<div class="add-wrap"><button class="add-btn" onclick="addingNew=true;render()">+ '+(isSimple()?'Add clip':'Add content')+'</button></div>';
+  if(!addingNew)return '<div class="add-wrap"><button class="add-btn" onclick="addingNew=true;addPlatforms=null;render()">+ '+(isSimple()?'Add clip':'Add content')+'</button></div>';
   if(isSimple()){
     return '<div class="add-wrap"><div class="add-form">'+
       '<input type="hidden" id="new-status" value="uploaded">'+
@@ -1243,10 +1270,30 @@ function renderAddForm(){
     '<textarea id="new-desc"></textarea>'+
     '<div class="field-lbl">Keywords (optional, comma-separated)</div>'+
     '<input type="text" id="new-keywords">'+
+    '<div class="field-lbl">Already uploaded? Tap each platform to cycle: Pending → Uploaded → Promoted → N/A</div>'+
+    '<div class="add-plat-grid" id="add-plat-grid">'+addPlatGridHtml()+'</div>'+
     '<div class="btn-row"><button class="btn btn-dark" onclick="doAdd()">Add</button>'+
-    '<button class="btn btn-ghost" onclick="addingNew=false;render()">Cancel</button></div></div></div>';
+    '<button class="btn btn-ghost" onclick="addingNew=false;addPlatforms=null;render()">Cancel</button></div></div></div>';
 }
 
+// Per-platform upload-status grid in the Lux add form, so a backlog clip that's
+// already out can be marked uploaded/promoted/NA right when it's added.
+var ADDPLAT_STATES={pending:{l:'□ Pending',c:''},uploaded:{l:'▲ Uploaded',c:'is-up'},promoted:{l:'★ Promoted',c:'is-pr'},na:{l:'N/A',c:'is-na'}};
+function addPlatBtnInner(pl,st){var m=ADDPLAT_STATES[st]||ADDPLAT_STATES[P];return '<span style="font-weight:700">'+pl+'</span><span>'+m.l+'</span>';}
+function addPlatGridHtml(){
+  return platformsFor('LG').map(function(pl){
+    var st=(addPlatforms&&addPlatforms[pl])||P;var m=ADDPLAT_STATES[st]||ADDPLAT_STATES[P];
+    return '<button type="button" id="addplat_'+pl+'" class="pst-btn '+m.c+'" onclick="cycleAddPlatform(\''+pl+'\')" style="display:flex;justify-content:space-between;gap:10px;min-width:130px">'+addPlatBtnInner(pl,st)+'</button>';
+  }).join('');
+}
+// DOM-only update (like setAddType) so typed Title/Description aren't wiped.
+function cycleAddPlatform(pl){
+  if(!addPlatforms)addPlatforms={};
+  var order=[P,U,PR,N];var cur=addPlatforms[pl]||P;var st=order[(order.indexOf(cur)+1)%order.length];
+  addPlatforms[pl]=st;
+  var b=document.getElementById('addplat_'+pl);
+  if(b){b.className='pst-btn '+((ADDPLAT_STATES[st]||ADDPLAT_STATES[P]).c);b.innerHTML=addPlatBtnInner(pl,st);}
+}
 // Clip/Photoset toggle in the Lux add form. DOM-only (no render) so what you've
 // already typed isn't wiped; photosets hide the Length field.
 function setAddType(type){
