@@ -716,6 +716,7 @@ function loadCreator(){
     clips=creator==='LG'?LG_RAW.map(expandRow):(creator==='BH'?normalizePlatforms(JSON.parse(JSON.stringify(BH_INITIAL_CLIPS))):[]);nextId=creator==='LG'?200:(creator==='BH'?147:1);
   }
   applyBHNums();
+  clips.forEach(autoDescDone); // backfill descDone for already-posted clips
 }
 
 function saveCreator(){
@@ -964,12 +965,19 @@ function fmtDate(d){
 }
 
 // ── MUTATIONS ──────────────────────────────────────────────────
+// Once a clip is live anywhere (uploaded/promoted) with no description written,
+// auto-check "description done" — a posted clip won't get a description after the fact.
+function autoDescDone(c){
+  if(!c.platforms)return;
+  if((!c.desc||!c.desc.trim())&&Object.keys(c.platforms).some(function(p){return c.platforms[p]===U||c.platforms[p]===PR;}))c.descDone=true;
+}
 function cyclePlatform(id,pl){
   var c=clips.find(function(x){return x.id===id;});if(!c)return;
   var cur=c.platforms[pl];
   if(cur===P)c.platforms[pl]=U;else if(cur===U)c.platforms[pl]=PR;else c.platforms[pl]=P;
   var allDone=PL.every(function(q){return c.platforms[q]===PR||c.platforms[q]===N;});
   if(allDone&&c.status!=='uploaded')c.status='uploaded';
+  autoDescDone(c);
   saveCreator();render();
 }
 function toggleNA(id,pl){
@@ -1357,6 +1365,7 @@ function setUploadDate(id,pl,date){
   if(!c.platformDates)c.platformDates={};
   c.platformDates[pl]=date;
   if(date)c.platforms[pl]=U; // entering a date auto-marks as uploaded
+  autoDescDone(c);
   saveCreator();render();
 }
 // ── Pointer-based calendar drag (works on touch AND mouse) ─────────
