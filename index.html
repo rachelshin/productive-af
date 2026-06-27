@@ -81,7 +81,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .id-badge{display:inline-flex;align-items:center;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:3px 9px;font-size:13px;font-weight:700;color:var(--faint);flex-shrink:0}
 .ps-tag{display:inline-flex;align-items:center;gap:3px;background:var(--violet-bg);color:var(--violet);border:1px solid var(--violet-b);border-radius:5px;padding:2px 7px;font-size:11px;font-weight:800;letter-spacing:.02em;flex-shrink:0}
 .id-badge-input{width:70px;flex-shrink:0;background:var(--surface);border:1.5px solid var(--accent-b);border-radius:5px;padding:3px 9px;font-size:13px;font-weight:700;color:var(--text);font-family:inherit;outline:none}
-.dtn-chev{flex-shrink:0;color:var(--faint);font-size:14px;margin-top:8px;transition:transform .2s}
+.dtn-chev{flex-shrink:0;color:var(--faint);font-size:19px;margin-top:8px;transition:transform .2s}
 .dtn-chev.open{transform:rotate(180deg)}
 .dtn-body{display:none;padding:0 24px 24px}
 .dtn-body.open{display:block}
@@ -176,7 +176,7 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .pipe-group-head:hover{background:var(--bg)}
 .pipe-group-label{font-size:16px;font-weight:700;display:flex;align-items:center;gap:10px}
 .pipe-group-n{background:var(--bg);border-radius:20px;padding:3px 11px;font-size:13px;color:var(--muted);font-weight:600}
-.pipe-group-chev{color:var(--faint);font-size:13px;transition:transform .2s}
+.pipe-group-chev{color:var(--faint);font-size:19px;transition:transform .2s}
 .pipe-group-chev.open{transform:rotate(180deg)}
 .pipe-group-body{display:none;border-top:1px solid var(--border)}
 .pipe-group-body.open{display:block}
@@ -351,7 +351,7 @@ input[type=number]{-moz-appearance:textfield}
   .dt-grp.open{margin-bottom:20px}
   .dt-grp-h{font-size:16px;font-weight:800;letter-spacing:.02em;margin:0 4px 8px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;padding:9px 12px;border-radius:9px;background:var(--surface);border:1px solid var(--border)}
   .dt-grp-h:hover{background:var(--bg)}
-  .dt-grp-caret{font-size:13px;opacity:.7;width:12px;flex:none}
+  .dt-grp-caret{font-size:19px;opacity:.9;width:18px;flex:none}
   .dt-grp-count{margin-left:auto;background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:2px 11px;font-size:14px;color:var(--muted);font-weight:700}
   .dt-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;border:1.5px solid transparent;margin-bottom:2px}
   .dt-row:hover{background:var(--surface)}
@@ -751,7 +751,7 @@ function switchCreator(key){
   creator=key;
   PL=platformsFor(key);
   expanded=false;editField=null;addingNew=false;
-  openGroups={};tab='queue';
+  openGroups={};dtGrpOpen={};tab='queue';
   var cr=CREATORS[key];
   document.documentElement.style.setProperty('--accent','var('+cr.accentVar+')');
   document.documentElement.style.setProperty('--accent-bg','var('+cr.accentBg+')');
@@ -1983,9 +1983,11 @@ function dtHeaderBand(){
 function dtClipGroup(label,col,items){
   if(!items.length)return '';
   // Each group is a collapsible accordion — click the header to drop it down.
-  // Auto-open the group holding the currently selected clip so it never hides.
+  // Tri-state: an explicit open/closed choice always wins; only when the user
+  // hasn't touched this group do we auto-open the one holding the selected clip
+  // (so a fresh creator switch reveals it, but every header can still collapse).
   var hasSel=(dtRightView==='edit')&&items.some(function(c){return c.id===expanded;});
-  var open=(dtGrpOpen[label]===true)||hasSel;
+  var open=dtGrpOpen[label]===true?true:dtGrpOpen[label]===false?false:hasSel;
   var key=label.replace(/'/g,"\\'");
   var h='<div class="dt-grp'+(open?' open':'')+'"><div class="dt-grp-h" style="color:'+col+'" onclick="dtGrpOpen[\''+key+'\']=!('+(open?'true':'false')+');render()">';
   h+='<span class="dt-grp-caret">'+(open?'&#9662;':'&#9656;')+'</span>'+esc(label)+'<span class="dt-grp-count">'+items.length+'</span></div>';
@@ -1993,6 +1995,9 @@ function dtClipGroup(label,col,items){
     var sel=(dtRightView==='edit'&&expanded===c.id);
     var st=isSimple()?getClipStepSimple(c):getClipStep(c);
     var scol=st?(TCOLOR[st.type]||'var(--faint)'):'var(--green)';
+    // Simple creators only ever "upload", so every card would be rose — instead
+    // match each card to its group color (C4S=rose, LF=amber) to tell them apart.
+    if(isSimple()&&st)scol=col;
     var pill=st?esc(dtStepShort(st)):'&#10003; Done';
     h+='<div class="dt-card'+(sel?' sel':'')+'" style="--row:'+scol+'" onclick="dtRightView=\'edit\';dtNextId=null;dtAnimate=true;expanded='+c.id+';render()">';
     h+='<span class="dt-card-dot" style="background:'+scol+'"></span>';
@@ -2048,7 +2053,7 @@ function renderSales(c){
 // Posted clips: surface the sales panel and tuck the editable info into a collapsible.
 function wrapDetail(c,body,del){
   if(!clipIsPosted(c))return body+del;
-  var head='<div class="clip-details-summary" onclick="detailsOpen=!detailsOpen;render()"><span>Clip details</span><span>'+(detailsOpen?'&#9662;':'&#9656;')+'</span></div>';
+  var head='<div class="clip-details-summary" onclick="detailsOpen=!detailsOpen;render()"><span>Clip details</span><span style="font-size:19px">'+(detailsOpen?'&#9662;':'&#9656;')+'</span></div>';
   var box='<div class="clip-details-box">'+head+(detailsOpen?'<div class="clip-details-body">'+body+del+'</div>':'')+'</div>';
   return renderSales(c)+box;
 }
@@ -2290,7 +2295,7 @@ function render(){
         rh+=c.num?'<span class="id-badge">'+esc(c.num)+'</span>':'';
         rh+='<span class="pipe-clip-name">'+esc(c.title)+(c.length?' <span style="color:var(--faint);font-size:13px;font-weight:400">&middot; '+esc(c.length)+'</span>':'')+'</span>';
         if(showAction)rh+='<span class="pipe-clip-sub">'+esc(dv)+'</span>';
-        rh+='<span style="color:var(--faint);font-size:13px;margin-left:auto">'+(isExp?'&#9650;':'&#9660;')+'</span></div>';
+        rh+='<span style="color:var(--faint);font-size:18px;margin-left:auto">'+(isExp?'&#9650;':'&#9660;')+'</span></div>';
         if(isExp){
           rh+='<div style="padding:16px 18px 18px;border-top:1px solid var(--border);background:var(--bg)">';
           if(showAction)rh+=renderActionPanel({type:'upload',clip:c,pl:pp||PL[0]});
@@ -2344,7 +2349,7 @@ function render(){
         rh+='<span class="id-badge">'+fid(c.id)+'</span>';
         rh+='<span class="pipe-clip-name">'+esc(c.title)+'</span>';
         if(sub)rh+='<span class="pipe-clip-sub">'+esc(sub)+'</span>';
-        rh+='<span style="color:var(--faint);font-size:13px;margin-left:auto">'+(isExp?'&#9650;':'&#9660;')+'</span></div>';
+        rh+='<span style="color:var(--faint);font-size:18px;margin-left:auto">'+(isExp?'&#9650;':'&#9660;')+'</span></div>';
         if(isExp){
           rh+='<div style="padding:16px 18px 18px;border-top:1px solid var(--border);background:var(--bg)">';
           if(s){rh+=renderActionPanel(s);rh+='<div class="sep"></div>';}
