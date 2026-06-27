@@ -962,10 +962,14 @@ function nextClipNum(){
 }
 function doAddClip(title,status,num,length,date,type,desc,keywords){
   if(!title.trim())return;
-  var pl={};PL.forEach(function(p){pl[p]=P;});
+  type=type==='photoset'?'photoset':'clip';
+  // Photosets use a simple uploaded / not-uploaded status instead of the film→edit
+  // pipeline. "Uploaded" marks every platform uploaded so it counts as posted.
+  var markUp=false;
+  if(type==='photoset'){markUp=(status==='up');status='edited';}
+  var pl={};PL.forEach(function(p){pl[p]=markUp?U:P;});
   var pld={};PL.forEach(function(p){pld[p]=date||'';});
   var assignedNum=num&&num.trim()?num.trim():nextClipNum();
-  type=type==='photoset'?'photoset':'clip';
   var kw=keywords?keywords.split(',').map(function(x){return x.trim();}).filter(Boolean):[];
   clips.push({id:nextId++,num:assignedNum,title:title.trim(),uploadTitle:'',keywords:kw,status:status,type:type,
     length:type==='photoset'?'':(length||''),desc:desc||'',thumbnail:false,nfGbCover:false,preview:false,
@@ -1141,7 +1145,7 @@ function renderAddForm(){
       '<div class="field-lbl">Title</div>'+
       '<input type="text" id="new-title" onkeydown="if(event.key===\'Enter\')doAdd()">'+
       '<div style="display:flex;gap:8px">'+
-        '<div style="flex:1"><div class="field-lbl">Clip #</div><input type="text" id="new-num" style="width:100%;box-sizing:border-box"></div>'+
+        '<div style="flex:1"><div class="field-lbl">ID #</div><input type="text" id="new-num" style="width:100%;box-sizing:border-box"></div>'+
         '<div style="flex:1"><div class="field-lbl">Length</div><input type="text" id="new-length" style="width:100%;box-sizing:border-box"></div>'+
       '</div>'+
       '<div style="display:flex;align-items:center;gap:8px">'+
@@ -1159,19 +1163,19 @@ function renderAddForm(){
       '<button type="button" id="addtype-photoset" class="seg-btn" onclick="setAddType(\'photoset\')">Photoset</button>'+
     '</div>'+
     '<input type="hidden" id="new-type" value="clip">'+
-    '<div class="field-lbl">Title</div>'+
+    '<div class="field-lbl">Title (required)</div>'+
     '<input type="text" id="new-title" onkeydown="if(event.key===\'Enter\')doAdd()">'+
     '<div style="display:flex;gap:8px">'+
-      '<div style="flex:1"><div class="field-lbl">Clip #</div><input type="text" id="new-num" style="width:100%;box-sizing:border-box"></div>'+
+      '<div style="flex:1"><div class="field-lbl">ID # (optional)</div><input type="text" id="new-num" style="width:100%;box-sizing:border-box"></div>'+
       '<div style="flex:1" id="new-length-wrap"><div class="field-lbl">Length</div><input type="text" id="new-length" style="width:100%;box-sizing:border-box"></div>'+
     '</div>'+
     '<div class="field-lbl">Status</div>'+
     '<select id="new-status"><option value="idea">Idea — not filmed yet</option>'+
     '<option value="filmed">Filmed — needs editing</option>'+
     '<option value="edited">Edited — needs prep</option></select>'+
-    '<div class="field-lbl">Description</div>'+
+    '<div class="field-lbl">Description (optional)</div>'+
     '<textarea id="new-desc"></textarea>'+
-    '<div class="field-lbl">Keywords (comma-separated)</div>'+
+    '<div class="field-lbl">Keywords (optional, comma-separated)</div>'+
     '<input type="text" id="new-keywords">'+
     '<div class="btn-row"><button class="btn btn-dark" onclick="doAdd()">Add</button>'+
     '<button class="btn btn-ghost" onclick="addingNew=false;render()">Cancel</button></div></div></div>';
@@ -1186,6 +1190,10 @@ function setAddType(type){
   if(bp)bp.classList.toggle('active',type==='photoset');
   var lw=document.getElementById('new-length-wrap');
   if(lw)lw.style.display=(type==='photoset')?'none':'';
+  var ss=document.getElementById('new-status');
+  if(ss)ss.innerHTML=(type==='photoset')
+    ?'<option value="notup">Not uploaded</option><option value="up">Uploaded</option>'
+    :'<option value="idea">Idea — not filmed yet</option><option value="filmed">Filmed — needs editing</option><option value="edited">Edited — needs prep</option>';
 }
 function setUploadDate(id,pl,date){
   var c=clips.find(function(x){return x.id===id;});if(!c)return;
@@ -2016,7 +2024,7 @@ function dtClipEditor(c,step){
   var numEditing=editField&&editField.id===c.id&&editField.field==='num';
   h+='<div class="dt-detail-head">';
   if(numEditing)h+='<input class="id-badge-input" id="fe_'+c.id+'_num" value="'+esc((c.num||'').replace(/^#+/,''))+'" onkeydown="if(event.key===\'Enter\')saveF('+c.id+',\'num\',this.value)" onblur="saveF('+c.id+',\'num\',this.value)">';
-  else h+='<span class="id-badge" title="Click to edit clip #" style="cursor:pointer" onclick="editField={id:'+c.id+',field:\'num\'};render()">'+(c.num?esc(c.num):fid(c.id))+'</span>';
+  else h+='<span class="id-badge" title="Click to edit ID #" style="cursor:pointer" onclick="editField={id:'+c.id+',field:\'num\'};render()">'+(c.num?esc(c.num):fid(c.id))+'</span>';
   if(titleEditing)h+='<input class="dt-title-input" id="fe_'+c.id+'_title" value="'+esc(c.title)+'" onkeydown="if(event.key===\'Enter\')saveF('+c.id+',\'title\',this.value)" onblur="saveF('+c.id+',\'title\',this.value)">';
   else h+='<span class="dt-detail-title" title="Click to rename" onclick="editField={id:'+c.id+',field:\'title\'};render()">'+esc(c.title)+'</span>';
   h+='</div>';
@@ -2218,7 +2226,7 @@ function render(){
           rh+=renderPlatforms(c);
           rh+=renderField(c,'title','Title','Clip title…');
           rh+=renderField(c,'desc','Description','No description yet');
-          rh+=renderField(c,'num','Clip #','e.g. 101');
+          rh+=renderField(c,'num','ID #','e.g. 101');
           rh+=renderField(c,'length','Length','e.g. 15:52');
           rh+=renderField(c,'notes','Notes','Any notes…');
           rh+='<div style="margin-top:12px"><button class="btn btn-del" onclick="event.stopPropagation();doRemove('+c.id+')">Remove clip</button></div>';
@@ -2272,7 +2280,7 @@ function render(){
           rh+=renderField(c,'title','Title','Clip title…');
           rh+=renderField(c,'desc','Description','No description yet');
           rh+=renderField(c,'keywords','Keywords','No keywords yet');
-          rh+=renderField(c,'num','Clip #','e.g. 101');
+          rh+=renderField(c,'num','ID #','e.g. 101');
           rh+=renderField(c,'length','Length','e.g. 15:52');
           rh+=renderAssets(c);
           rh+=renderPlatforms(c);
