@@ -563,6 +563,7 @@ var clips=[],tab='queue',expanded=false,editField=null,addingNew=false,nextId=20
 var openGroups={};
 var dtGrpOpen={}; // desktop clip-list accordion: which group headers are expanded (collapsed by default)
 var detailsOpen=false; // collapsed "Clip details" section in the edit pane (posted clips)
+var salesOpen=null;    // Sales dropdown: null = per-layout default (open on All Done, closed elsewhere); else explicit
 var calDrag=null;
 var pipeSearch='';
 var addPlatforms=null; // per-platform upload status chosen in the Lux add form (null until used)
@@ -2160,12 +2161,28 @@ function renderSales(c){
   return '<div class="sales-panel">'+rows+
     '<div class="sales-grand">Grand Total<span>$'+clipGrandSales(c).toFixed(2)+'</span></div></div>';
 }
-// Posted clips: surface the sales panel and tuck the editable info into a collapsible.
+// A collapsible card sharing the clip-details styling (header + chevron + body).
+function collapsibleBox(label,open,onclick,inner){
+  return '<div class="clip-details-box">'+
+    '<div class="clip-details-summary" onclick="'+onclick+'"><span>'+label+'</span>'+
+    '<span style="font-size:19px">'+(open?'&#9662;':'&#9656;')+'</span></div>'+
+    (open?'<div class="clip-details-body">'+inner+'</div>':'')+'</div>';
+}
+function toggleSales(open){salesOpen=!open;render();}
+// Posted clips show both a Sales card and a Clip-details card, each a dropdown.
+//  • All Done: Sales on top (open by default), details below (collapsed).
+//  • Everything else (ready to upload/promote, etc.): details on top (expanded),
+//    Sales minimized at the bottom.
 function wrapDetail(c,body,del){
   if(!clipIsPosted(c))return body+del;
-  var head='<div class="clip-details-summary" onclick="detailsOpen=!detailsOpen;render()"><span>Clip details</span><span style="font-size:19px">'+(detailsOpen?'&#9662;':'&#9656;')+'</span></div>';
-  var box='<div class="clip-details-box">'+head+(detailsOpen?'<div class="clip-details-body">'+body+del+'</div>':'')+'</div>';
-  return renderSales(c)+box;
+  var isDone=isSimple()?!getClipStepSimple(c):!getClipStep(c);
+  var sOpen=(salesOpen===null)?isDone:salesOpen;
+  var sales=collapsibleBox('Sales',sOpen,'toggleSales('+sOpen+')',renderSales(c));
+  if(isDone){
+    var details=collapsibleBox('Clip details',detailsOpen,'detailsOpen=!detailsOpen;render()',body+del);
+    return sales+'<div class="sep"></div>'+details;
+  }
+  return body+del+'<div class="sep"></div>'+sales;
 }
 function renderClipDetail(c){
   var s=isSimple()?getClipStepSimple(c):getClipStep(c);
@@ -2224,8 +2241,9 @@ function dtDetail(){
   var c=clips.find(function(x){return x.id===expanded;});
   if(!c)c=dtDefaultClip(); // nothing selected → this creator's next clip (no card)
   if(!c)return '<div class="dt-empty"><div class="dt-emoji">&#127881;</div>Nothing left for '+esc((CREATORS[creator]||{name:'this creator'}).name)+'!<br><small>All caught up — your inner child says thanks.</small></div>';
-  // The "DO THIS NEXT" card only appears for the cross-creator pick (the Do This Next button).
-  var step=(c.id===dtNextId)?(isSimple()?getClipStepSimple(c):getClipStep(c)):null;
+  // The "DO THIS NEXT" card shows at the top of every selected clip so it's always
+  // clear what the next action is. (Null for a fully-done clip → no card.)
+  var step=isSimple()?getClipStepSimple(c):getClipStep(c);
   return dtClipEditor(c,step);
 }
 
