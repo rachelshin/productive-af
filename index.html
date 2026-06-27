@@ -124,6 +124,12 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .sales-panel{background:var(--green-bg);border:1.5px solid var(--green-b);border-radius:12px;padding:16px;margin-bottom:16px}
 .sales-row{display:flex;gap:12px;flex-wrap:wrap}
 .sales-field{flex:1;min-width:130px}
+.sales-plat-row{padding:12px 0;border-bottom:1px solid var(--green-b)}
+.sales-plat-row:first-child{padding-top:0}
+.sales-plat-name{font-size:15px;font-weight:700;color:var(--muted);margin-bottom:8px}
+.sales-calc-btn{margin-top:10px;font-size:14px;padding:7px 16px}
+.sales-grand{display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:17px;font-weight:800;color:var(--muted)}
+.sales-grand span{font-size:20px;color:var(--green)}
 .clip-details-box{border:1.5px solid var(--border);border-radius:12px;overflow:hidden}
 .clip-details-summary{display:flex;justify-content:space-between;align-items:center;padding:13px 16px;font-size:15px;font-weight:700;color:var(--muted);cursor:pointer;background:var(--bg);user-select:none}
 .clip-details-summary:hover{color:var(--text)}
@@ -999,24 +1005,38 @@ function saveF(id,field,value){
 function clipIsPosted(c){
   return platformsFor(creator).some(function(pl){var st=c.platforms[pl];return st===U||st===PR;});
 }
-// Sales fields save quietly (no re-render) so you can tab between the three inputs.
-function setSale(id,field,value){
-  var c=clips.find(function(x){return x.id===id;});if(!c)return;
-  c[field]=value;saveCreator();
-}
 function numOnly(v){var n=parseFloat(String(v||'').replace(/[^0-9.]/g,''));return isNaN(n)?null:n;}
-// Multiply clips-sold × price into Total Sales — only when the button is clicked.
-function calcSales(id){
+// Per-platform sales live under c.platformSales[platform] = {total, clips, price}.
+// Sales fields save quietly (no re-render) so you can tab between the inputs.
+function setPlatSale(id,pl,field,value){
   var c=clips.find(function(x){return x.id===id;});if(!c)return;
-  var soldEl=document.getElementById('sale_'+id+'_clipsSold');
-  var priceEl=document.getElementById('sale_'+id+'_price');
-  var sold=numOnly(soldEl?soldEl.value:c.clipsSold);
-  var price=numOnly(priceEl?priceEl.value:c.price);
-  if(sold===null||price===null){alert('Enter both Number of Clips Sold and Price first.');return;}
-  c.clipsSold=soldEl?soldEl.value:c.clipsSold;
-  c.price=priceEl?priceEl.value:c.price;
-  c.totalSales=String(Math.round(sold*price*100)/100);
+  if(!c.platformSales)c.platformSales={};
+  if(!c.platformSales[pl])c.platformSales[pl]={};
+  c.platformSales[pl][field]=value;saveCreator();
+}
+// Multiply clips × price into that platform's Total Sales — only on button click.
+function calcPlatSales(id,pl){
+  var c=clips.find(function(x){return x.id===id;});if(!c)return;
+  var soldEl=document.getElementById('sale_'+id+'_'+pl+'_clips');
+  var priceEl=document.getElementById('sale_'+id+'_'+pl+'_price');
+  var sold=numOnly(soldEl?soldEl.value:'');
+  var price=numOnly(priceEl?priceEl.value:'');
+  if(sold===null||price===null){alert('Enter both Number of Clips and Price first.');return;}
+  if(!c.platformSales)c.platformSales={};
+  if(!c.platformSales[pl])c.platformSales[pl]={};
+  c.platformSales[pl].clips=soldEl.value;
+  c.platformSales[pl].price=priceEl.value;
+  c.platformSales[pl].total=String(Math.round(sold*price*100)/100);
   saveCreator();render();
+}
+// Grand total across every platform. Old single-value sales (c.totalSales etc.)
+// are intentionally ignored — re-enter those per platform.
+function clipGrandSales(c){
+  var sum=0;
+  if(c.platformSales)Object.keys(c.platformSales).forEach(function(pl){
+    var t=numOnly(c.platformSales[pl].total);if(t)sum+=t;
+  });
+  return Math.round(sum*100)/100;
 }
 function advanceStatus(id){
   var c=clips.find(function(x){return x.id===id;});if(!c)return;
@@ -1032,17 +1052,14 @@ function nextClipNum(){
 function doAddClip(title,status,num,length,date,type,desc,keywords){
   if(!title.trim())return;
   type=type==='photoset'?'photoset':'clip';
-  // Photosets use a simple uploaded / not-uploaded status instead of the film→edit
-  // pipeline. "Uploaded" finishes it outright: every platform promoted + assets done,
-  // so it has no remaining step and lands under All Done.
-  var done=false;
-  if(type==='photoset'){done=(status==='up');status='edited';}
+  // Photosets have no film→edit pipeline; their state is driven entirely by the
+  // per-platform grid (some marked = in progress, all marked = done). They sit at
+  // 'edited' (ready to upload) until the grid marks them out.
+  if(type==='photoset')status='edited';
   // Per-platform status from the Lux add form (Pending/Uploaded/Promoted/N/A).
-  // A finished photoset still forces all-promoted. Other creators / no selection
-  // fall back to the old all-pending default.
+  // Other creators / no selection fall back to the old all-pending default.
   var pl={};PL.forEach(function(p){
-    if(type==='photoset'&&done)pl[p]=PR;
-    else if(creator==='LG'&&addPlatforms&&addPlatforms[p])pl[p]=addPlatforms[p];
+    if(creator==='LG'&&addPlatforms&&addPlatforms[p])pl[p]=addPlatforms[p];
     else pl[p]=P;
   });
   // "Backlog" detection: a clip that's already out somewhere had its prep done by
@@ -1052,7 +1069,7 @@ function doAddClip(title,status,num,length,date,type,desc,keywords){
   var published=PL.every(function(p){return pl[p]!==P;});
   if(published)status='uploaded';
   else if(anyDone&&(status==='idea'||status==='filmed'))status='edited';
-  var prepDone=done||anyDone||published;
+  var prepDone=anyDone||published;
   var pld={};PL.forEach(function(p){pld[p]=date||'';});
   var assignedNum=num&&num.trim()?num.trim():nextClipNum();
   var kw=keywords?keywords.split(',').map(function(x){return x.trim();}).filter(Boolean):[];
@@ -1261,7 +1278,7 @@ function renderAddForm(){
       '<div style="flex:1"><div class="field-lbl">ID #</div><input type="text" id="new-num" style="width:100%;box-sizing:border-box"></div>'+
       '<div style="flex:1" id="new-length-wrap"><div class="field-lbl">Length</div><input type="text" id="new-length" style="width:100%;box-sizing:border-box"></div>'+
     '</div>'+
-    '<div class="field-lbl">Status (leave unchecked for just an Idea)</div>'+
+    '<div class="field-lbl" id="new-status-lbl">Status (leave unchecked for just an Idea)</div>'+
     '<input type="hidden" id="new-status" value="'+addStatusValue('clip')+'">'+
     '<div class="asset-checks" id="new-status-wrap">'+addStatusGroupHtml('clip')+'</div>'+
     '<div class="field-lbl">Description</div>'+
@@ -1293,7 +1310,8 @@ function cycleAddPlatform(pl){
   if(b){b.className='pst-btn '+((ADDPLAT_STATES[st]||ADDPLAT_STATES[P]).c);b.innerHTML=addPlatBtnInner(pl,st);}
 }
 // Status as progressive checkboxes (instead of a dropdown) in the Lux add form.
-// Clips: ☐ Filmed → ☐ Edited (nothing checked = just an Idea). Photosets: ☐ Uploaded.
+// Clips: ☐ Filmed → ☐ Edited (nothing checked = just an Idea). Photosets have no
+// status box — their state is driven entirely by the per-platform grid.
 // Whatever's checked derives the stored status; kept in a hidden #new-status input
 // so doAdd() reads it the same as before.
 var ADDSTAT_CHECK='<svg width="11" height="9" viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3 5-6" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -1302,16 +1320,17 @@ function addStatusBox(key,label){
   return '<div class="ack'+(on?' done':'')+'" onclick="toggleAddStatus(\''+key+'\')"><div class="ack-box">'+(on?ADDSTAT_CHECK:'')+'</div><span class="ack-lbl">'+label+'</span></div>';
 }
 function addStatusGroupHtml(type){
-  if(type==='photoset')return addStatusBox('up','Uploaded');
+  if(type==='photoset')return '';
   return addStatusBox('filmed','Filmed')+addStatusBox('edited','Edited');
 }
 function addStatusValue(type){
-  if(type==='photoset')return addStatusFlags.up?'up':'notup';
+  if(type==='photoset')return 'notup';
   return addStatusFlags.edited?'edited':(addStatusFlags.filmed?'filmed':'idea');
 }
 function syncAddStatus(){
   var ty=document.getElementById('new-type');ty=ty?ty.value:'clip';
   var h=document.getElementById('new-status');if(h)h.value=addStatusValue(ty);
+  var lbl=document.getElementById('new-status-lbl');if(lbl)lbl.style.display=(ty==='photoset')?'none':'';
   var wrap=document.getElementById('new-status-wrap');if(wrap)wrap.innerHTML=addStatusGroupHtml(ty);
 }
 function toggleAddStatus(key){
@@ -2110,7 +2129,7 @@ function dtList(){
       h+=dtClipGroup(g[1],g[2],clipsForTypes(types));
     });
     // All Done sorted by total sales, highest first (no/blank sales sink to the bottom).
-    h+=dtClipGroup('All Done','var(--green)',doneClips().sort(function(a,b){return (numOnly(b.totalSales)||0)-(numOnly(a.totalSales)||0);}));
+    h+=dtClipGroup('All Done','var(--green)',doneClips().sort(function(a,b){return clipGrandSales(b)-clipGrandSales(a);}));
   }
   if(!h&&pipeSearch.trim())return '<div class="dt-empty"><div class="dt-emoji">&#128269;</div>No clips match &ldquo;'+esc(pipeSearch)+'&rdquo;.</div>';
   return h;
@@ -2121,15 +2140,25 @@ function dtList(){
 // checkboxes, text in the fields. The only action panel kept is film/edit status
 // advance (idea→filmed→edited), which has no other home.
 // Sales tracking shown above the details once a clip is posted (uploaded anywhere).
+// One row per platform (skipping any marked N/A): Total Sales, Number of Clips,
+// Price + a Calculate button, then a grand total across all platforms at the bottom.
 function renderSales(c){
-  var f=function(field,label){
+  var plats=platformsFor(creator).filter(function(pl){return c.platforms[pl]!==N;});
+  var fld=function(pl,field,label){
+    var ps=(c.platformSales&&c.platformSales[pl])||{};
     return '<div class="sales-field"><div class="field-lbl">'+label+'</div>'+
-      '<input type="text" id="sale_'+c.id+'_'+field+'" value="'+esc(c[field]||'')+'" inputmode="decimal" '+
-      'onchange="setSale('+c.id+',\''+field+'\',this.value)"></div>';
+      '<input type="text" id="sale_'+c.id+'_'+pl+'_'+field+'" value="'+esc(ps[field]||'')+'" inputmode="decimal" '+
+      'onchange="setPlatSale('+c.id+',\''+pl+'\',\''+field+'\',this.value)"></div>';
   };
-  return '<div class="sales-panel"><div class="sales-row">'+
-    f('totalSales','Total Sales')+f('clipsSold','Number of Clips Sold')+f('price','Price')+
-    '</div><button class="btn btn-dark" style="margin-top:12px" onclick="calcSales('+c.id+')">Calculate total</button></div>';
+  var rows=plats.map(function(pl){
+    return '<div class="sales-plat-row">'+
+      '<div class="sales-plat-name">'+pl+'</div>'+
+      '<div class="sales-row">'+fld(pl,'total','Total Sales')+fld(pl,'clips','Number of Clips')+fld(pl,'price','Price')+'</div>'+
+      '<button class="btn btn-dark sales-calc-btn" onclick="calcPlatSales('+c.id+',\''+pl+'\')">Calculate</button>'+
+    '</div>';
+  }).join('');
+  return '<div class="sales-panel">'+rows+
+    '<div class="sales-grand">Grand Total<span>$'+clipGrandSales(c).toFixed(2)+'</span></div></div>';
 }
 // Posted clips: surface the sales panel and tuck the editable info into a collapsible.
 function wrapDetail(c,body,del){
