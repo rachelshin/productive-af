@@ -343,13 +343,13 @@ input[type=number]{-moz-appearance:textfield}
   .dt-detail-title:hover{background:var(--accent-bg)}
   .dt-title-input{flex:1;min-width:0;font-size:22px;font-weight:800;color:var(--text);font-family:inherit;border:1.5px solid var(--accent-b);border-radius:8px;padding:4px 10px;background:var(--surface);outline:none}
   .dt-empty{color:var(--faint);font-size:16px;text-align:center;margin-top:90px}
-  .dt-form{max-width:720px}
+  .dt-form{max-width:none}
   .dt-cols2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px 26px;align-items:start}
   .dt-col{min-width:0}
   .dt-detail .field-val{background:#fff;border-color:#e0d0c4}
   .dt-detail .field-val:hover{border-color:var(--accent)}
   .dt-detail input[type=text],.dt-detail textarea,.dt-detail select,.dt-detail input[type=date]{border-color:#e0d0c4}
-  .dt-next{max-width:720px;margin-bottom:18px;padding:16px 18px;border-radius:12px;background:var(--surface);border:1px solid var(--border);box-shadow:0 1px 6px rgba(80,30,20,.06)}
+  .dt-next{margin-bottom:18px;padding:16px 18px;border-radius:12px;background:var(--surface);border:1px solid var(--border);box-shadow:0 1px 6px rgba(80,30,20,.06)}
   .dt-next-eyebrow{font-size:12px;font-weight:800;letter-spacing:.06em;display:flex;align-items:center;gap:7px;margin-bottom:5px}
   .dt-next-action{font-size:22px;font-weight:800;color:var(--text);line-height:1.25}
   .dt-next-sub{font-size:13px;color:var(--muted);margin-top:5px}
@@ -357,8 +357,8 @@ input[type=number]{-moz-appearance:textfield}
   .dt-donext{width:100%;margin:4px 0 10px;padding:14px;border:none;border-radius:12px;background:linear-gradient(135deg,#d4637a,#9b7dbd);color:#fff;font-size:15px;font-weight:800;letter-spacing:.2px;cursor:pointer;font-family:inherit;box-shadow:0 4px 14px rgba(155,90,150,.34);transition:transform .12s,box-shadow .12s}
   .dt-donext:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(155,90,150,.45)}
   .dt-donext:active{transform:translateY(0)}
-  .dt-why{margin-bottom:14px;max-width:720px}
-  .dt-quote{margin:0 0 18px;max-width:720px}
+  .dt-why{margin-bottom:14px}
+  .dt-quote{margin:0 0 18px}
   /* entrance animation — only on navigation (dt-anim), never on edits */
   .dt-detail.dt-anim>*{animation:dtUp .26s ease both}
   .dt-detail.dt-anim>*:nth-child(2){animation-delay:.05s}
@@ -1904,16 +1904,16 @@ function renderClipDetail(c){
   var dupF=s?ACTION_FIELD[s.type]:null; // field shown in the action panel — skip it in the form
   function fld(field,label,ph){return field===dupF?'':renderField(c,field,label,ph);}
   if(isSimple()){
-    // BH/LV: upload action + schedule full width, then fields in two columns.
-    var h='';
-    if(s){h+=renderActionPanel(s);h+='<div class="sep"></div>';}
-    // Few platforms (C4S, or LF+C4S) — cap width so the schedule isn't stretched full-width.
-    h+='<div style="max-width:440px">'+renderPlatforms(c)+'</div>';
-    h+='<div class="dt-cols2"><div class="dt-col">'+fld('desc','Description','No description yet')+'</div>';
-    h+='<div class="dt-col">'+fld('notes','Notes','Any notes…')+'</div></div>';
-    h+='<div class="dt-cols2"><div class="dt-col">'+fld('num','Clip #','e.g. 101')+'</div>';
-    h+='<div class="dt-col">'+fld('length','Length','e.g. 15:52')+del+'</div></div>';
-    return h;
+    // BH/LV: two columns that fill the pane — writing left, schedule + meta right.
+    var SL='',SR='';
+    if(s){SL+=renderActionPanel(s);SL+='<div class="sep"></div>';}
+    SL+=fld('desc','Description','No description yet');
+    SL+=fld('notes','Notes','Any notes…');
+    SR+=renderPlatforms(c);
+    SR+=fld('num','Clip #','e.g. 101');
+    SR+=fld('length','Length','e.g. 15:52');
+    SR+=del;
+    return '<div class="dt-cols2"><div class="dt-col">'+SL+'</div><div class="dt-col">'+SR+'</div></div>';
   }
   // LG: two columns — writing on the left, assets/platforms/meta on the right.
   var L='',R='';
