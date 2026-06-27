@@ -12,6 +12,9 @@
     --muted:#7a6a63; --faint:#b3a298; --rose:#c4506a; --amber:#bd8a2e;
     --green:#2f8a5f; --violet:#6a6ab5; --teal:#2f8a7d;
     --accent:#c4506a;
+    /* per-creator site colours (overridden in renderApp): solid / light bg / light text */
+    --c4s:#c4506a; --c4s-lt:#f0cdd5; --c4s-tx:#a83b54;
+    --lf:#bd8a2e;  --lf-lt:#ecdcb0;  --lf-tx:#8a611c;
     --safe-top:env(safe-area-inset-top,0px);
     --safe-bot:env(safe-area-inset-bottom,0px);
   }
@@ -46,11 +49,11 @@
   /* ---- chips: SOLID + white text, high contrast ---- */
   .chip{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:800;
     border-radius:999px;padding:5px 13px;color:#fff;letter-spacing:.01em}
-  .chip.c4s{background:var(--rose)}
-  .chip.lf{background:var(--amber)}
+  .chip.c4s{background:var(--c4s)}
+  .chip.lf{background:var(--lf)}
   /* a platform that isn't scheduled yet reads lighter, still in its own site colour */
-  .chip.light.c4s{background:#f0cdd5;color:#a83b54}
-  .chip.light.lf{background:#ecdcb0;color:#8a611c}
+  .chip.light.c4s{background:var(--c4s-lt);color:var(--c4s-tx)}
+  .chip.light.lf{background:var(--lf-lt);color:var(--lf-tx)}
   .chip .dt{font-weight:700;opacity:.92;font-size:13px}
   .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
 
@@ -181,10 +184,21 @@
   var db   = firebase.firestore();
 
   // ---- static reference data (mirrors the main app) ------------------------
+  // site-colour defaults (rose C4S / amber LF) — Brigit overrides with pink + teal
+  var PLAT_DEFAULT = {
+    C4S:{s:'#c4506a', l:'#f0cdd5', t:'#a83b54', rgb:'196,80,106'},
+    LF: {s:'#bd8a2e', l:'#ecdcb0', t:'#8a611c', rgb:'189,138,46'}
+  };
   var CREATORS = {
-    LG:{name:'Lux Gray',     initials:'LG',grad:'linear-gradient(135deg,#d4637a,#9b7dbd)',accent:'#c4506a'},
-    BH:{name:'Brigit Heart', initials:'BH',grad:'linear-gradient(135deg,#8b5fbf,#4a7fa5)',accent:'#6a6ab5'},
-    LV:{name:'Lady Venus',   initials:'LV',grad:'linear-gradient(135deg,#3a8c80,#4a8c68)',accent:'#2f8a7d'}
+    LG:{name:'Lux Gray',     initials:'LG',grad:'linear-gradient(135deg,#d4637a,#9b7dbd)',accent:'#c4506a',
+        sec:{sched:'#c4506a', tbs:'#c08a3e', up:'#2f8a5f'}, plat:PLAT_DEFAULT},
+    // Brigit's theme is built around the 💜 purple-heart shade + colours that pair with it
+    BH:{name:'Brigit Heart', initials:'BH',grad:'linear-gradient(135deg,#9d4edd,#6f5bd6)',accent:'#9d4edd',
+        sec:{sched:'#9d4edd', tbs:'#d6519e', up:'#34a06b'},
+        plat:{ C4S:{s:'#cf5aa8', l:'#f6d8ea', t:'#a8347f', rgb:'207,90,168'},
+               LF: {s:'#2ba89e', l:'#cdebe7', t:'#1c7a72', rgb:'43,168,158'} }},
+    LV:{name:'Lady Venus',   initials:'LV',grad:'linear-gradient(135deg,#3a8c80,#4a8c68)',accent:'#2f8a7d',
+        sec:{sched:'#2f8a7d', tbs:'#c08a3e', up:'#4a8c68'}, plat:PLAT_DEFAULT}
   };
   var CREATOR_PLATFORMS = {LG:['SM','MFC','CB','SC','NF','SP','C4S'], BH:['LF','C4S'], LV:['C4S']};
   var PEND='pending', NA='na';
@@ -197,7 +211,7 @@
   var tab='cal';
   var calY=new Date().getFullYear(), calM=new Date().getMonth();
   var selDay=null; // tapped calendar day -> shows that day's clip detail
-  var dbOpen={todo:true, c4s:true, lf:false, up:false}; // Database accordion: which sections are expanded
+  var dbOpen={}; // Database accordion: all sections collapsed until the user opens one
   var clipOpen=null; // id of the expanded clip card in the Database tab
 
   // ---- helpers -------------------------------------------------------------
@@ -211,8 +225,31 @@
   function fmtHours(s){ var h=Math.floor(s/3600), m=Math.round((s%3600)/60); if(m===60){h++;m=0;} return h+(m>0?'h '+m+'m':'h'); }
   function platsFor(cr){ return CREATOR_PLATFORMS[cr]||['C4S']; }
   function clipUploaded(c, cr){ return platsFor(cr).every(function(pl){ return (c.platforms||{})[pl] !== PEND; }); }
+  // a clip's Database bucket: 'up' = uploaded on every platform; 'tbs' = a pending
+  // platform still has no date; 'sched' = not done, but every pending platform is dated.
+  function clipSchedState(c){
+    if(clipUploaded(c, gCreator)) return 'up';
+    var plats=platsFor(gCreator), dates=c.platformDates||{};
+    for(var i=0;i<plats.length;i++){
+      var pl=plats[i];
+      if((c.platforms||{})[pl]===PEND && !dates[pl]) return 'tbs';
+    }
+    return 'sched';
+  }
+  // earliest set upload date among a clip's pending platforms (for sorting Scheduled)
+  function earliestSchedDate(c){
+    var plats=platsFor(gCreator), dates=c.platformDates||{}, best=null;
+    plats.forEach(function(pl){
+      if((c.platforms||{})[pl]===PEND && dates[pl] && (best===null||dates[pl]<best)) best=dates[pl];
+    });
+    return best;
+  }
   // site colour as an "r,g,b" string so the calendar can vary opacity by status
-  function plRGB(pl){ return pl==='LF' ? '189,138,46' : pl==='C4S' ? '196,80,106' : '106,106,181'; }
+  function plRGB(pl){
+    var p = (CREATORS[gCreator]||{}).plat || PLAT_DEFAULT;
+    if(p[pl]) return p[pl].rgb;
+    return '106,106,181';
+  }
   // one platform's chip for a clip. Site colour = identity; lighter when not yet
   // scheduled (pending, no date); a ✓ once uploaded (still the site colour, not green).
   function platChip(c, pl){
@@ -274,14 +311,11 @@
       h += '<div class="'+cls+'"'+style+click+'><span class="dnum">'+d+'</span></div>';
     }
     h += '</div>';
-    // legend: row 1 = which site (only this creator's), row 2 = scheduled vs uploaded
+    // legend: which site each colour is (only this creator's sites)
     var sites = platsFor(gCreator).map(function(pl){
       return '<span><span class="sw" style="background:rgba('+plRGB(pl)+',.72)"></span>'+esc(pl)+'</span>';
     }).join('');
-    h += '<div class="cal-legend">'+sites+'</div>'
-      + '<div class="cal-legend" style="margin-top:9px">'
-      + '<span><span class="sw" style="background:rgba(120,95,90,.18)"></span>Scheduled</span>'
-      + '<span><span class="sw" style="background:rgba(120,95,90,.72)"></span>Uploaded</span></div>';
+    h += '<div class="cal-legend">'+sites+'</div>';
     // the tapped day's clip detail appears right under the grid
     var sc = selDay ? clipForDay(selDay) : null;
     if(sc) h += '<div id="dayDetail">'+renderDayDetail(sc, selDay)+'</div>';
@@ -345,32 +379,30 @@
     if(open) h += '<div class="clip-body">'+clipBody(c)+'</div>';
     return h + '</div>';
   }
-  function dbSection(key, label, list, emptyMsg){
+  function dbSection(key, label, list, emptyMsg, color){
     var open = dbOpen[key];
-    var h = '<button class="db-head" onclick="window.__db(\''+key+'\')">'
-      + '<span class="db-caret">'+(open?'&#9662;':'&#9656;')+'</span>'+label
+    var h = '<button class="db-head" style="border-left:5px solid '+color+'" onclick="window.__db(\''+key+'\')">'
+      + '<span class="db-caret" style="color:'+color+'">'+(open?'&#9662;':'&#9656;')+'</span>'
+      + '<span style="color:'+color+'">'+label+'</span>'
       + '<span class="db-count">'+list.length+'</span></button>';
     if(open) h += list.length ? list.map(clipCard).join('')
       : '<div class="card"><div class="empty">'+emptyMsg+'</div></div>';
     return h;
   }
   function renderDatabase(){
-    var plats = platsFor(gCreator);
-    var done = gClips.filter(function(c){ return clipUploaded(c, gCreator); });
-    if(plats.length > 1){
-      // Brigit: C4S must go up first, then LF, then fully uploaded
-      var c4s = gClips.filter(function(c){ return (c.platforms||{})['C4S']===PEND; });
-      var lf  = gClips.filter(function(c){
-        return (c.platforms||{})['C4S']!==PEND
-          && plats.some(function(pl){ return pl!=='C4S' && (c.platforms||{})[pl]===PEND; });
-      });
-      return dbSection('c4s', 'To upload to C4S',   c4s,  'None waiting for C4S.')
-           + dbSection('lf',  'To upload to LF',    lf,   'None waiting for LF.')
-           + dbSection('up',  'Uploaded everywhere', done, 'Nothing uploaded yet.');
-    }
-    var toUpload = gClips.filter(function(c){ return !clipUploaded(c, gCreator); });
-    return dbSection('todo', 'To upload', toUpload, 'All caught up!')
-         + dbSection('up', 'Uploaded', done, 'Nothing uploaded yet.');
+    var sec = (CREATORS[gCreator] || {}).sec || {sched:'#9d4edd', tbs:'#d6519e', up:'#2ba89e'};
+    var multi = platsFor(gCreator).length > 1;
+    var scheduled=[], tbs=[], done=[];
+    gClips.forEach(function(c){
+      var s = clipSchedState(c);
+      if(s==='up') done.push(c);
+      else if(s==='sched') scheduled.push(c);
+      else tbs.push(c);
+    });
+    scheduled.sort(function(a,b){ var da=earliestSchedDate(a), db=earliestSchedDate(b); return da<db?-1:da>db?1:0; });
+    return dbSection('sched', 'Scheduled',        scheduled, 'Nothing scheduled.',              sec.sched)
+         + dbSection('tbs',   'To be scheduled',  tbs,       'Nothing waiting to be scheduled.', sec.tbs)
+         + dbSection('up',    multi ? 'Uploaded everywhere' : 'Uploaded', done, 'Nothing uploaded yet.', sec.up);
   }
 
   // ---- tab: INVOICING ------------------------------------------------------
@@ -419,7 +451,11 @@
   }
   function renderApp(){
     var cr = CREATORS[gCreator] || {name:gCreator, initials:gCreator, grad:'linear-gradient(135deg,#5a6a8a,#7a5a8a)', accent:'#7a5a8a'};
-    document.documentElement.style.setProperty('--accent', cr.accent);
+    var rs = document.documentElement.style;
+    rs.setProperty('--accent', cr.accent);
+    var p = cr.plat || PLAT_DEFAULT;
+    rs.setProperty('--c4s', p.C4S.s); rs.setProperty('--c4s-lt', p.C4S.l); rs.setProperty('--c4s-tx', p.C4S.t);
+    rs.setProperty('--lf',  p.LF.s);  rs.setProperty('--lf-lt',  p.LF.l);  rs.setProperty('--lf-tx',  p.LF.t);
     var body = tab==='cal' ? renderCalendar() : tab==='db' ? renderDatabase() : renderInvoices();
     var h = '<div class="appbar" style="background:'+cr.grad+'">'
       + '<div class="av">'+esc(cr.initials)+'</div>'
