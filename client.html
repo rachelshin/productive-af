@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Your Dashboard</title>
+<style>
+  :root{
+    --bg:#fdf8f5; --surface:#ffffff; --border:#ede4de; --text:#2a1f1c;
+    --muted:#7a6a63; --faint:#b8a89f; --rose:#c4506a; --amber:#c08a3e;
+    --green:#3a8c68; --violet:#7272b8; --teal:#3a8c80;
+  }
+  *{box-sizing:border-box}
+  input,button{font-size:16px;font-family:inherit}
+  input,textarea,select{outline:none !important;box-shadow:none !important}
+  *:focus,*:focus-visible{outline:none !important}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto;padding:24px 18px 64px}
+  .topband{display:flex;align-items:center;gap:14px;padding:18px 20px;border-radius:16px;
+    color:#fff;margin-bottom:22px}
+  .topband .av{width:46px;height:46px;border-radius:12px;background:rgba(255,255,255,.22);
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px}
+  .topband .nm{font-size:22px;font-weight:800}
+  .topband .sub{font-size:14px;opacity:.85;font-weight:600}
+  .topband .signout{margin-left:auto;background:rgba(255,255,255,.2);color:#fff;border:none;
+    border-radius:10px;padding:9px 14px;font-weight:700;cursor:pointer;font-size:14px}
+  .sec-lbl{font-size:14px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;
+    color:var(--faint);margin:26px 4px 12px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+    padding:14px 16px;margin-bottom:10px}
+  .row{display:flex;align-items:center;gap:12px}
+  .row .ttl{font-weight:700;font-size:16px;flex:1;min-width:0}
+  .row .id{font-size:13px;font-weight:800;color:var(--faint);
+    background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:2px 8px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .chip{font-size:13px;font-weight:700;border-radius:20px;padding:3px 11px;border:1.5px solid}
+  .chip.pend{color:var(--rose);border-color:var(--rose)}
+  .chip.pend.lf{color:var(--amber);border-color:var(--amber)}
+  .chip.done{color:var(--green);border-color:var(--green);background:rgba(58,140,104,.08)}
+  .chip .dt{opacity:.7;font-weight:600;margin-left:5px}
+  .up-row{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;
+    background:var(--surface);border:1px solid var(--border);margin-bottom:8px}
+  .up-row .when{font-weight:800;font-size:15px;min-width:78px}
+  .up-row .when.over{color:var(--rose)}
+  .up-row .pl{font-size:13px;font-weight:800;border-radius:8px;padding:2px 9px;
+    background:var(--bg);border:1px solid var(--border)}
+  .inv-row{display:flex;align-items:center;gap:12px;padding:13px 16px}
+  .inv-row .amt{font-weight:800;font-size:16px}
+  .inv-row .per{font-size:14px;color:var(--muted)}
+  .badge{font-size:12px;font-weight:800;border-radius:20px;padding:3px 11px;margin-left:auto}
+  .badge.paid{color:var(--green);background:rgba(58,140,104,.1)}
+  .badge.sent{color:var(--violet);background:rgba(114,114,184,.1)}
+  .badge.overdue{color:var(--rose);background:rgba(196,80,106,.1)}
+  .badge.unsent{color:var(--faint);background:var(--bg)}
+  .empty{text-align:center;color:var(--faint);font-size:15px;padding:26px}
+  /* login */
+  #login{position:fixed;inset:0;background:var(--bg);z-index:50;display:flex;
+    align-items:center;justify-content:center}
+  #login .box{background:#fff;border:1px solid var(--border);border-radius:16px;
+    padding:32px;width:330px;box-shadow:0 6px 24px rgba(80,30,20,.1)}
+  #login h1{font-size:21px;font-weight:800;margin:0 0 6px}
+  #login p{font-size:14px;color:var(--muted);margin:0 0 18px}
+  #login input{width:100%;padding:12px 14px;margin-bottom:10px;border:1.5px solid var(--border);
+    border-radius:10px;background:#fff;color:var(--text)}
+  #login button{width:100%;padding:13px;border:none;border-radius:10px;background:var(--rose);
+    color:#fff;font-weight:800;cursor:pointer}
+  #login .msg{color:var(--rose);font-size:13px;margin-top:10px;min-height:16px}
+  .loading{padding:60px;text-align:center;color:var(--faint);font-size:17px}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div id="app"><div class="loading">Loading…</div></div>
+
+<script>
+/* ============================================================================
+   client.html — READ-ONLY client view.
+   A client signs in and sees ONLY their own creator's clips, upload schedule,
+   and invoices. They cannot edit anything and never see other creators.
+
+   How access works:
+     • Each client is a normal Firebase Auth user (created in the console).
+     • A doc clientAccess/{theirUid} = { creator: "BH", owner: "<your uid>" }
+       maps that login to one creator under your account.
+     • Firestore rules (see firestore.rules) allow that client to READ only
+       users/<owner>/kv/lg-v8-<creator> and lg-consulting-<creator>. Nothing else.
+   ========================================================================== */
+(function () {
+  var firebaseConfig = {
+    apiKey:            "AIzaSyCiAxJwjlwUOn7NDsjEejHwo-1eObllu1E",
+    authDomain:        "productive-as-fuck.firebaseapp.com",
+    projectId:         "productive-as-fuck",
+    storageBucket:     "productive-as-fuck.firebasestorage.app",
+    messagingSenderId: "836342779433",
+    appId:             "1:836342779433:web:64d376be0594a1d0cb9638"
+  };
+  firebase.initializeApp(firebaseConfig);
+  var auth = firebase.auth();
+  var db   = firebase.firestore();
+
+  // ---- static reference data (mirrors the main app) ------------------------
+  var CREATORS = {
+    LG:{name:'Lux Gray',     initials:'LG',grad:'linear-gradient(135deg,#d4637a,#9b7dbd)'},
+    BH:{name:'Brigit Heart', initials:'BH',grad:'linear-gradient(135deg,#8b5fbf,#4a7fa5)'},
+    LV:{name:'Lady Venus',   initials:'LV',grad:'linear-gradient(135deg,#3a8c80,#4a8c68)'}
+  };
+  var CREATOR_PLATFORMS = {LG:['SM','MFC','CB','SC','NF','SP','C4S'], BH:['LF','C4S'], LV:['C4S']};
+  var PEND='pending', NA='na';
+
+  // ---- helpers -------------------------------------------------------------
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function todayStr(){ return new Date().toLocaleDateString('en-CA'); }
+  function fmtDate(d){
+    if(!d) return '';
+    var p=d.split('-');
+    var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return m[parseInt(p[1],10)-1]+' '+parseInt(p[2],10);
+  }
+  function fmtRange(a,b){ if(!a&&!b) return ''; return fmtDate(a)+' – '+fmtDate(b); }
+  function platsFor(cr){ return CREATOR_PLATFORMS[cr]||['C4S']; }
+  function clipUploaded(c, cr){ // done when no platform is still pending
+    return platsFor(cr).every(function(pl){ return (c.platforms||{})[pl] !== PEND; });
+  }
+
+  // ---- render --------------------------------------------------------------
+  function fail(msg){
+    document.getElementById('app').innerHTML =
+      '<div class="wrap"><div class="card"><div class="empty">'+esc(msg)+
+      '</div><div style="text-align:center"><button class="topband signout" style="color:var(--rose);background:var(--bg);margin:0" onclick="window.__signout()">Sign out</button></div></div></div>';
+  }
+
+  function render(creatorCode, clips, consulting){
+    var cr = CREATORS[creatorCode] || {name:creatorCode, initials:creatorCode, grad:'linear-gradient(135deg,#5a6a8a,#7a5a8a)'};
+    var plats = platsFor(creatorCode);
+    var today = todayStr();
+    var h = '<div class="wrap">';
+
+    // header band
+    h += '<div class="topband" style="background:'+cr.grad+'">'
+       + '<div class="av">'+esc(cr.initials)+'</div>'
+       + '<div><div class="nm">'+esc(cr.name)+'</div><div class="sub">Your dashboard</div></div>'
+       + '<button class="signout" onclick="window.__signout()">Sign out</button></div>';
+
+    // ---- upcoming uploads (pending platforms that have a date) -------------
+    var upcoming = [];
+    clips.forEach(function(c){
+      var dates = c.platformDates || {};
+      plats.forEach(function(pl){
+        if((c.platforms||{})[pl] !== PEND) return;
+        var d = dates[pl];
+        if(!d) return;
+        if(pl==='LF' && (c.platforms||{})['C4S']===PEND) return; // LF hidden until C4S is up
+        upcoming.push({date:d, pl:pl, title:c.title, num:c.num, id:c.id});
+      });
+    });
+    upcoming.sort(function(a,b){ return a.date<b.date?-1:a.date>b.date?1:0; });
+
+    h += '<div class="sec-lbl">Upcoming uploads</div>';
+    if(upcoming.length){
+      upcoming.forEach(function(u){
+        var over = u.date < today;
+        h += '<div class="up-row">'
+           + '<span class="when'+(over?' over':'')+'">'+esc(fmtDate(u.date))+'</span>'
+           + '<span class="pl">'+esc(u.pl)+'</span>'
+           + '<span style="flex:1;min-width:0;font-weight:700">'+esc(u.title)+'</span>'
+           + (over?'<span class="badge overdue">Overdue</span>':'')
+           + '</div>';
+      });
+    } else {
+      h += '<div class="card"><div class="empty">Nothing scheduled right now.</div></div>';
+    }
+
+    // ---- all clips, grouped: to upload vs uploaded ------------------------
+    var toUpload = clips.filter(function(c){ return !clipUploaded(c, creatorCode); });
+    var done     = clips.filter(function(c){ return  clipUploaded(c, creatorCode); });
+
+    function clipCard(c){
+      var dates = c.platformDates || {};
+      var hh = '<div class="card"><div class="row">'
+        + '<span class="id">'+esc(c.num || ('#'+c.id))+'</span>'
+        + '<span class="ttl">'+esc(c.title)+'</span></div><div class="chips">';
+      plats.forEach(function(pl){
+        var st = (c.platforms||{})[pl];
+        if(st === NA) return;
+        var d = dates[pl];
+        if(st === PEND){
+          var cls = pl==='LF' ? 'chip pend lf' : 'chip pend';
+          hh += '<span class="'+cls+'">'+esc(pl)+(d?'<span class="dt">'+esc(fmtDate(d))+'</span>':'')+'</span>';
+        } else {
+          hh += '<span class="chip done">'+esc(pl)+' ✓</span>';
+        }
+      });
+      hh += '</div></div>';
+      return hh;
+    }
+
+    h += '<div class="sec-lbl">To upload ('+toUpload.length+')</div>';
+    h += toUpload.length ? toUpload.map(clipCard).join('') : '<div class="card"><div class="empty">All caught up!</div></div>';
+
+    h += '<div class="sec-lbl">Uploaded ('+done.length+')</div>';
+    h += done.length ? done.map(clipCard).join('') : '<div class="card"><div class="empty">Nothing uploaded yet.</div></div>';
+
+    // ---- invoices ---------------------------------------------------------
+    var invoices = (consulting && consulting.invoices) ? consulting.invoices.slice() : [];
+    if(invoices.length){
+      invoices.sort(function(a,b){ return (b.invoiceNum||b.id||0) - (a.invoiceNum||a.id||0); });
+      h += '<div class="sec-lbl">Invoices</div>';
+      invoices.forEach(function(inv){
+        var sym = inv.currency || (consulting && consulting.currency) || '$';
+        var rate = inv.rate || (consulting && consulting.rate) || 0;
+        var amt = Math.round(rate * (inv.hours||0));
+        var status, label;
+        if(inv.paidAt){ status='paid'; label='✓ Paid '+fmtDate(inv.paidAt); }
+        else if(inv.invoicedAt){ status='sent'; label='Sent '+fmtDate(inv.invoicedAt); }
+        else { status='unsent'; label='Not sent yet'; }
+        var num = String(inv.invoiceNum || inv.id || '').replace(/^#*/, '');
+        h += '<div class="card inv-row" style="margin:0 0 10px">'
+           + '<div><div class="amt">'+esc(sym)+amt+' <span style="color:var(--faint);font-weight:700">· '+(inv.hours||0)+'h</span></div>'
+           + '<div class="per">'+(num?'#'+esc(num)+' · ':'')+esc(fmtRange(inv.periodStart, inv.periodEnd))+'</div></div>'
+           + '<span class="badge '+status+'">'+esc(label)+'</span></div>';
+      });
+    }
+
+    h += '</div>';
+    document.getElementById('app').innerHTML = h;
+  }
+
+  // ---- data load -----------------------------------------------------------
+  function parse(snap){
+    if(!snap || !snap.exists) return null;
+    var data = snap.data();
+    if(!data || typeof data.value !== 'string') return null;
+    try { return JSON.parse(data.value); } catch(e){ return null; }
+  }
+
+  function loadAndWatch(owner, creatorCode){
+    var clipsRef = db.collection('users').doc(owner).collection('kv').doc('lg-v8-'+creatorCode);
+    var consRef  = db.collection('users').doc(owner).collection('kv').doc('lg-consulting-'+creatorCode);
+    var clips = [], consulting = null, gotClips = false;
+
+    function paint(){
+      if(!gotClips) return;
+      render(creatorCode, clips, consulting);
+    }
+    clipsRef.onSnapshot(function(snap){
+      var p = parse(snap);
+      clips = (p && p.clips) ? p.clips : [];
+      gotClips = true; paint();
+    }, function(err){ fail('Could not load your clips. ('+err.code+')'); });
+
+    consRef.onSnapshot(function(snap){
+      consulting = parse(snap);  // may be null — that's fine
+      paint();
+    }, function(){ /* no invoices is fine */ });
+  }
+
+  // ---- login overlay -------------------------------------------------------
+  function showLogin(message){
+    document.getElementById('app').innerHTML =
+      '<div id="login"><div class="box">'
+      + '<h1>Sign in</h1><p>Enter the email &amp; password you were given.</p>'
+      + '<label style="font-size:13px;font-weight:700;color:var(--muted)">Email</label>'
+      + '<input id="ce" type="email" autocomplete="username">'
+      + '<label style="font-size:13px;font-weight:700;color:var(--muted)">Password</label>'
+      + '<input id="cp" type="password" autocomplete="current-password">'
+      + '<button id="cb">Sign in</button>'
+      + '<div class="msg" id="cm">'+(message||'')+'</div></div></div>';
+    function submit(){
+      var e = document.getElementById('ce').value.trim();
+      var p = document.getElementById('cp').value;
+      document.getElementById('cm').textContent = 'Signing in…';
+      auth.signInWithEmailAndPassword(e, p).catch(function(err){
+        document.getElementById('cm').textContent = err.message;
+      });
+    }
+    document.getElementById('cb').onclick = submit;
+    document.getElementById('cp').addEventListener('keydown', function(ev){
+      if(ev.key==='Enter') submit();
+    });
+  }
+
+  window.__signout = function(){ auth.signOut(); };
+
+  // ---- boot ----------------------------------------------------------------
+  auth.onAuthStateChanged(function(user){
+    if(!user){ showLogin(); return; }
+    document.getElementById('app').innerHTML = '<div class="loading">Loading your dashboard…</div>';
+    db.collection('clientAccess').doc(user.uid).get().then(function(snap){
+      if(!snap.exists){
+        fail("This account isn't set up for access yet. Please contact Rachel.");
+        return;
+      }
+      var a = snap.data();
+      if(!a.owner || !a.creator){
+        fail('Your access is misconfigured. Please contact Rachel.');
+        return;
+      }
+      loadAndWatch(a.owner, a.creator);
+    }).catch(function(err){
+      fail('Could not check your access. ('+err.code+')');
+    });
+  });
+})();
+</script>
+</body>
+</html>

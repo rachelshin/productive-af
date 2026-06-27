@@ -1,15 +1,46 @@
 rules_version = '2';
 
 // Firestore security rules for the LG Dashboard.
-// Every document lives under users/{uid}/... and is readable/writable ONLY by
-// the signed-in account that owns it. Without a matching login, all access is
-// denied. Paste these in Firebase console -> Firestore Database -> Rules -> Publish.
+//
+// • Owner (you): full read/write to everything under your own users/{uid} tree.
+// • Clients: READ-ONLY access to just their own creator's data, under your tree.
+//     A client is any signed-in account that has a clientAccess/{theirUid} doc
+//     of the shape { creator: "BH", owner: "<your uid>" }. They can read only
+//     users/<owner>/kv/lg-v8-<creator> and lg-consulting-<creator> — nothing
+//     else, and they can never write.
+//
+// Paste these in Firebase console -> Firestore Database -> Rules -> Publish.
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // The signed-in client's own access doc (creator + owner mapping).
+    function access() {
+      return get(/databases/$(database)/documents/clientAccess/$(request.auth.uid)).data;
+    }
+    function hasAccess() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/clientAccess/$(request.auth.uid));
+    }
+
+    // ---- Owner: full access to their own tree --------------------------------
     match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null
-                         && request.auth.uid == userId;
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ---- Clients: read-only, scoped to one creator under the owner's tree -----
+    match /users/{userId}/kv/{key} {
+      allow read: if hasAccess()
+        && access().owner == userId
+        && ( key == 'lg-v8-' + access().creator
+          || key == 'lg-consulting-' + access().creator );
+      // (no allow write — clients are view-only)
+    }
+
+    // ---- Access map: a client may read only their own doc --------------------
+    //      Create/edit these in the Firebase console (admin bypasses rules).
+    match /clientAccess/{clientUid} {
+      allow read:  if request.auth != null && request.auth.uid == clientUid;
+      allow write: if false;
     }
 
     // Everything else is denied by default.
