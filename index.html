@@ -805,24 +805,29 @@ function doneClips(){return clips.filter(function(c){return !getClipStep(c);});}
 // ── SIMPLE MODE (BH / LV) ─────────────────────────────────────
 function isSimple(){return creator!=='LG';}
 function clipUploadedSimple(c){
-  return PL.every(function(pl){return c.platforms[pl]===U||c.platforms[pl]===PR||c.platforms[pl]===N;});
+  // Done when none of THIS creator's platforms are still pending (LF for Brigit, C4S for both).
+  return platformsFor(creator).every(function(pl){return c.platforms[pl]!==P;});
 }
 function getClipStepSimple(c){
-  var pp=firstIn(c,P);if(pp)return {type:'upload',clip:c,pl:pp};
+  // Simple creators only ever upload — never write desc/keywords/etc.
+  // C4S first, then any other pending platform for this creator (LF for Brigit).
+  // Venus only has C4S, so she always gets "Upload to C4S".
+  if(c.platforms['C4S']===P)return {type:'upload',clip:c,pl:'C4S'};
+  var other=platformsFor(creator).filter(function(pl){return pl!=='C4S'&&c.platforms[pl]===P;});
+  if(other.length)return {type:'upload',clip:c,pl:other[0]};
   return null;
 }
 function getNextSimple(){
-  var today=todayStr();
   var pending=clips.filter(function(c){return !clipUploadedSimple(c);});
   if(!pending.length)return null;
-  // sort by earliest scheduled date, then by id
+  // sort by the next-upload platform's scheduled date, then by id
+  function nextPl(c){var s=getClipStepSimple(c);return s?s.pl:null;}
   pending.sort(function(a,b){
-    var da=a.platformDates&&a.platformDates[firstIn(a,P)||PL[0]]||'9999';
-    var db=b.platformDates&&b.platformDates[firstIn(b,P)||PL[0]]||'9999';
+    var da=(a.platformDates&&a.platformDates[nextPl(a)])||'9999';
+    var db=(b.platformDates&&b.platformDates[nextPl(b)])||'9999';
     return da<db?-1:da>db?1:a.id-b.id;
   });
-  var c=pending[0];var pp=firstIn(c,P);
-  return {type:'upload',clip:c,pl:pp||PL[0]};
+  return getClipStepSimple(pending[0]);
 }
 function doneClipsSimple(){return clips.filter(function(c){return clipUploadedSimple(c);});}
 
@@ -1868,9 +1873,9 @@ function dtList(){
   if(!clips.length)return '<div class="dt-empty"><div class="dt-emoji">&#129528;</div>No clips here yet.<br><small>Pick another creator, or Restore a backup.</small></div>';
   var h='';
   if(isSimple()){
-    if(PL.length>1){
+    if(platformsFor(creator).length>1){
       h+=dtClipGroup('Upload to C4S','var(--rose)',clips.filter(function(c){return c.platforms['C4S']===P;}));
-      h+=dtClipGroup('Upload to LF','var(--amber)',clips.filter(function(c){return c.platforms['C4S']!==P&&PL.some(function(pl){return c.platforms[pl]===P;});}));
+      h+=dtClipGroup('Upload to LF','var(--amber)',clips.filter(function(c){return c.platforms['C4S']!==P&&platformsFor(creator).some(function(pl){return pl!=='C4S'&&c.platforms[pl]===P;});}));
       h+=dtClipGroup('Uploaded','var(--green)',clips.filter(function(c){return clipUploadedSimple(c);}));
     } else {
       h+=dtClipGroup('To Upload','var(--rose)',clips.filter(function(c){return !clipUploadedSimple(c);}));
@@ -1946,7 +1951,7 @@ function dtDetail(){
   }
   if(!c)return '<div class="dt-empty"><div class="dt-emoji">&#127881;</div>Nothing left for '+esc((CREATORS[creator]||{name:'this creator'}).name)+'!<br><small>All caught up — your inner child says thanks.</small></div>';
   // The "DO THIS NEXT" card only appears for the cross-creator pick (the Do This Next button).
-  var step=(c.id===dtNextId)?getClipStep(c):null;
+  var step=(c.id===dtNextId)?(isSimple()?getClipStepSimple(c):getClipStep(c)):null;
   return dtClipEditor(c,step);
 }
 
@@ -1965,7 +1970,6 @@ function renderDesktop(){
   var h='<div class="dt" style="--cre:'+creColor+'">'+dtSidebar();
   h+='<section class="dt-list">'+dtListHeader()+'<div class="dt-add">'+renderAddForm()+'</div>'+dtList()+'</section>';
   h+='<section class="dt-detail'+anim+'">';
-  h+=dtHeaderBand();
   h+=dtWhyCard();
   if(dtRightView==='allcal')h+='<div class="sec-lbl">Combined Calendar — all creators</div>'+renderAllCalendar();
   else if(dtRightView==='cal')h+='<div class="sec-lbl">'+esc((CREATORS[creator]||{name:''}).name)+' — Upload Schedule</div>'+(clips.length?renderCalendar():'<div class="dt-empty">No clips scheduled yet.</div>');
@@ -2153,9 +2157,9 @@ function render(){
         gh+='</div>';return gh;
       }
       if(!clips.length)h+='<div class="empty-state"><div class="big">&#128203;</div><p>No clips yet.</p><small>Add clips below.</small></div>';
-      if(PL.length>1){
+      if(platformsFor(creator).length>1){
         var needsC4S=filteredClips.filter(function(c){return c.platforms['C4S']===P;});
-        var needsLF=filteredClips.filter(function(c){return c.platforms['C4S']!==P&&PL.some(function(pl){return c.platforms[pl]===P;});});
+        var needsLF=filteredClips.filter(function(c){return c.platforms['C4S']!==P&&platformsFor(creator).some(function(pl){return pl!=='C4S'&&c.platforms[pl]===P;});});
         var filteredDone=filteredClips.filter(function(c){return clipUploadedSimple(c);});
         needsC4S.sort(function(a,b){var da=a.platformDates&&a.platformDates['C4S']||'9999';var db=b.platformDates&&b.platformDates['C4S']||'9999';return da<db?-1:da>db?1:0;});
         needsLF.sort(function(a,b){var da=a.platformDates&&a.platformDates['LF']||'9999';var db=b.platformDates&&b.platformDates['LF']||'9999';return da<db?-1:da>db?1:0;});
@@ -2165,7 +2169,8 @@ function render(){
       } else {
         var toUpload2=filteredClips.filter(function(c){return !clipUploadedSimple(c);});
         var filteredDone2=filteredClips.filter(function(c){return clipUploadedSimple(c);});
-        toUpload2.sort(function(a,b){var da=a.platformDates&&a.platformDates[PL[0]]||'9999';var db=b.platformDates&&b.platformDates[PL[0]]||'9999';return da<db?-1:da>db?1:0;});
+        var sp=platformsFor(creator)[0];
+        toUpload2.sort(function(a,b){var da=a.platformDates&&a.platformDates[sp]||'9999';var db=b.platformDates&&b.platformDates[sp]||'9999';return da<db?-1:da>db?1:0;});
         h+=pipeGrp('toUpload','&#11014;&#65039;','To Upload','var(--rose)',toUpload2,true);
         h+=pipeGrp('allDone','&#9733;','Uploaded','var(--green)',filteredDone2,false);
       }
