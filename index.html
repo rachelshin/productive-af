@@ -818,8 +818,11 @@ function getClipStep(c){
   if(creator==='LG'&&!c.nfGbCover)           return {type:'make-nfgbcover',clip:c,pl:null};
   if(c.type!=='photoset'&&!c.preview)        return {type:'make-preview',  clip:c,pl:null};
   var pp=firstIn(c,P);if(pp)return {type:'upload', clip:c,pl:pp};
-  var ir=firstIn(c,IR);if(ir)return {type:'approve',clip:c,pl:ir};
   var up=firstIn(c,U);if(up)return {type:'promote',clip:c,pl:up};
+  // "approve" is checked last: a clip only counts as In Review when awaiting approval
+  // is genuinely the last thing left (nothing to upload/promote). It's set aside, not
+  // a "do this next" action — see getNext / dtDefaultClip, which skip approve steps.
+  var ir=firstIn(c,IR);if(ir)return {type:'approve',clip:c,pl:ir};
   return null;
 }
 
@@ -833,7 +836,8 @@ function actionTitle(s){
   return t+' "'+s.clip.title+'"';
 }
 function getNext(){
-  var all=[];clips.forEach(function(c){var s=getClipStep(c);if(s)all.push(s);});
+  // Skip 'approve' steps — an In Review clip is set aside, not a "do this next" action.
+  var all=[];clips.forEach(function(c){var s=getClipStep(c);if(s&&s.type!=='approve')all.push(s);});
   if(!all.length)return null;
   all.sort(function(a,b){var pa=GPRI[a.type]||99,pb=GPRI[b.type]||99;return pa!==pb?pa-pb:a.clip.id-b.clip.id;});
   return all[0];
@@ -936,10 +940,14 @@ function dtDefaultClip(){
   // Lux: closest to upload-ready (most fields filled); random tie-break.
   var hasStep=clips.filter(function(c){return getClipStep(c);}); // still has work to do
   if(!hasStep.length)return null;
+  // In Review is set aside — never lead "Do this next" with an awaiting-approval clip.
+  // If a clip's only outstanding thing is approval, there's nothing for you to do.
+  var actionable=hasStep.filter(function(c){return getClipStep(c).type!=='approve';});
+  if(!actionable.length)return null;
   // Promotion is a secondary concern — skip clips whose next step is 'promote',
   // unless that's all that's left.
-  var cands=hasStep.filter(function(c){return getClipStep(c).type!=='promote';});
-  if(!cands.length)cands=hasStep;
+  var cands=actionable.filter(function(c){return getClipStep(c).type!=='promote';});
+  if(!cands.length)cands=actionable;
   var best=-1;cands.forEach(function(c){var r=lgReadiness(c);if(r>best)best=r;});
   var top=cands.filter(function(c){return lgReadiness(c)===best;});
   var sig=top.map(function(c){return c.id;}).sort(function(a,b){return a-b;}).join(',');
