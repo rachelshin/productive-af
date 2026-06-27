@@ -2141,10 +2141,10 @@ function dtList(){
 // checkboxes, text in the fields. The only action panel kept is film/edit status
 // advance (idea→filmed→edited), which has no other home.
 // Sales tracking shown above the details once a clip is posted (uploaded anywhere).
-// One row per platform (skipping any marked N/A): Total Sales, Number of Clips,
-// Price + a Calculate button, then a grand total across all platforms at the bottom.
+// One row per platform that's actually live (uploaded or promoted): Total Sales,
+// Number of Clips, Price + a Calculate button, then a grand total at the bottom.
 function renderSales(c){
-  var plats=platformsFor(creator).filter(function(pl){return c.platforms[pl]!==N;});
+  var plats=platformsFor(creator).filter(function(pl){var st=c.platforms[pl];return st===U||st===PR;});
   var fld=function(pl,field,label){
     var ps=(c.platformSales&&c.platformSales[pl])||{};
     return '<div class="sales-field"><div class="field-lbl">'+label+'</div>'+
