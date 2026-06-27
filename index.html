@@ -773,8 +773,8 @@ function firstIn(c,state){
 function getClipStep(c){
   if(c.status==='idea')  return {type:'film',clip:c,pl:null};
   if(c.status==='filmed')return {type:'edit',clip:c,pl:null};
-  if(!c.desc||c.desc.trim().length<10)       return {type:'write-desc',    clip:c,pl:null};
-  if(!c.keywords||!c.keywords.length)        return {type:'write-keywords',clip:c,pl:null};
+  if(c.type!=='photoset'&&(!c.desc||c.desc.trim().length<10))   return {type:'write-desc',    clip:c,pl:null};
+  if(c.type!=='photoset'&&(!c.keywords||!c.keywords.length))    return {type:'write-keywords',clip:c,pl:null};
   if(!c.thumbnail)                           return {type:'make-thumbnail',clip:c,pl:null};
   if(creator==='LG'&&!c.nfGbCover)           return {type:'make-nfgbcover',clip:c,pl:null};
   if(c.type!=='photoset'&&!c.preview)        return {type:'make-preview',  clip:c,pl:null};
@@ -964,15 +964,16 @@ function doAddClip(title,status,num,length,date,type,desc,keywords){
   if(!title.trim())return;
   type=type==='photoset'?'photoset':'clip';
   // Photosets use a simple uploaded / not-uploaded status instead of the film→edit
-  // pipeline. "Uploaded" marks every platform uploaded so it counts as posted.
-  var markUp=false;
-  if(type==='photoset'){markUp=(status==='up');status='edited';}
-  var pl={};PL.forEach(function(p){pl[p]=markUp?U:P;});
+  // pipeline. "Uploaded" finishes it outright: every platform promoted + assets done,
+  // so it has no remaining step and lands under All Done.
+  var done=false;
+  if(type==='photoset'){done=(status==='up');status='edited';}
+  var pl={};PL.forEach(function(p){pl[p]=done?PR:P;});
   var pld={};PL.forEach(function(p){pld[p]=date||'';});
   var assignedNum=num&&num.trim()?num.trim():nextClipNum();
   var kw=keywords?keywords.split(',').map(function(x){return x.trim();}).filter(Boolean):[];
   clips.push({id:nextId++,num:assignedNum,title:title.trim(),uploadTitle:'',keywords:kw,status:status,type:type,
-    length:type==='photoset'?'':(length||''),desc:desc||'',thumbnail:false,nfGbCover:false,preview:false,
+    length:type==='photoset'?'':(length||''),desc:desc||'',thumbnail:done,nfGbCover:done,preview:done,
     platforms:pl,platformDates:pld,notes:''});
   addingNew=false;saveCreator();render();
 }
