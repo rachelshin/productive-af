@@ -1954,7 +1954,8 @@ function dtList(){
       var types=g[0]==='assets'?['make-thumbnail','make-nfgbcover','make-preview']:[g[0]];
       h+=dtClipGroup(g[1],g[2],clipsForTypes(types));
     });
-    h+=dtClipGroup('All Done','var(--green)',doneClips());
+    // All Done sorted by total sales, highest first (no/blank sales sink to the bottom).
+    h+=dtClipGroup('All Done','var(--green)',doneClips().sort(function(a,b){return (numOnly(b.totalSales)||0)-(numOnly(a.totalSales)||0);}));
   }
   return h;
 }
