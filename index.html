@@ -990,38 +990,7 @@ function renderAssets(c){
 function renderPlatforms(c){
   var today=todayStr();var dates=c.platformDates||{};
   var plats=platformsFor(creator); // this creator's platforms, not Lux's full set
-  // Single-platform: simplified "Upload by" view (Venus = C4S only)
-  if(plats.length===1){
-    var pl=plats[0];var st=c.platforms[pl]||P;var dateVal=dates[pl]||'';
-    var isOverdue=dateVal&&dateVal<=today&&st===P;
-    var h='<div class="field-row"><div class="field-lbl">Upload by ('+pl+')</div>';
-    h+='<div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">';
-    h+='<div style="flex:1;min-width:160px">';
-    if(st===PR){h+='<div style="font-size:15px;color:var(--green);font-weight:600;padding:10px 0">★ Promoted on '+pl+'</div>';}
-    else if(st===U){
-      h+='<div style="display:flex;flex-direction:column;gap:6px;padding:6px 0">';
-      h+='<div style="font-size:13px;color:var(--muted)">Date uploaded</div>';
-      h+='<input type="date" value="'+esc(dateVal)+'" onchange="setUploadDate('+c.id+',\''+pl+'\',this.value)">';
-      if(!dateVal)h+='<div style="font-size:12px;color:var(--faint)">Date unknown</div>';
-      h+='</div>';
-    }
-    else{
-      h+='<div style="display:flex;flex-direction:column;gap:6px;padding:6px 0">';
-      h+='<div style="font-size:13px;color:var(--muted)">Schedule for</div>';
-      h+='<input type="date" value="'+esc(dateVal)+'" onchange="setPlatformDate('+c.id+',\''+pl+'\',this.value)">';
-      if(isOverdue)h+='<div class="plat-date-due">⚠ Overdue</div>';
-      h+='<label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer">';
-      h+='<input type="checkbox" onchange="if(this.checked)markUploadedUnknown('+c.id+',\''+pl+'\')"> Uploaded (no date)</label>';
-      h+='</div>';
-    }
-    h+='</div>';
-    h+='<div style="display:flex;gap:7px;flex-shrink:0;padding-top:2px">';
-    if(st===P)h+='<button class="pst-btn" onclick="cyclePlatform('+c.id+',\''+pl+'\')">□ Pending</button>';
-    else if(st===U)h+='<button class="pst-btn is-up" onclick="cyclePlatform('+c.id+',\''+pl+'\')">▲ Uploaded</button>';
-    else if(st===PR)h+='<button class="pst-btn is-pr" onclick="cyclePlatform('+c.id+',\''+pl+'\')">★ Promoted</button>';
-    h+='</div></div></div>';return h;
-  }
-  // Multi-platform: full table (Brigit = LF + C4S; Lux = all 7)
+  // Always the "Upload Schedule" table (Venus = just C4S; Brigit = LF + C4S; Lux = all 7)
   var h='<div class="field-row"><div class="field-lbl">Upload Schedule</div><div class="plat-table">';
   plats.forEach(function(pl){
     var st=c.platforms[pl];if(typeof st==='undefined')st=P;var isNA=st===N;var dateVal=dates[pl]||'';
@@ -1917,7 +1886,8 @@ function dtList(){
 // advance (idea→filmed→edited), which has no other home.
 function renderClipDetail(c){
   var s=isSimple()?getClipStepSimple(c):getClipStep(c);
-  var del='<div style="margin-top:18px"><button class="btn btn-del" onclick="doRemove('+c.id+')">Remove clip</button></div>';
+  // Remove button spans the full width below both columns, bigger font.
+  var del='<div style="margin-top:18px"><button class="btn btn-del" style="width:100%;font-size:16px;padding:12px" onclick="doRemove('+c.id+')">Remove clip</button></div>';
   var action=(s&&(s.type==='film'||s.type==='edit'))?(renderActionPanel(s)+'<div class="sep"></div>'):'';
   if(isSimple()){
     // BH/LV: two columns that fill the pane — writing left, schedule + meta right.
@@ -1927,8 +1897,7 @@ function renderClipDetail(c){
     SL+=renderField(c,'notes','Notes','Any notes…');
     SR+=renderPlatforms(c);
     SR+=renderField(c,'length','Length','e.g. 15:52');
-    SR+=del;
-    return '<div class="dt-cols2"><div class="dt-col">'+SL+'</div><div class="dt-col">'+SR+'</div></div>';
+    return '<div class="dt-cols2"><div class="dt-col">'+SL+'</div><div class="dt-col">'+SR+'</div></div>'+del;
   }
   // LG: writing on the left, schedule + assets on the right; remove spans full width.
   var L='',R='';
@@ -1936,11 +1905,10 @@ function renderClipDetail(c){
   L+=renderField(c,'desc','Description','No description yet');
   L+=renderField(c,'keywords','Keywords','No keywords yet');
   L+=renderField(c,'length','Length','e.g. 15:52');
+  L+=renderAssets(c);
   L+=renderField(c,'notes','Notes','Any notes…');
   R+=renderPlatforms(c);
-  R+=renderAssets(c);
-  var delWide='<div style="margin-top:18px"><button class="btn btn-del" style="width:100%;font-size:16px;padding:12px" onclick="doRemove('+c.id+')">Remove clip</button></div>';
-  return '<div class="dt-cols2"><div class="dt-col">'+L+'</div><div class="dt-col">'+R+'</div></div>'+delWide;
+  return '<div class="dt-cols2"><div class="dt-col">'+L+'</div><div class="dt-col">'+R+'</div></div>'+del;
 }
 
 function dtClipEditor(c,step){
