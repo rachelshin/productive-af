@@ -303,6 +303,13 @@ input[type=number]{-moz-appearance:textfield}
 .session-date{color:var(--faint);font-weight:600;min-width:80px}
 .session-dur{color:var(--text);font-weight:700;font-variant-numeric:tabular-nums}
 
+/* Confetti + shared celebratory keyframes (used on every platform) */
+.confetti-box{position:fixed;inset:0;pointer-events:none;z-index:100000;overflow:hidden}
+.confetti-bit{position:absolute;top:-14px;border-radius:2px;opacity:.95;animation-name:confettiFall;animation-timing-function:ease-in;animation-fill-mode:forwards}
+@keyframes confettiFall{to{transform:translateY(108vh) rotate(680deg);opacity:.15}}
+@keyframes dtUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes dtFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+
 /* ===== Desktop (>=1024px): full-screen three-pane app — sidebar | list | edit ===== */
 @media (min-width:1024px){
   html,body{height:100%}
@@ -310,13 +317,13 @@ input[type=number]{-moz-appearance:textfield}
   #root{height:100vh}
   .dt{display:grid;grid-template-columns:250px minmax(330px,460px) 1fr;height:100vh}
   .dt.dt-wide{grid-template-columns:250px 1fr}
-  .dt-side{background:#fbf6f2;border-right:1px solid var(--border);padding:22px 16px;display:flex;flex-direction:column;overflow-y:auto}
+  .dt-side{background:linear-gradient(180deg,#fdf8f4,#f5ebe3);border-right:1px solid var(--border);padding:22px 16px;display:flex;flex-direction:column;overflow-y:auto}
   .dt-list{border-right:1px solid var(--border);overflow-y:auto;padding:16px 14px;background:var(--bg)}
   .dt-detail,.dt-main{overflow-y:auto;background:var(--bg)}
   .dt-detail{padding:30px 40px}
   .dt-main{padding:26px 36px}
   .dt-brand{display:flex;align-items:center;gap:11px;margin-bottom:8px}
-  .dt-brand .brand-name{font-size:18px;font-weight:800;color:var(--text)}
+  .dt-brand .brand-name{font-size:19px;font-weight:900;letter-spacing:-.3px;background:linear-gradient(120deg,#d4637a,#9b7dbd);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
   .dt-sec-lbl{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:16px 6px 8px}
   .dt-cres,.dt-nav{display:flex;flex-direction:column;gap:3px}
   .dt-cre,.dt-navitem{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;font-weight:600;color:var(--muted);font-size:15px;transition:background .12s,color .12s}
@@ -347,9 +354,48 @@ input[type=number]{-moz-appearance:textfield}
   .dt-next-action{font-size:22px;font-weight:800;color:var(--text);line-height:1.25}
   .dt-next-sub{font-size:13px;color:var(--muted);margin-top:5px}
   .dt-logo{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#d4637a,#9b7dbd);color:#fff;font-size:15px;flex-shrink:0}
-  .dt-donext{width:100%;margin:2px 0 10px;padding:13px 14px;border:none;border-radius:11px;background:var(--accent);color:#fff;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 3px 12px rgba(196,80,106,.32);transition:filter .12s}
-  .dt-donext:hover{filter:brightness(1.06)}
+  .dt-donext{width:100%;margin:4px 0 10px;padding:14px;border:none;border-radius:12px;background:linear-gradient(135deg,#d4637a,#9b7dbd);color:#fff;font-size:15px;font-weight:800;letter-spacing:.2px;cursor:pointer;font-family:inherit;box-shadow:0 4px 14px rgba(155,90,150,.34);transition:transform .12s,box-shadow .12s}
+  .dt-donext:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(155,90,150,.45)}
+  .dt-donext:active{transform:translateY(0)}
+  .dt-why{margin-bottom:14px;max-width:1100px}
+  .dt-quote{margin:0 0 18px;max-width:1100px}
+  /* entrance animation — only on navigation (dt-anim), never on edits */
+  .dt-detail.dt-anim>*{animation:dtUp .26s ease both}
+  .dt-detail.dt-anim>*:nth-child(2){animation-delay:.05s}
+  .dt-detail.dt-anim>*:nth-child(3){animation-delay:.1s}
+  .dt-detail.dt-anim>*:nth-child(n+4){animation-delay:.14s}
+  .dt-emoji{font-size:54px;margin-bottom:10px;animation:dtFloat 3s ease-in-out infinite}
+  /* hover life */
+  .dt-row{transition:background .12s,transform .12s,box-shadow .12s}
+  .dt-row:hover{transform:translateX(2px)}
+  .dt-cre,.dt-navitem{transition:background .12s,color .12s,transform .12s}
+  .dt-cre:hover,.dt-navitem:hover{transform:translateX(2px)}
+  .dt-detail .goal-card,.dt-detail .action-panel{transition:box-shadow .15s}
+  .dt-detail .goal-card:hover{box-shadow:0 6px 20px rgba(120,70,90,.13)}
+  /* per-creator accent (--cre is set on .dt for the active creator) */
+  .dt-row.sel{border-color:var(--cre)}
+  .dt-cre.active{box-shadow:inset 3px 0 0 var(--cre),0 1px 5px rgba(80,30,20,.08)}
+  .dt-list-title{color:var(--cre)}
+  .dt-detail .field-val:hover{border-color:var(--cre)}
+  .dt-title-input{border-color:var(--cre)}
+  .dt-detail .sec-lbl{color:var(--cre)}
+  /* card-style clip list */
+  .dt-card{display:flex;align-items:center;gap:9px;padding:11px 12px;border-radius:11px;cursor:pointer;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--row);margin-bottom:7px;transition:transform .12s,box-shadow .12s}
+  .dt-card:hover{transform:translateX(2px);box-shadow:0 2px 12px rgba(80,30,20,.09)}
+  .dt-card.sel{border-color:var(--cre);box-shadow:0 2px 14px rgba(80,30,20,.13)}
+  .dt-card-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .dt-pill{margin-left:auto;font-size:10.5px;font-weight:800;letter-spacing:.02em;padding:2px 9px;border-radius:20px;border:1.5px solid;background:#fff;white-space:nowrap;flex-shrink:0}
+  /* creator identity band */
+  .dt-band{display:flex;align-items:center;gap:12px;padding:13px 18px;border-radius:14px;margin-bottom:14px;color:#fff;box-shadow:0 5px 18px rgba(80,30,20,.16)}
+  .dt-band-av{width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px}
+  .dt-band-name{font-size:19px;font-weight:800;letter-spacing:-.2px}
+  /* warm textured panes */
+  .dt-list{background:linear-gradient(180deg,#fdf8f4,#faf2ec)}
+  .dt-detail{background:radial-gradient(1100px 520px at 75% -8%,#fdf2ee,#fbf5f0)}
   .dt-list-head{position:sticky;top:0;background:var(--bg);padding:2px 6px 12px;margin-bottom:8px;border-bottom:1px solid var(--border);z-index:2}
+  .dt-add{padding:0 6px;margin-bottom:6px}
+  .dt-add .add-wrap{margin-top:0}
+  .dt-add .add-btn{padding:10px}
   .dt-list-title{font-size:17px;font-weight:800;color:var(--text)}
   .dt-main .cal-cell{height:128px}
 }
@@ -1013,10 +1059,10 @@ function renderActionPanel(step){
   if(t==='upload'){
     var dv=c.platformDates&&c.platformDates[pl]?fmtDate(c.platformDates[pl]):'';
     h+='<div class="action-panel-lbl">Mark as uploaded to '+pl+(dv?' (scheduled '+dv+')':'')+'</div>';
-    h+='<button class="plat-action-btn upload-btn" onclick="cyclePlatform('+c.id+',\''+pl+'\')">▲&nbsp; Done — Uploaded to '+pl+'</button>';
+    h+='<button class="plat-action-btn upload-btn" onclick="cyclePlatform('+c.id+',\''+pl+'\');confetti()">▲&nbsp; Done — Uploaded to '+pl+'</button>';
   } else if(t==='promote'){
     h+='<div class="action-panel-lbl">Mark as promoted on '+pl+'</div>';
-    h+='<button class="plat-action-btn promo-btn" onclick="cyclePlatform('+c.id+',\''+pl+'\')">★&nbsp; Done — Promoted on '+pl+'</button>';
+    h+='<button class="plat-action-btn promo-btn" onclick="cyclePlatform('+c.id+',\''+pl+'\');confetti()">★&nbsp; Done — Promoted on '+pl+'</button>';
   } else if(t==='write-desc'){
     h+='<div class="action-panel-lbl">Write the description</div>';
     var isE=editField&&editField.id===c.id&&editField.field==='desc';
@@ -1025,8 +1071,8 @@ function renderActionPanel(step){
       h+='<div class="btn-row"><button class="btn btn-dark" onclick="saveF('+c.id+',\'desc\',document.getElementById(\'fe_'+c.id+'_desc\').value)">Save description</button>';
       h+='<button class="btn btn-ghost" onclick="editField=null;render()">Cancel</button></div>';
     } else {
-      h+='<div class="field-val'+(c.desc&&c.desc.trim().length>10?'':' empty')+'" onclick="editField={id:'+c.id+',field:\'desc\'};render()" style="min-height:70px">';
-      h+=(c.desc&&c.desc.trim().length>10)?esc(c.desc):'Click to write description…';h+='</div>';
+      h+='<div class="field-val'+(c.desc&&c.desc.trim()?'':' empty')+'" onclick="editField={id:'+c.id+',field:\'desc\'};render()" style="min-height:70px">';
+      h+=(c.desc&&c.desc.trim())?esc(c.desc):'Click to write description…';h+='</div>';
     }
   } else if(t==='write-title'){
     h+='<div class="action-panel-lbl">Upload title</div>';
@@ -1733,7 +1779,22 @@ function renderAllView(){
 }
 // ===== Desktop UI: three-pane app — sidebar | clip list | right pane =====
 function isDesktop(){return typeof window!=='undefined'&&!!window.matchMedia&&window.matchMedia('(min-width:1024px)').matches;}
-var dtRightView='edit',dtNextId=null; // right pane: 'edit' | 'cal' | 'inv'
+var dtRightView='edit',dtNextId=null,dtAnimate=false; // right pane: 'edit' | 'cal' | 'inv' | 'allcal'
+
+// Lightweight DOM confetti — a little celebration when you finish something.
+function confetti(){
+  if(typeof document==='undefined')return;
+  var colors=['#d4637a','#9b7dbd','#3a8c80','#e8b04b','#7272b8','#4a8c68'];
+  var box=document.createElement('div');box.className='confetti-box';
+  document.body.appendChild(box);
+  for(var i=0;i<90;i++){
+    var p=document.createElement('div'),sz=6+Math.random()*7;
+    p.className='confetti-bit';
+    p.style.cssText='left:'+(Math.random()*100)+'%;width:'+sz+'px;height:'+(sz*0.5)+'px;background:'+colors[i%colors.length]+';transform:rotate('+(Math.random()*360)+'deg);animation-duration:'+(1.5+Math.random()*1.6)+'s;animation-delay:'+(Math.random()*0.35)+'s';
+    box.appendChild(p);
+  }
+  setTimeout(function(){box.remove();},3400);
+}
 
 // The single most pressing thing across ALL creators: soonest scheduled upload.
 function dtGlobalNext(){
@@ -1743,7 +1804,7 @@ function dtGlobalNext(){
   return all.length?all[0]:null;
 }
 function dtDoNext(){
-  dtRightView='edit';
+  dtRightView='edit';dtAnimate=true;
   var g=dtGlobalNext();
   if(!g){expanded=false;dtNextId=null;render();return;}
   if(creator!==g.ev.creator)switchCreator(g.ev.creator); // load that creator's clips into the middle pane
@@ -1753,18 +1814,18 @@ function dtDoNext(){
 
 function dtSidebar(){
   var h='<aside class="dt-side">';
-  h+='<div class="dt-brand"><div class="dt-logo">&#9733;</div><span class="brand-name">Dashboard</span></div>';
+  h+='<div class="dt-brand"><div class="dt-logo">&#9889;</div><span class="brand-name">Productive AF</span></div>';
   h+='<button class="dt-donext" onclick="dtDoNext()">&#9889;&nbsp; Do This Next</button>';
-  h+='<div class="dt-navitem'+(dtRightView==='allcal'?' active':'')+'" style="margin-bottom:4px" onclick="dtRightView=\'allcal\';render()">&#128197;&nbsp; Combined Calendar</div>';
+  h+='<div class="dt-navitem'+(dtRightView==='allcal'?' active':'')+'" style="margin-bottom:4px" onclick="dtRightView=\'allcal\';dtAnimate=true;render()">&#128197;&nbsp; Combined Calendar</div>';
   h+='<div class="dt-sec-lbl">Creators</div><div class="dt-cres">';
   ['LG','BH','LV'].forEach(function(key){
     var c2=CREATORS[key],act=key===creator;
-    h+='<div class="dt-cre'+(act?' active':'')+'" onclick="dtRightView=\'edit\';dtNextId=null;switchCreator(\''+key+'\')"><span class="dt-cre-dot" style="background:'+(act?c2.grad:'var(--border)')+'"></span>'+esc(c2.name)+'</div>';
+    h+='<div class="dt-cre'+(act?' active':'')+'" onclick="dtRightView=\'edit\';dtNextId=null;dtAnimate=true;switchCreator(\''+key+'\')"><span class="dt-cre-dot" style="background:'+(act?c2.grad:'var(--border)')+'"></span>'+esc(c2.name)+'</div>';
   });
   h+='</div>';
   h+='<div class="dt-sec-lbl">View</div><div class="dt-nav">';
-  h+='<div class="dt-navitem'+(dtRightView==='cal'?' active':'')+'" onclick="dtRightView=\'cal\';render()">Calendar</div>';
-  if(isSimple())h+='<div class="dt-navitem'+(dtRightView==='inv'?' active':'')+'" onclick="dtRightView=\'inv\';render()">Invoicing</div>';
+  h+='<div class="dt-navitem'+(dtRightView==='cal'?' active':'')+'" onclick="dtRightView=\'cal\';dtAnimate=true;render()">Calendar</div>';
+  if(isSimple())h+='<div class="dt-navitem'+(dtRightView==='inv'?' active':'')+'" onclick="dtRightView=\'inv\';dtAnimate=true;render()">Invoicing</div>';
   h+='</div>';
   h+='<div class="dt-side-foot">';
   h+='<button class="btn btn-ghost" style="font-size:12px;padding:6px 10px" onclick="exportData()" title="Backup all data">&#11015; Backup</button>';
@@ -1778,19 +1839,33 @@ function dtListHeader(){
   return '<div class="dt-list-head"><span class="dt-list-title">'+esc(cr.name)+'</span></div>';
 }
 
+var DT_SHORT={upload:'Upload',promote:'Promote','write-desc':'Description','write-title':'Title','write-keywords':'Keywords','make-thumbnail':'Thumbnail','make-nfgbcover':'NF Cover','make-preview':'Preview',edit:'Edit',film:'Film'};
+function dtStepShort(st){var b=DT_SHORT[st.type]||st.type;return (st.type==='upload'||st.type==='promote')?b+' '+st.pl:b;}
+function dtHeaderBand(){
+  var isAll=(dtRightView==='allcal');
+  var cr=CREATORS[creator]||{name:'',grad:'',initials:''};
+  var grad=isAll?'linear-gradient(120deg,#d4637a,#7272b8,#3a8c80)':cr.grad;
+  return '<div class="dt-band" style="background:'+grad+'"><div class="dt-band-av">'+(isAll?'&#9733;':esc(cr.initials))+'</div><span class="dt-band-name">'+esc(isAll?'All Creators':cr.name)+'</span></div>';
+}
 function dtClipGroup(label,col,items){
   if(!items.length)return '';
   var h='<div class="dt-grp"><div class="dt-grp-h" style="color:'+col+'">'+esc(label)+'<span>'+items.length+'</span></div>';
   items.forEach(function(c){
     var sel=(dtRightView==='edit'&&expanded===c.id);
-    h+='<div class="dt-row'+(sel?' sel':'')+'" onclick="dtRightView=\'edit\';dtNextId=null;expanded='+c.id+';render()">';
-    h+='<span class="id-badge">'+(c.num?esc(c.num):fid(c.id))+'</span><span class="dt-row-name">'+esc(c.title)+'</span></div>';
+    var st=getClipStep(c);
+    var scol=st?(TCOLOR[st.type]||'var(--faint)'):'var(--green)';
+    var pill=st?esc(dtStepShort(st)):'&#10003; Done';
+    h+='<div class="dt-card'+(sel?' sel':'')+'" style="--row:'+scol+'" onclick="dtRightView=\'edit\';dtNextId=null;dtAnimate=true;expanded='+c.id+';render()">';
+    h+='<span class="dt-card-dot" style="background:'+scol+'"></span>';
+    h+='<span class="id-badge">'+(c.num?esc(c.num):fid(c.id))+'</span>';
+    h+='<span class="dt-row-name">'+esc(c.title)+'</span>';
+    h+='<span class="dt-pill" style="color:'+scol+';border-color:'+scol+'">'+pill+'</span></div>';
   });
   return h+'</div>';
 }
 
 function dtList(){
-  if(!clips.length)return '<div class="dt-empty">No clips yet.<br><small>Use Restore, or pick another creator.</small></div>';
+  if(!clips.length)return '<div class="dt-empty"><div class="dt-emoji">&#129528;</div>No clips here yet.<br><small>Pick another creator, or Restore a backup.</small></div>';
   var h='';
   if(isSimple()){
     if(PL.length>1){
@@ -1823,6 +1898,7 @@ function renderClipDetail(c){
     var h='';
     if(s){h+=renderActionPanel(s);h+='<div class="sep"></div>';}
     h+=renderPlatforms(c);
+    h+=renderField(c,'desc','Description','No description yet');
     h+='<div class="dt-cols2"><div class="dt-col">'+renderField(c,'num','Clip #','e.g. 101')+renderField(c,'length','Length','e.g. 15:52')+'</div>';
     h+='<div class="dt-col">'+renderField(c,'notes','Notes','Any notes…')+del+'</div></div>';
     return h;
@@ -1868,20 +1944,33 @@ function dtDetail(){
     var nx0=isSimple()?getNextSimple():getNext();
     if(nx0)c=nx0.clip;
   }
-  if(!c)return '<div class="dt-empty">&#127881; All caught up for '+esc((CREATORS[creator]||{name:'this creator'}).name)+'.<br><small>Pick a clip on the left to edit it.</small></div>';
+  if(!c)return '<div class="dt-empty"><div class="dt-emoji">&#127881;</div>Nothing left for '+esc((CREATORS[creator]||{name:'this creator'}).name)+'!<br><small>All caught up — your inner child says thanks.</small></div>';
   // The "DO THIS NEXT" card only appears for the cross-creator pick (the Do This Next button).
   var step=(c.id===dtNextId)?getClipStep(c):null;
   return dtClipEditor(c,step);
 }
 
+// The "why" reminder (shown on every right-pane screen) + the rotating quote.
+function dtWhyCard(){
+  return '<div class="goal-card dt-why"><div class="goal-icon">&#10024;</div>'
+    +'<div><div class="goal-eyebrow">Your why</div>'
+    +'<div class="goal-body">Keep my <em>inner child</em> financially safe.</div></div></div>';
+}
+function dtQuoteCard(){
+  return '<div class="msg-card dt-quote"><div class="msg-icon">&#128140;</div><div class="msg-text">'+esc(dailyMsg())+'</div></div>';
+}
 function renderDesktop(){
-  var h='<div class="dt">'+dtSidebar();
-  h+='<section class="dt-list">'+dtListHeader()+dtList()+'</section>';
-  h+='<section class="dt-detail">';
+  var anim=dtAnimate?' dt-anim':'';dtAnimate=false; // animate only on navigation, not edits
+  var creColor=CAL_COLORS[creator]||'#c4506a';
+  var h='<div class="dt" style="--cre:'+creColor+'">'+dtSidebar();
+  h+='<section class="dt-list">'+dtListHeader()+'<div class="dt-add">'+renderAddForm()+'</div>'+dtList()+'</section>';
+  h+='<section class="dt-detail'+anim+'">';
+  h+=dtHeaderBand();
+  h+=dtWhyCard();
   if(dtRightView==='allcal')h+='<div class="sec-lbl">Combined Calendar — all creators</div>'+renderAllCalendar();
   else if(dtRightView==='cal')h+='<div class="sec-lbl">'+esc((CREATORS[creator]||{name:''}).name)+' — Upload Schedule</div>'+(clips.length?renderCalendar():'<div class="dt-empty">No clips scheduled yet.</div>');
   else if(dtRightView==='inv'&&isSimple())h+=renderInvoicingTab();
-  else h+=dtDetail();
+  else { if(dtNextId)h+=dtQuoteCard(); h+=dtDetail(); }
   h+='</section></div>';
   document.getElementById('root').innerHTML=h;
   if(editField){var el=document.getElementById('fe_'+editField.id+'_'+editField.field);if(el){el.focus();if(el.tagName==='TEXTAREA')el.setSelectionRange(el.value.length,el.value.length);}}
@@ -2044,6 +2133,7 @@ function render(){
           if(showAction)rh+=renderActionPanel({type:'upload',clip:c,pl:pp||PL[0]});
           rh+=renderPlatforms(c);
           rh+=renderField(c,'title','Title','Clip title…');
+          rh+=renderField(c,'desc','Description','No description yet');
           rh+=renderField(c,'num','Clip #','e.g. 101');
           rh+=renderField(c,'length','Length','e.g. 15:52');
           rh+=renderField(c,'notes','Notes','Any notes…');
