@@ -331,6 +331,10 @@ input[type=number]{-moz-appearance:textfield}
   .dt-cre:hover,.dt-navitem:hover{background:rgba(120,70,50,.06);color:var(--text)}
   .dt-cre.active,.dt-navitem.active{background:var(--surface);color:var(--text);box-shadow:0 1px 5px rgba(80,30,20,.08)}
   .dt-cre-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0}
+  .dt-side .timer-widget{margin:0;padding:14px;width:100%;box-sizing:border-box;gap:10px}
+  .dt-side .timer-clock{font-size:26px;min-width:0}
+  .dt-side .timer-btn{padding:9px 16px}
+  .dt-side .timer-period{min-width:100%}
   .dt-side-foot{margin-top:auto;padding-top:18px;display:flex;gap:8px}
   .dt-grp{margin-bottom:20px}
   .dt-grp-h{font-size:12px;font-weight:800;letter-spacing:.02em;margin:0 4px 8px;display:flex;align-items:center;gap:8px}
@@ -1277,7 +1281,6 @@ function renderAllCalendar(){
   ['LG','BH','LV'].forEach(function(cr){
     h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:'+CAL_COLORS[cr]+'"></div>'+CREATORS[cr].name+'</div>';
   });
-  h+='<div class="cal-leg-item" style="opacity:.6">Faded = not yet uploaded</div>';
   h+='</div>';
   h+=calGridHtml(getAllCalEvents(),function(evs){
     var s='';
@@ -1314,7 +1317,6 @@ function renderCalendar(){
   if(isSimple()){
     h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:#d4909e"></div>C4S</div>';
     if(platformsFor(creator).indexOf('LF')>=0)h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:#90a0d4"></div>LF</div>';
-    h+='<div class="cal-leg-item" style="opacity:.6">Faded = not yet uploaded</div>';
   } else {
     h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--violet-b)"></div>Scheduled</div>';
     h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--sky-b)"></div>Uploaded</div>';
@@ -1818,6 +1820,10 @@ function dtSidebar(){
   h+='<div class="dt-navitem'+(dtRightView==='cal'?' active':'')+'" onclick="dtRightView=\'cal\';dtAnimate=true;render()">Calendar</div>';
   if(isSimple())h+='<div class="dt-navitem'+(dtRightView==='inv'?' active':'')+'" onclick="dtRightView=\'inv\';dtAnimate=true;render()">Invoicing</div>';
   h+='</div>';
+  if(isSimple()){ // consulting timer — always visible in the sidebar for Brigit/Venus
+    h+='<div class="dt-sec-lbl">Timer</div>';
+    h+=renderTimerWidget();
+  }
   h+='<div class="dt-side-foot">';
   h+='<button class="btn btn-ghost" style="font-size:12px;padding:6px 10px" onclick="exportData()" title="Backup all data">&#11015; Backup</button>';
   h+='<button class="btn btn-ghost" style="font-size:12px;padding:6px 10px" onclick="importData()" title="Restore from a backup file">&#11014; Restore</button>';
@@ -1894,9 +1900,11 @@ function renderClipDetail(c){
     var SL='',SR='';
     SL+=renderField(c,'desc','Description','No description yet');
     SL+=renderField(c,'keywords','Keywords','No keywords yet');
-    SL+=renderField(c,'notes','Notes','Any notes…');
     SR+=renderPlatforms(c);
     SR+=renderField(c,'length','Length','e.g. 15:52');
+    // Venus (C4S only) has a short right column — put Notes at its bottom to even things out.
+    if(creator==='LV')SR+=renderField(c,'notes','Notes','Any notes…');
+    else SL+=renderField(c,'notes','Notes','Any notes…');
     return '<div class="dt-cols2"><div class="dt-col">'+SL+'</div><div class="dt-col">'+SR+'</div></div>'+del;
   }
   // LG: writing on the left, schedule + assets on the right; remove spans full width.
@@ -1908,7 +1916,8 @@ function renderClipDetail(c){
   L+=renderAssets(c);
   L+=renderField(c,'notes','Notes','Any notes…');
   R+=renderPlatforms(c);
-  return '<div class="dt-cols2"><div class="dt-col">'+L+'</div><div class="dt-col">'+R+'</div></div>'+del;
+  // Right column holds only the schedule — vertically center it so it doesn't look top-heavy.
+  return '<div class="dt-cols2"><div class="dt-col">'+L+'</div><div class="dt-col" style="align-self:stretch;display:flex;flex-direction:column;justify-content:center">'+R+'</div></div>'+del;
 }
 
 function dtClipEditor(c,step){
