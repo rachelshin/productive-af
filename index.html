@@ -819,6 +819,9 @@ function firstIn(c,state){
 }
 
 function getClipStep(c){
+  // Manual "needs editing" flag wins over everything: it drops the clip back into
+  // the editing part of the pipeline no matter how far along it is (even uploaded).
+  if(c.needsEdit&&c.status!=='idea')return {type:'edit',clip:c,pl:null};
   if(c.status==='idea')  return {type:'film',clip:c,pl:null};
   if(c.status==='filmed')return {type:'edit',clip:c,pl:null};
   if(c.type!=='photoset'&&!c.descDone&&(!c.desc||c.desc.trim().length<10))   return {type:'write-desc',    clip:c,pl:null};
@@ -1115,6 +1118,12 @@ function advanceStatus(id){
   if(i>=0&&i<ord.length-1)c.status=ord[i+1];
   saveCreator();render();
 }
+// Clear the manual "needs editing" flag — pulls the clip back out of the editing
+// stage to wherever its real status puts it.
+function clearNeedsEdit(id){
+  var c=clips.find(function(x){return x.id===id;});if(!c)return;
+  c.needsEdit=false;saveCreator();render();
+}
 function nextClipNum(){
   var max=0;
   clips.forEach(function(c){if(c.num){var n=parseInt(c.num.replace(/[^0-9]/g,''));if(n>max)max=n;}});
@@ -1211,6 +1220,15 @@ function renderAssets(c){
     h+='<span class="ack-lbl">'+it.l+'</span></div>';
   });
   h+='</div></div>';return h;
+}
+// Manual "needs editing" toggle. Check/uncheck any time to drop the clip in/out of
+// the editing pipeline regardless of its real status (uploaded clips included).
+function renderNeedsEdit(c){
+  var on=c.needsEdit;
+  return '<div class="field-row"><div class="field-lbl">Editing</div>'+
+    '<div class="ack'+(on?' done':'')+'" onclick="toggleCheck('+c.id+',\'needsEdit\')">'+
+    '<div class="ack-box">'+(on?'<svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3 5-6" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>':'')+'</div>'+
+    '<span class="ack-lbl">Needs to be edited</span></div></div>';
 }
 
 // Class + label for a platform status chip. Shared by the full render and the
@@ -1317,8 +1335,11 @@ function renderActionPanel(step){
     h+='<div class="check-box">'+(done2?'<svg width="13" height="10" viewBox="0 0 13 10" fill="none"><path d="M1 5l4 4 7-8" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>':'')+'</div>';
     h+='<span class="check-txt">'+(done2?'Done! ✨':'Mark as complete when ready')+'</span></div>';
   } else if(t==='edit'){
+    // If the manual "needs editing" flag put it here, finishing just clears the flag
+    // (the clip returns to wherever it really was). Otherwise advance filmed → edited.
+    var doneEdit=c.needsEdit?'clearNeedsEdit('+c.id+')':'advanceStatus('+c.id+')';
     h+='<div class="action-panel-lbl">Mark this clip as edited</div>';
-    h+='<button class="plat-action-btn" onclick="advanceStatus('+c.id+')">✓&nbsp; Mark as Edited</button>';
+    h+='<button class="plat-action-btn" onclick="'+doneEdit+'">✓&nbsp; Mark as Edited</button>';
   } else if(t==='film'){
     h+='<div class="action-panel-lbl">Mark this idea as filmed</div>';
     h+='<button class="plat-action-btn" onclick="advanceStatus('+c.id+')">✓&nbsp; Mark as Filmed</button>';
@@ -1367,14 +1388,14 @@ function renderAddForm(){
       '<div style="flex:1"><div class="field-lbl">ID #</div><input type="text" id="new-num" style="width:100%;box-sizing:border-box"></div>'+
       '<div style="flex:1" id="new-length-wrap"><div class="field-lbl">Length</div><input type="text" id="new-length" style="width:100%;box-sizing:border-box"></div>'+
     '</div>'+
-    '<div class="field-lbl" id="new-status-lbl">Status (leave unchecked for just an Idea)</div>'+
+    '<div class="field-lbl" id="new-status-lbl">Status</div>'+
     '<input type="hidden" id="new-status" value="'+addStatusValue('clip')+'">'+
     '<div class="asset-checks" id="new-status-wrap">'+addStatusGroupHtml('clip')+'</div>'+
     '<div class="field-lbl">Description</div>'+
     '<textarea id="new-desc"></textarea>'+
     '<div class="field-lbl">Keywords (comma-separated)</div>'+
     '<input type="text" id="new-keywords">'+
-    '<div class="field-lbl">Already uploaded? Tap each platform to cycle: To Upload → In Review → Uploaded → Promoted → PPV → N/A</div>'+
+    '<div class="field-lbl">Already uploaded?</div>'+
     '<div class="add-plat-grid" id="add-plat-grid">'+addPlatGridHtml()+'</div>'+
     '<div class="btn-row"><button class="btn btn-dark" onclick="doAdd()">Add</button></div></div></div>';
 }
@@ -1382,20 +1403,20 @@ function renderAddForm(){
 // Per-platform upload-status grid in the Lux add form, so a backlog clip that's
 // already out can be marked uploaded/promoted/NA right when it's added.
 var ADDPLAT_STATES={pending:{l:'□ To Upload',c:''},inreview:{l:'◷ In Review',c:'is-review'},uploaded:{l:'▲ Uploaded',c:'is-up'},ppv:{l:'$ PPV',c:'is-ppv'},promoted:{l:'★ Promoted',c:'is-pr'},na:{l:'N/A',c:'is-na'}};
-function addPlatBtnInner(pl,st){var m=ADDPLAT_STATES[st]||ADDPLAT_STATES[P];return '<span style="font-weight:700">'+pl+'</span><span>'+m.l+'</span>';}
 function addPlatGridHtml(){
+  var order=[P,IR,U,PR,PPV,N];
   return platformsFor('LG').map(function(pl){
     var st=(addPlatforms&&addPlatforms[pl])||P;var m=ADDPLAT_STATES[st]||ADDPLAT_STATES[P];
-    return '<button type="button" id="addplat_'+pl+'" class="pst-btn '+m.c+'" onclick="cycleAddPlatform(\''+pl+'\')" style="display:flex;justify-content:space-between;gap:10px;min-width:130px">'+addPlatBtnInner(pl,st)+'</button>';
+    var opts=order.map(function(s){var o=ADDPLAT_STATES[s]||ADDPLAT_STATES[P];return '<option value="'+s+'"'+(s===st?' selected':'')+'>'+o.l+'</option>';}).join('');
+    return '<div style="display:flex;align-items:center;gap:8px;min-width:190px"><span style="font-weight:700;min-width:62px">'+pl+'</span><select id="addplat_'+pl+'" class="pst-btn '+m.c+'" onchange="setAddPlatform(\''+pl+'\',this.value)" style="flex:1;cursor:pointer">'+opts+'</select></div>';
   }).join('');
 }
 // DOM-only update (like setAddType) so typed Title/Description aren't wiped.
-function cycleAddPlatform(pl){
+function setAddPlatform(pl,st){
   if(!addPlatforms)addPlatforms={};
-  var order=[P,IR,U,PR,PPV,N];var cur=addPlatforms[pl]||P;var st=order[(order.indexOf(cur)+1)%order.length];
   addPlatforms[pl]=st;
-  var b=document.getElementById('addplat_'+pl);
-  if(b){b.className='pst-btn '+((ADDPLAT_STATES[st]||ADDPLAT_STATES[P]).c);b.innerHTML=addPlatBtnInner(pl,st);}
+  var el=document.getElementById('addplat_'+pl);
+  if(el)el.className='pst-btn '+((ADDPLAT_STATES[st]||ADDPLAT_STATES[P]).c);
 }
 // Status as progressive checkboxes (instead of a dropdown) in the Lux add form.
 // Clips: ☐ Filmed → ☐ Edited (nothing checked = just an Idea). Photosets have no
@@ -2328,7 +2349,9 @@ function renderClipDetail(c){
   L+=renderField(c,'notes','Notes','Any notes…');
   R+=renderPlatforms(c);
   // Right column holds only the schedule — vertically center it so it doesn't look top-heavy.
-  return wrapDetail(c,'<div class="dt-cols2"><div class="dt-col">'+L+'</div><div class="dt-col" style="align-self:stretch;display:flex;flex-direction:column;justify-content:center">'+R+'</div></div>',del);
+  // "Needs editing" sits outside wrapDetail so it stays visible even for done clips
+  // (whose details collapse into a dropdown) — that's the main case for re-flagging.
+  return renderNeedsEdit(c)+wrapDetail(c,'<div class="dt-cols2"><div class="dt-col">'+L+'</div><div class="dt-col" style="align-self:stretch;display:flex;flex-direction:column;justify-content:center">'+R+'</div></div>',del);
 }
 
 function dtClipEditor(c,step){
@@ -2618,6 +2641,7 @@ function render(){
           rh+=renderField(c,'num','ID #','e.g. 101');
           rh+=renderField(c,'length','Length','e.g. 15:52');
           rh+=renderAssets(c);
+          rh+=renderNeedsEdit(c);
           rh+=renderPlatforms(c);
           rh+=renderField(c,'notes','Notes','Any notes…');
           rh+='<div style="margin-top:12px"><button class="btn btn-del" onclick="event.stopPropagation();doRemove('+c.id+')">Remove clip</button></div>';
