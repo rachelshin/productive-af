@@ -613,7 +613,7 @@ var calSearch='';
 
 // Consulting / timer state
 var consulting={hoursPerInvoice:10,rate:50,currency:'$',currentPeriodStart:new Date().toISOString().split('T')[0],currentPeriodSeconds:0,sessions:[],invoices:[],nextSessionId:1,nextInvoiceId:1,nextInvoiceNum:1};
-var timerRunning=false,timerStartMs=0,timerInterval=null;
+var timerRunning=false,timerStartMs=0,timerInterval=null,timerCreator=null; // timerCreator = which creator the running timer belongs to
 var manualEntryOpen=false,editPeriodStart=false;
 
 // Single source of truth for per-creator storage keys + platform list.
@@ -801,7 +801,8 @@ function importData(){
 }
 function switchCreator(key){
   saveCreator();saveConsulting();
-  if(timerRunning)stopTimer(true);
+  // Don't stop the timer — it keeps running for the creator it was started for
+  // (timerCreator) no matter where you click. It's recorded to that creator on Stop.
   creator=key;
   PL=platformsFor(key);
   expanded=false;editField=null;addingNew=false;dtCalClip=null;dtCalAddDate=null;
@@ -1804,7 +1805,7 @@ function daysDiff(dateStr){
 
 function startTimer(){
   if(timerRunning)return;
-  timerRunning=true;timerStartMs=Date.now();
+  timerRunning=true;timerStartMs=Date.now();timerCreator=creator;
   timerInterval=setInterval(function(){
     var el=document.getElementById('timer-clock');
     if(el){el.textContent=fmtSecsClock(Math.floor((Date.now()-timerStartMs)/1000));}
@@ -1812,38 +1813,45 @@ function startTimer(){
   render();
 }
 
+// Add `elapsed` seconds to creator `cr`'s consulting record, rolling into an
+// invoice each time the period threshold is crossed. Works even when `cr` isn't
+// the creator on screen — the timer keeps running as you click around, so on Stop
+// the time may belong to a creator you've since navigated away from; we then read,
+// update, and write that creator's stored profile directly.
+function recordConsultingTime(cr,elapsed){
+  if(!cr||cr==='LG'||elapsed<1)return;
+  var isCur=(cr===creator),co;
+  if(isCur){co=consulting;}
+  else{try{var s=store.getItem(consultingKey(cr));co=s?JSON.parse(s):null;}catch(e){co=null;}}
+  if(!co)return;
+  co.sessions.push({id:co.nextSessionId++,date:todayStr(),seconds:elapsed});
+  var threshold=Math.round(co.hoursPerInvoice*3600);
+  co.currentPeriodSeconds+=elapsed;
+  while(co.currentPeriodSeconds>=threshold){
+    co.invoices.unshift({
+      id:co.nextInvoiceId++,
+      invoiceNum:co.nextInvoiceNum++,
+      periodStart:co.currentPeriodStart,
+      periodEnd:todayStr(),
+      hours:co.hoursPerInvoice,
+      rate:co.rate,
+      currency:co.currency,
+      invoicedAt:null,
+      paidAt:null
+    });
+    co.currentPeriodSeconds-=threshold;
+    co.currentPeriodStart=todayStr();
+  }
+  if(isCur)saveConsulting();
+  else{try{store.setItem(consultingKey(cr),JSON.stringify(co));}catch(e){}}
+}
+
 function stopTimer(silent){
   if(!timerRunning)return;
   clearInterval(timerInterval);timerInterval=null;timerRunning=false;
   var elapsed=Math.floor((Date.now()-timerStartMs)/1000);
-  if(elapsed<1){render();return;}
-
-  if(!silent){
-    // Record session
-    consulting.sessions.push({id:consulting.nextSessionId++,date:todayStr(),seconds:elapsed});
-
-    // Accumulate into current period, create invoices when threshold crossed
-    var threshold=Math.round(consulting.hoursPerInvoice*3600);
-    consulting.currentPeriodSeconds+=elapsed;
-
-    while(consulting.currentPeriodSeconds>=threshold){
-      var invEnd=todayStr();
-      consulting.invoices.unshift({
-        id:consulting.nextInvoiceId++,
-        invoiceNum:consulting.nextInvoiceNum++,
-        periodStart:consulting.currentPeriodStart,
-        periodEnd:invEnd,
-        hours:consulting.hoursPerInvoice,
-        rate:consulting.rate,
-        currency:consulting.currency,
-        invoicedAt:null,
-        paidAt:null
-      });
-      consulting.currentPeriodSeconds-=threshold;
-      consulting.currentPeriodStart=todayStr();
-    }
-    saveConsulting();
-  }
+  var owner=timerCreator;timerCreator=null;
+  if(!silent)recordConsultingTime(owner,elapsed); // records to the owner, even if you've switched creators
   render();
 }
 
@@ -1993,14 +2001,21 @@ function generateInvoicePDF(inv){
 }
 
 function renderTimerWidget(){
+  var runningHere=timerRunning&&timerCreator===creator;
   var elapsed=timerRunning?Math.floor((Date.now()-timerStartMs)/1000):0;
   var threshold=Math.round(consulting.hoursPerInvoice*3600);
-  var periodSecs=consulting.currentPeriodSeconds+(timerRunning?elapsed:0);
+  // Only fold the running clock into the period when it belongs to THIS creator —
+  // a timer running for another creator accrues to them, not whoever's on screen.
+  var periodSecs=consulting.currentPeriodSeconds+(runningHere?elapsed:0);
   var pct=Math.min(100,Math.round(periodSecs/threshold*100));
   var h='<div class="timer-widget">';
   h+='<div id="timer-clock" class="timer-clock'+(timerRunning?' running':'')+'">'+fmtSecsClock(elapsed)+'</div>';
   if(timerRunning){
     h+='<button class="timer-btn stop" onclick="stopTimer(false)">&#9209; Stop</button>';
+    if(!runningHere){
+      var on=(CREATORS[timerCreator]||{}).name||timerCreator;
+      h+='<div class="timer-session-lbl">Running for '+esc(on)+'</div>';
+    }
   } else {
     h+='<button class="timer-btn start" onclick="startTimer()">&#9654; Start</button>';
   }
