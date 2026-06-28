@@ -922,17 +922,22 @@ function getNextSimple(){
 }
 function doneClipsSimple(){return clips.filter(function(c){return clipUploadedSimple(c);});}
 
-// The release date of a clip that's been UPLOADED to a platform but set to go
-// public on a future day — the earliest such future date among its Uploaded / PPV
-// platforms. A clip that merely has a date but isn't uploaded yet (still pending)
-// has none of these and stays in To Upload. null when there's no future release.
+// The date a not-yet-public clip is slated to go up:
+//  - an Uploaded / PPV platform set to release on a future day, or
+//  - the dated platform it's currently ready to upload to (To Upload + a date).
+// A pending clip with no date — or one still needing edit/prep work — has none.
 function clipScheduleDate(c){
   var dates=c.platformDates||{},today=todayStr(),best=null;
   platformsFor(creator).forEach(function(pl){
     var st=c.platforms[pl],d=dates[pl];
     if((st===U||st===PPV)&&d&&d>today&&(best===null||d<best))best=d;
   });
-  return best;
+  if(best!==null)return best;
+  // Not uploaded-ahead → only a clip whose next step is the upload itself counts,
+  // so something still mid-edit/prep stays in its work bucket, not Scheduled.
+  var s=isSimple()?getClipStepSimple(c):getClipStep(c);
+  if(s&&s.type==='upload'&&dates[s.pl])return dates[s.pl];
+  return null;
 }
 // The clip is already public if any platform is posted (uploaded/promoted/PPV)
 // and live now — its date is today-or-earlier, or no date was recorded (legacy).
@@ -943,8 +948,8 @@ function clipIsPublic(c){
     var d=dates[pl];return !d||d<=today;
   });
 }
-// "Scheduled" = uploaded with a future release date and not yet live anywhere.
-// Once it's public (or the date passes) it's published, so it moves to Uploaded.
+// "Scheduled" = a dated clip not yet live — either uploaded with a future release
+// date, or ready to upload on a set date. Once public it moves to Uploaded.
 function isScheduledFuture(c){
   return !clipIsPublic(c)&&!!clipScheduleDate(c);
 }
@@ -2344,9 +2349,9 @@ function dtClipGroup(label,col,items,noAutoOpen){
 function dtList(){
   if(!clips.length)return '<div class="dt-empty"><div class="dt-emoji">&#129528;</div>No clips here yet.<br><small>Pick another creator, or Restore a backup.</small></div>';
   var h='';
-  // Clips uploaded with a future release date are pulled out of their bucket
-  // (Uploaded for simple creators, Ready to Promote for Lux) and shown once under
-  // "Scheduled" (soonest first). Pending clips with a future date stay in To Upload.
+  // Dated, not-yet-public clips (uploaded-ahead, or ready to upload on a set date)
+  // are pulled out of their bucket and shown once under "Scheduled" (soonest first).
+  // Only undated pending clips remain in To Upload.
   var scheduled=clips.filter(isScheduledFuture).sort(bySoonestGoLive);
   var schedIds={};scheduled.forEach(function(c){schedIds[c.id]=true;});
   function notSched(c){return !schedIds[c.id];}
