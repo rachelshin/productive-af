@@ -921,6 +921,22 @@ function getNextSimple(){
 }
 function doneClipsSimple(){return clips.filter(function(c){return clipUploadedSimple(c);});}
 
+// A done/uploaded clip can carry a future go-live date — it's uploaded to the
+// platform but set to publish on a later day. Those count as "Scheduled" (not yet
+// up); anything publishing today or earlier is genuinely published. Only Uploaded
+// and PPV carry a date (Promoted is a label only), so we read the earliest of those.
+// No future date (or no date at all) → already published.
+function clipGoLiveDate(c){
+  var dates=c.platformDates||{},best=null;
+  platformsFor(creator).forEach(function(pl){
+    var st=c.platforms[pl],d=dates[pl];
+    if(d&&(st===U||st===PPV)&&(best===null||d<best))best=d;
+  });
+  return best;
+}
+function isScheduledFuture(c){var d=clipGoLiveDate(c);return !!d&&d>todayStr();}
+function bySoonestGoLive(a,b){var da=clipGoLiveDate(a)||'9999',db=clipGoLiveDate(b)||'9999';return da<db?-1:da>db?1:a.id-b.id;}
+
 // ── DEFAULT CLIP shown in the right pane when a creator is opened ──────────
 // Primary rule (all creators): the next clip on their calendar — the soonest
 // scheduled pending upload. Fallbacks when nothing is scheduled:
@@ -2306,11 +2322,15 @@ function dtList(){
       h+=dtClipGroup('Upload to C4S','var(--rose)',clips.filter(function(c){var s=getClipStepSimple(c);return s&&s.type==='upload'&&s.pl==='C4S';}));
       h+=dtClipGroup('Upload to LF','var(--sky)',clips.filter(function(c){var s=getClipStepSimple(c);return s&&s.type==='upload'&&s.pl!=='C4S';}));
       h+=dtClipGroup('In Review','var(--amber)',clips.filter(function(c){var s=getClipStepSimple(c);return s&&s.type==='approve';}));
-      h+=dtClipGroup('Uploaded','var(--green)',clips.filter(function(c){return clipUploadedSimple(c);}));
+      var upDone=clips.filter(clipUploadedSimple);
+      h+=dtClipGroup('Scheduled','var(--sky)',upDone.filter(isScheduledFuture).sort(bySoonestGoLive));
+      h+=dtClipGroup('Uploaded','var(--green)',upDone.filter(function(c){return !isScheduledFuture(c);}));
     } else {
       h+=dtClipGroup('To Upload','var(--rose)',clips.filter(function(c){var s=getClipStepSimple(c);return s&&s.type==='upload';}));
       h+=dtClipGroup('In Review','var(--amber)',clips.filter(function(c){var s=getClipStepSimple(c);return s&&s.type==='approve';}));
-      h+=dtClipGroup('Uploaded','var(--green)',clips.filter(function(c){return clipUploadedSimple(c);}));
+      var upDone=clips.filter(clipUploadedSimple);
+      h+=dtClipGroup('Scheduled','var(--sky)',upDone.filter(isScheduledFuture).sort(bySoonestGoLive));
+      h+=dtClipGroup('Uploaded','var(--green)',upDone.filter(function(c){return !isScheduledFuture(c);}));
     }
   } else {
     [['upload','Ready to Upload','var(--rose)'],['approve','In Review','var(--amber)'],['promote','Ready to Promote','var(--teal)'],
@@ -2320,8 +2340,12 @@ function dtList(){
       var types=g[0]==='assets'?['make-thumbnail','make-nfgbcover','make-preview']:[g[0]];
       h+=dtClipGroup(g[1],g[2],clipsForTypes(types));
     });
-    // All Done sorted by total sales, highest first (no/blank sales sink to the bottom).
-    h+=dtClipGroup('All Done','var(--green)',doneClips().sort(function(a,b){return clipGrandSales(b)-clipGrandSales(a);}));
+    // Done clips set to publish in the future are "Scheduled" (soonest first);
+    // everything live today or earlier is All Done, sorted by total sales (no/blank
+    // sales sink to the bottom).
+    var lgDone=doneClips();
+    h+=dtClipGroup('Scheduled','var(--sky)',lgDone.filter(isScheduledFuture).sort(bySoonestGoLive));
+    h+=dtClipGroup('All Done','var(--green)',lgDone.filter(function(c){return !isScheduledFuture(c);}).sort(function(a,b){return clipGrandSales(b)-clipGrandSales(a);}));
     // "By platform" — one collapsed dropdown per platform listing every clip that's
     // live (uploaded/promoted/PPV) there. Lets you pull up everything on SM, MFC, etc.
     var byPlat=platformsFor(creator).map(function(pl){
