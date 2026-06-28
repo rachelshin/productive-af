@@ -2366,10 +2366,10 @@ function renderClipDetail(c){
   L+=renderAssets(c);
   L+=renderField(c,'notes','Notes','Any notes…');
   R+=renderPlatforms(c);
-  // Right column holds only the schedule — vertically center it so it doesn't look top-heavy.
-  // "Needs editing" sits outside wrapDetail so it stays visible even for done clips
-  // (whose details collapse into a dropdown) — that's the main case for re-flagging.
-  return renderNeedsEdit(c)+wrapDetail(c,'<div class="dt-cols2"><div class="dt-col">'+L+'</div><div class="dt-col" style="align-self:stretch;display:flex;flex-direction:column;justify-content:center">'+R+'</div></div>',del);
+  // Schedule sits at the top of the right column; the "Needs editing" toggle is pinned
+  // to the bottom (margin-top:auto pushes it down past the schedule).
+  R+='<div style="margin-top:auto;padding-top:16px">'+renderNeedsEdit(c)+'</div>';
+  return wrapDetail(c,'<div class="dt-cols2"><div class="dt-col">'+L+'</div><div class="dt-col" style="align-self:stretch;display:flex;flex-direction:column">'+R+'</div></div>',del);
 }
 
 function dtClipEditor(c,step){
