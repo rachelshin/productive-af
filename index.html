@@ -922,21 +922,33 @@ function getNextSimple(){
 }
 function doneClipsSimple(){return clips.filter(function(c){return clipUploadedSimple(c);});}
 
-// A done/uploaded clip can carry a future go-live date — it's uploaded to the
-// platform but set to publish on a later day. Those count as "Scheduled" (not yet
-// up); anything publishing today or earlier is genuinely published. Only Uploaded
-// and PPV carry a date (Promoted is a label only), so we read the earliest of those.
-// No future date (or no date at all) → already published.
-function clipGoLiveDate(c){
-  var dates=c.platformDates||{},best=null;
+// The release date of a clip that's been UPLOADED to a platform but set to go
+// public on a future day — the earliest such future date among its Uploaded / PPV
+// platforms. A clip that merely has a date but isn't uploaded yet (still pending)
+// has none of these and stays in To Upload. null when there's no future release.
+function clipScheduleDate(c){
+  var dates=c.platformDates||{},today=todayStr(),best=null;
   platformsFor(creator).forEach(function(pl){
     var st=c.platforms[pl],d=dates[pl];
-    if(d&&(st===U||st===PPV)&&(best===null||d<best))best=d;
+    if((st===U||st===PPV)&&d&&d>today&&(best===null||d<best))best=d;
   });
   return best;
 }
-function isScheduledFuture(c){var d=clipGoLiveDate(c);return !!d&&d>todayStr();}
-function bySoonestGoLive(a,b){var da=clipGoLiveDate(a)||'9999',db=clipGoLiveDate(b)||'9999';return da<db?-1:da>db?1:a.id-b.id;}
+// The clip is already public if any platform is posted (uploaded/promoted/PPV)
+// and live now — its date is today-or-earlier, or no date was recorded (legacy).
+function clipIsPublic(c){
+  var dates=c.platformDates||{},today=todayStr();
+  return platformsFor(creator).some(function(pl){
+    if(!isPosted(c.platforms[pl]))return false;
+    var d=dates[pl];return !d||d<=today;
+  });
+}
+// "Scheduled" = uploaded with a future release date and not yet live anywhere.
+// Once it's public (or the date passes) it's published, so it moves to Uploaded.
+function isScheduledFuture(c){
+  return !clipIsPublic(c)&&!!clipScheduleDate(c);
+}
+function bySoonestGoLive(a,b){var da=clipScheduleDate(a)||'9999',db=clipScheduleDate(b)||'9999';return da<db?-1:da>db?1:a.id-b.id;}
 
 // ── DEFAULT CLIP shown in the right pane when a creator is opened ──────────
 // Primary rule (all creators): the next clip on their calendar — the soonest
@@ -2317,6 +2329,8 @@ function dtClipGroup(label,col,items,noAutoOpen){
     // match each card to its group color (C4S=rose, LF=amber) to tell them apart.
     if(isSimple()&&st)scol=col;
     var pill=st?esc(dtStepShort(st)):'&#10003; Done';
+    // In the Scheduled group, the pill shows when it goes up, not its pipeline step.
+    if(isScheduledFuture(c)){scol=col;pill='&#128197; '+esc(fmtDate(clipScheduleDate(c)));}
     h+='<div class="dt-card'+(sel?' sel':'')+'" style="--row:'+scol+'" onclick="dtRightView=\'edit\';dtNextId=null;dtAnimate=true;expanded='+c.id+';render()">';
     h+='<span class="dt-card-dot" style="background:'+scol+'"></span>';
     h+='<span class="id-badge">'+(c.num?esc(c.num):fid(c.id))+'</span>';
@@ -2330,43 +2344,43 @@ function dtClipGroup(label,col,items,noAutoOpen){
 function dtList(){
   if(!clips.length)return '<div class="dt-empty"><div class="dt-emoji">&#129528;</div>No clips here yet.<br><small>Pick another creator, or Restore a backup.</small></div>';
   var h='';
+  // Clips uploaded with a future release date are pulled out of their bucket
+  // (Uploaded for simple creators, Ready to Promote for Lux) and shown once under
+  // "Scheduled" (soonest first). Pending clips with a future date stay in To Upload.
+  var scheduled=clips.filter(isScheduledFuture).sort(bySoonestGoLive);
+  var schedIds={};scheduled.forEach(function(c){schedIds[c.id]=true;});
+  function notSched(c){return !schedIds[c.id];}
   if(isSimple()){
     // Groups follow each clip's current step so In Review clips get their own bucket
-    // (a clip with no step is live → "Uploaded").
+    // (a clip with no step is live → "Uploaded"). Scheduled sits above In Review.
     if(platformsFor(creator).length>1){
-      h+=dtClipGroup('Upload to C4S','var(--rose)',clips.filter(function(c){var s=getClipStepSimple(c);return s&&s.type==='upload'&&s.pl==='C4S';}));
-      h+=dtClipGroup('Upload to LF','var(--sky)',clips.filter(function(c){var s=getClipStepSimple(c);return s&&s.type==='upload'&&s.pl!=='C4S';}));
-      h+=dtClipGroup('In Review','var(--amber)',clips.filter(function(c){var s=getClipStepSimple(c);return s&&s.type==='approve';}));
-      var upDone=clips.filter(clipUploadedSimple);
-      h+=dtClipGroup('Scheduled','var(--sky)',upDone.filter(isScheduledFuture).sort(bySoonestGoLive));
-      h+=dtClipGroup('Uploaded','var(--green)',upDone.filter(function(c){return !isScheduledFuture(c);}));
+      h+=dtClipGroup('Upload to C4S','var(--rose)',clips.filter(function(c){var s=getClipStepSimple(c);return notSched(c)&&s&&s.type==='upload'&&s.pl==='C4S';}));
+      h+=dtClipGroup('Upload to LF','var(--sky)',clips.filter(function(c){var s=getClipStepSimple(c);return notSched(c)&&s&&s.type==='upload'&&s.pl!=='C4S';}));
     } else {
-      h+=dtClipGroup('To Upload','var(--rose)',clips.filter(function(c){var s=getClipStepSimple(c);return s&&s.type==='upload';}));
-      h+=dtClipGroup('In Review','var(--amber)',clips.filter(function(c){var s=getClipStepSimple(c);return s&&s.type==='approve';}));
-      var upDone=clips.filter(clipUploadedSimple);
-      h+=dtClipGroup('Scheduled','var(--sky)',upDone.filter(isScheduledFuture).sort(bySoonestGoLive));
-      h+=dtClipGroup('Uploaded','var(--green)',upDone.filter(function(c){return !isScheduledFuture(c);}));
+      h+=dtClipGroup('To Upload','var(--rose)',clips.filter(function(c){var s=getClipStepSimple(c);return notSched(c)&&s&&s.type==='upload';}));
     }
+    h+=dtClipGroup('Scheduled','var(--violet)',scheduled);
+    h+=dtClipGroup('In Review','var(--amber)',clips.filter(function(c){var s=getClipStepSimple(c);return notSched(c)&&s&&s.type==='approve';}));
+    h+=dtClipGroup('Uploaded','var(--green)',clips.filter(function(c){return notSched(c)&&clipUploadedSimple(c);}));
   } else {
+    // Scheduled (uploaded, future release) sits directly under Ready to Upload.
     [['upload','Ready to Upload','var(--rose)'],['approve','In Review','var(--amber)'],['promote','Ready to Promote','var(--teal)'],
      ['write-desc','Needs Description','var(--violet)'],['write-title','Needs Title','var(--violet)'],
      ['write-keywords','Needs Keywords','var(--violet)'],['assets','Needs Assets','var(--amber)'],
      ['edit','Needs Editing','var(--sky)'],['film','Ideas to Film','var(--faint)']].forEach(function(g){
       var types=g[0]==='assets'?['make-thumbnail','make-nfgbcover','make-preview']:[g[0]];
-      h+=dtClipGroup(g[1],g[2],clipsForTypes(types));
+      h+=dtClipGroup(g[1],g[2],clipsForTypes(types).filter(notSched));
+      if(g[0]==='upload')h+=dtClipGroup('Scheduled','var(--violet)',scheduled);
     });
-    // Done clips set to publish in the future are "Scheduled" (soonest first);
-    // everything live today or earlier is All Done, sorted by total sales (no/blank
-    // sales sink to the bottom).
-    var lgDone=doneClips();
-    h+=dtClipGroup('Scheduled','var(--sky)',lgDone.filter(isScheduledFuture).sort(bySoonestGoLive));
-    h+=dtClipGroup('All Done','var(--green)',lgDone.filter(function(c){return !isScheduledFuture(c);}).sort(function(a,b){return clipGrandSales(b)-clipGrandSales(a);}));
+    // Everything already live (All Done), sorted by total sales (no/blank sales sink).
+    h+=dtClipGroup('All Done','var(--green)',doneClips().filter(notSched).sort(function(a,b){return clipGrandSales(b)-clipGrandSales(a);}));
     // "By platform" — one collapsed dropdown per platform listing every clip that's
     // live (uploaded/promoted/PPV) there. Lets you pull up everything on SM, MFC, etc.
+    // Not-yet-public scheduled clips are excluded (they live under Scheduled).
     var byPlat=platformsFor(creator).map(function(pl){
       // Within each platform, list clips by that platform's sales, highest first
       // (blank/zero sales sink to the bottom).
-      var pclips=clips.filter(function(c){return isPosted(c.platforms[pl]);})
+      var pclips=clips.filter(function(c){return notSched(c)&&isPosted(c.platforms[pl]);})
         .sort(function(a,b){return clipPlatSales(b,pl)-clipPlatSales(a,pl);});
       return dtClipGroup('Posted on '+pl,'var(--green)',pclips,true);
     }).join('');
