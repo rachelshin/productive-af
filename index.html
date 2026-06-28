@@ -891,8 +891,8 @@ function doneClips(){return clips.filter(function(c){return !getClipStep(c);});}
 // ── SIMPLE MODE (BH / LV) ─────────────────────────────────────
 function isSimple(){return creator!=='LG';}
 function clipUploadedSimple(c){
-  // Done when none of THIS creator's platforms are still pending (LF for Brigit, C4S for both).
-  return platformsFor(creator).every(function(pl){return c.platforms[pl]!==P;});
+  // Live when no platform is still pending OR awaiting approval (In Review isn't live yet).
+  return platformsFor(creator).every(function(pl){return c.platforms[pl]!==P&&c.platforms[pl]!==IR;});
 }
 function getClipStepSimple(c){
   // Simple creators only ever upload — never write desc/keywords/etc.
@@ -901,6 +901,10 @@ function getClipStepSimple(c){
   if(c.platforms['C4S']===P)return {type:'upload',clip:c,pl:'C4S'};
   var other=platformsFor(creator).filter(function(pl){return pl!=='C4S'&&c.platforms[pl]===P;});
   if(other.length)return {type:'upload',clip:c,pl:other[0]};
+  // Submitted but not yet live → awaiting approval (In Review); C4S first, then others.
+  if(c.platforms['C4S']===IR)return {type:'approve',clip:c,pl:'C4S'};
+  var rev=platformsFor(creator).filter(function(pl){return pl!=='C4S'&&c.platforms[pl]===IR;});
+  if(rev.length)return {type:'approve',clip:c,pl:rev[0]};
   return null;
 }
 function getNextSimple(){
@@ -1041,8 +1045,9 @@ function cyclePlatform(id,pl){
   // Lux can also mark a platform as PPV (sent as pay-per-view) — a terminal state
   // like Promoted, so it's the last stop in the cycle.
   // Cycle: Pending → In Review → Uploaded → Promoted → [PPV] → Pending. (unknown/N → Pending)
-  // In Review is Lux-only; other creators skip straight Pending → Uploaded → Promoted.
-  var order=creator==='LG'?[P,IR,U,PR,PPV]:[P,U,PR];
+  // PPV is Lux-only (pay-per-view send); Brigit/Venus share the same Pending → In Review
+  // → Uploaded → Promoted flow but without the PPV terminal state.
+  var order=creator==='LG'?[P,IR,U,PR,PPV]:[P,IR,U,PR];
   c.platforms[pl]=order[(order.indexOf(cur)+1)%order.length];
   var allDone=PL.every(function(q){return isPromoted(c.platforms[q])||c.platforms[q]===N;});
   if(allDone&&c.status!=='uploaded')c.status='uploaded';
@@ -2263,12 +2268,16 @@ function dtList(){
   if(!clips.length)return '<div class="dt-empty"><div class="dt-emoji">&#129528;</div>No clips here yet.<br><small>Pick another creator, or Restore a backup.</small></div>';
   var h='';
   if(isSimple()){
+    // Groups follow each clip's current step so In Review clips get their own bucket
+    // (a clip with no step is live → "Uploaded").
     if(platformsFor(creator).length>1){
-      h+=dtClipGroup('Upload to C4S','var(--rose)',clips.filter(function(c){return c.platforms['C4S']===P;}));
-      h+=dtClipGroup('Upload to LF','var(--amber)',clips.filter(function(c){return c.platforms['C4S']!==P&&platformsFor(creator).some(function(pl){return pl!=='C4S'&&c.platforms[pl]===P;});}));
+      h+=dtClipGroup('Upload to C4S','var(--rose)',clips.filter(function(c){var s=getClipStepSimple(c);return s&&s.type==='upload'&&s.pl==='C4S';}));
+      h+=dtClipGroup('Upload to LF','var(--sky)',clips.filter(function(c){var s=getClipStepSimple(c);return s&&s.type==='upload'&&s.pl!=='C4S';}));
+      h+=dtClipGroup('In Review','var(--amber)',clips.filter(function(c){var s=getClipStepSimple(c);return s&&s.type==='approve';}));
       h+=dtClipGroup('Uploaded','var(--green)',clips.filter(function(c){return clipUploadedSimple(c);}));
     } else {
-      h+=dtClipGroup('To Upload','var(--rose)',clips.filter(function(c){return !clipUploadedSimple(c);}));
+      h+=dtClipGroup('To Upload','var(--rose)',clips.filter(function(c){var s=getClipStepSimple(c);return s&&s.type==='upload';}));
+      h+=dtClipGroup('In Review','var(--amber)',clips.filter(function(c){var s=getClipStepSimple(c);return s&&s.type==='approve';}));
       h+=dtClipGroup('Uploaded','var(--green)',clips.filter(function(c){return clipUploadedSimple(c);}));
     }
   } else {
@@ -2387,7 +2396,7 @@ function dtClipEditor(c,step){
   var h='';
   if(step){
     var col=TCOLOR[step.type]||'var(--faint)';
-    var head=step.type==='upload'?'Upload to '+step.pl:step.type==='promote'?'Promote on '+step.pl:(TLABEL[step.type]||step.type).replace(/ for$/,'');
+    var head=step.type==='upload'?'Upload to '+step.pl:step.type==='promote'?'Promote on '+step.pl:step.type==='approve'?'Awaiting approval on '+step.pl:(TLABEL[step.type]||step.type).replace(/ for$/,'');
     var dv=(step.pl&&c.platformDates&&c.platformDates[step.pl])?c.platformDates[step.pl]:'';
     h+='<div class="dt-next" style="border-left:4px solid '+col+'">';
     h+='<div class="dt-next-eyebrow" style="color:'+col+'"><span class="dtn-pulse" style="background:'+col+'"></span>DO THIS NEXT</div>';
