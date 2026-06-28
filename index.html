@@ -451,13 +451,13 @@ input[type=number]{-moz-appearance:textfield}
 <script>
 try {
 
-var CREATOR_PLATFORMS={LG:['SM','CB','SC','MFC','NF','SP','C4S'],BH:['LF','C4S'],LV:['C4S']};
+var CREATOR_PLATFORMS={LG:['SM','CB','SC','MFC','NF','SP','C4S','MV'],BH:['LF','C4S'],LV:['C4S']};
 var CREATOR_CONFIG={
   LG:{rate:50,currency:'$',platformDesc:'Content management'},
   BH:{rate:50,currency:'$',platformDesc:'LF & C4S management'},
   LV:{rate:37,currency:'£',platformDesc:'OF & C4S management'}
 };
-var PL=['SM','MFC','CB','SC','NF','SP','C4S'];
+var PL=CREATOR_PLATFORMS['LG'].slice(); // active creator's platform list (reset on creator switch)
 // Platforms whose sales figures can't be pulled from the site — excluded entirely
 // from the Sales card (no row, and not counted in the grand total).
 var NO_SALES_PL=['CB','MFC','SC'];
@@ -645,6 +645,9 @@ function normalizePlatforms(clipArr){
     Object.keys(c.platforms).forEach(function(pl){
       if(shortMap[c.platforms[pl]])c.platforms[pl]=shortMap[c.platforms[pl]];
     });
+    // Backfill any platform new to this creator (e.g. MV added later) as pending/"To Upload"
+    // so existing clips treat it as a real to-do, not an absent/ignored platform.
+    platformsFor(creator).forEach(function(pl){if(typeof c.platforms[pl]==='undefined')c.platforms[pl]=P;});
     if(!c.platformDates)c.platformDates={};
     PL.forEach(function(pl){if(typeof c.platformDates[pl]==='undefined')c.platformDates[pl]='';});
     ['SM','MFC','CB','SC','NF','SP','C4S','LF'].forEach(function(pl){if(typeof c.platformDates[pl]==='undefined')c.platformDates[pl]='';});
@@ -737,14 +740,14 @@ function loadCreator(){
       var p=JSON.parse(s);clips=p.clips;nextId=p.nextId||200;
       normalizePlatforms(clips);
     } else if(creator==='LG'){
-      clips=LG_RAW.map(expandRow);nextId=200;
+      clips=normalizePlatforms(LG_RAW.map(expandRow));nextId=200;
     } else if(creator==='BH'){
       clips=normalizePlatforms(JSON.parse(JSON.stringify(BH_INITIAL_CLIPS)));nextId=147;
     } else {
       clips=[];nextId=1;
     }
   }catch(e){
-    clips=creator==='LG'?LG_RAW.map(expandRow):(creator==='BH'?normalizePlatforms(JSON.parse(JSON.stringify(BH_INITIAL_CLIPS))):[]);nextId=creator==='LG'?200:(creator==='BH'?147:1);
+    clips=creator==='LG'?normalizePlatforms(LG_RAW.map(expandRow)):(creator==='BH'?normalizePlatforms(JSON.parse(JSON.stringify(BH_INITIAL_CLIPS))):[]);nextId=creator==='LG'?200:(creator==='BH'?147:1);
   }
   applyBHNums();
   clips.forEach(autoDescDone); // backfill descDone for already-posted clips
