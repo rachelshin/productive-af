@@ -462,6 +462,10 @@ var PL=['SM','MFC','CB','SC','NF','SP','C4S'];
 // from the Sales card (no row, and not counted in the grand total).
 var NO_SALES_PL=['CB','MFC','SC'];
 function salesTracked(pl){return NO_SALES_PL.indexOf(pl)<0;}
+// Fraction of gross (clips × price) the creator actually keeps after the platform's
+// commission. SM takes 50% (keep .5); NF takes 30% (keep .7). Anything not listed keeps 100%.
+var PLAT_NET={SM:0.5,NF:0.7};
+function platNet(pl){return typeof PLAT_NET[pl]==='number'?PLAT_NET[pl]:1;}
 var P='pending',U='uploaded',PR='promoted',N='na',PPV='ppv',IR='inreview';
 // PPV (sent as pay-per-view) is a terminal state like Promoted — it's both uploaded
 // AND promoted in one, so it's the end of a platform's cycle (no promote step left).
@@ -1087,7 +1091,7 @@ function calcPlatSales(id,pl){
   if(!c.platformSales[pl])c.platformSales[pl]={};
   c.platformSales[pl].clips=soldEl.value;
   c.platformSales[pl].price=priceEl.value;
-  c.platformSales[pl].total=String(Math.round(sold*price*100)/100);
+  c.platformSales[pl].total=String(Math.round(sold*price*platNet(pl)*100)/100);
   saveCreator();render();
 }
 // Grand total across every platform. Old single-value sales (c.totalSales etc.)
