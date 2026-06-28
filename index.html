@@ -804,7 +804,7 @@ function switchCreator(key){
   if(timerRunning)stopTimer(true);
   creator=key;
   PL=platformsFor(key);
-  expanded=false;editField=null;addingNew=false;dtCalClip=null;
+  expanded=false;editField=null;addingNew=false;dtCalClip=null;dtCalAddDate=null;
   openGroups={};dtGrpOpen={};tab='queue';pipeSearch='';
   var cr=CREATORS[key];
   document.documentElement.style.setProperty('--accent','var('+cr.accentVar+')');
@@ -1610,7 +1610,9 @@ function hexA(hex,a){
   var r=parseInt(h.substring(0,2),16),g=parseInt(h.substring(2,4),16),b=parseInt(h.substring(4,6),16);
   return 'rgba('+r+','+g+','+b+','+a+')';
 }
-function calGridHtml(evMap,renderCellEvents){
+function calGridHtml(evMap,renderCellEvents,onDay){
+  // onDay(ds) → a JS expression string run when a day cell is clicked (outside any
+  // clip event). Used by the per-creator simple calendar to open an add-clip form.
   var DNAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   var today=todayStr();
   var h='<div class="cal-grid">';
@@ -1622,7 +1624,8 @@ function calGridHtml(evMap,renderCellEvents){
     var ds=calYear+'-'+String(calMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     var isToday=ds===today;var isPast=ds<today;
     var evs=evMap[ds]||[];
-    h+='<div class="cal-cell'+(isToday?' cal-today':'')+(isPast&&!isToday?' cal-past':'')+'" data-drop-date="'+ds+'">';
+    var dayAttr=onDay?' onclick="'+onDay(ds)+'" style="cursor:pointer"':'';
+    h+='<div class="cal-cell'+(isToday?' cal-today':'')+(isPast&&!isToday?' cal-past':'')+'" data-drop-date="'+ds+'"'+dayAttr+'>';
     h+='<div class="cal-day-n">'+d+'</div>';
     h+=renderCellEvents(evs);
     h+='</div>';
@@ -1652,6 +1655,19 @@ function renderAllCalendar(){
   });
   return h;
 }
+// Clip length in seconds, or null when no length is recorded. Accepts "mm:ss",
+// "h:mm:ss", or a bare number (treated as minutes).
+function clipLengthSecs(c){
+  var v=((c&&c.length)||'').trim();
+  if(!v)return null;
+  var parts=v.split(':');
+  if(parts.length===1){var n=parseFloat(parts[0]);return isNaN(n)?null:n*60;}
+  var secs=0;
+  for(var i=0;i<parts.length;i++){var p=parseInt(parts[i],10);if(isNaN(p))return null;secs=secs*60+p;}
+  return secs;
+}
+// Star a clip on the calendar chip when it's a short (under 5 min) clip. No length → no star.
+function clipIsShort(c){var s=clipLengthSecs(c);return s!==null&&s>0&&s<300;}
 function renderCalendar(){
   var h=calNavHtml();
   h+=calGridHtml(getCalEvents(),function(evs){
@@ -1662,12 +1678,13 @@ function renderCalendar(){
       // Simple creators colour by platform; solidify the chip once uploaded (pending stays lighter).
       var solid='';
       if(isSimple()&&(ev.status===U||ev.status===PR)){var base=ev.platform==='C4S'?'#d4909e':'#90a0d4';solid='background:'+base+';border-color:'+base+';color:#fff;';}
-      s+='<div class="cal-event'+stCls+'" data-drag-clip="'+ev.clip.id+'" data-drag-platform="'+ev.platform+'" onclick="jumpToClip('+ev.clip.id+')" style="'+solid+'cursor:grab">';
-      s+='<span class="cal-event-plat">'+ev.platform+'</span>'+esc(short)+'</div>';
+      s+='<div class="cal-event'+stCls+'" data-drag-clip="'+ev.clip.id+'" data-drag-platform="'+ev.platform+'" onclick="event.stopPropagation();jumpToClip('+ev.clip.id+')" style="'+solid+'cursor:grab">';
+      s+='<span class="cal-event-plat">'+ev.platform+'</span>'+(isSimple()&&clipIsShort(ev.clip)?'★ ':'')+esc(short)+'</div>';
     });
     if(evs.length>3)s+='<div class="cal-more">+' +(evs.length-3)+' more</div>';
     return s;
-  });
+  // Brigit/Venus (desktop): clicking a day outside any clip opens an add-clip form below.
+  },(isDesktop()&&isSimple())?function(ds){return 'openCalAdd(\''+ds+'\')';}:null);
   h+='<div class="cal-legend">';
   if(isSimple()){
     h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:#d4909e"></div>C4S</div>';
@@ -2129,11 +2146,26 @@ function renderAllView(){
 function isDesktop(){return typeof window!=='undefined'&&!!window.matchMedia&&window.matchMedia('(min-width:1024px)').matches;}
 var dtRightView='edit',dtNextId=null,dtAnimate=false; // right pane: 'edit' | 'cal' | 'inv' | 'allcal'
 var dtCalClip=null; // desktop: clip whose edit screen is shown UNDER the calendar (set by clicking a cal event)
-var _dtCalScroll=false; // one-shot: after the next render, scroll the right pane down to reveal that edit screen
+var dtCalAddDate=null; // desktop (Brigit/Venus): date for the add-clip form shown UNDER the calendar (clicking an empty day)
+var _dtCalScroll=false; // one-shot: after the next render, scroll the right pane down to reveal that pane
 // Desktop only: clicking a clip on the creator's calendar opens its edit screen
 // under the calendar (and scrolls down to reveal it).
 function calSelectClip(id){
+  dtCalAddDate=null; // a clip click supersedes any open add-clip form
   dtCalClip=id;expanded=id;editField=null;_dtCalScroll=true;render();
+}
+// Desktop (Brigit/Venus): clicking an empty calendar day (or a day outside its clips)
+// opens an add-clip form under the calendar, pre-filled with that upload date.
+function openCalAdd(ds){
+  dtCalClip=null; // supersede any open edit pane
+  dtCalAddDate=ds;_dtCalScroll=true;render();
+}
+function doAddFromCal(){
+  var g=function(id){return document.getElementById(id);};
+  var t=g('caladd-title'),n=g('caladd-num'),l=g('caladd-length'),d=g('caladd-date');
+  if(!t||!t.value.trim())return; // title required (matches doAddClip)
+  dtCalAddDate=null;
+  doAddClip(t.value,'idea',n?n.value:'',l?l.value:'',d?d.value:'','clip','','');
 }
 
 // Lightweight DOM confetti — a little celebration when you finish something.
@@ -2436,6 +2468,28 @@ function dtCalEditPane(){
   return '<div class="cal-edit-pane"><div class="sec-lbl" style="margin-top:24px;display:flex;justify-content:space-between;align-items:center">Editing &mdash; '+esc(c.title)+'<span class="cal-edit-close" onclick="dtCalClip=null;render()">&times;</span></div>'+dtClipEditor(c,step)+'</div>';
 }
 
+// The add-clip form shown UNDER the calendar after clicking an empty day (Brigit/Venus).
+// Pre-fills the upload date with the clicked day; its own input IDs avoid clashing
+// with the list-pane add form.
+function dtCalAddPane(){
+  if(dtCalAddDate==null||!isSimple())return '';
+  var d=esc(dtCalAddDate);
+  return '<div class="cal-add-pane"><div class="sec-lbl" style="margin-top:24px;display:flex;justify-content:space-between;align-items:center">Add clip &mdash; '+esc(fmtDate(dtCalAddDate))+'<span class="cal-edit-close" onclick="dtCalAddDate=null;render()">&times;</span></div>'+
+    '<div class="add-form">'+
+      '<div class="field-lbl">Title</div>'+
+      '<input type="text" id="caladd-title" onkeydown="if(event.key===\'Enter\')doAddFromCal()">'+
+      '<div style="display:flex;gap:8px">'+
+        '<div style="flex:1"><div class="field-lbl">ID #</div><input type="text" id="caladd-num" style="width:100%;box-sizing:border-box"></div>'+
+        '<div style="flex:1"><div class="field-lbl">Length</div><input type="text" id="caladd-length" style="width:100%;box-sizing:border-box"></div>'+
+      '</div>'+
+      '<div style="display:flex;align-items:center;gap:8px;margin-top:8px">'+
+        '<label style="font-size:13px;color:var(--muted);white-space:nowrap">Upload by</label>'+
+        '<input type="date" id="caladd-date" value="'+d+'" style="flex:1">'+
+      '</div>'+
+      '<div class="btn-row"><button class="btn btn-dark" onclick="doAddFromCal()">Add clip</button></div>'+
+    '</div></div>';
+}
+
 // The "why" reminder (shown on every right-pane screen) + the rotating quote.
 function dtWhyCard(){
   return '<div class="goal-card dt-why"><div class="goal-icon">&#10024;</div>'
@@ -2477,7 +2531,7 @@ function renderDesktop(){
   h+='<section class="dt-detail'+anim+'">';
   h+=dtWhyCard();
   if(dtRightView==='allcal')h+='<div class="sec-lbl">Combined Calendar — all creators</div>'+renderAllCalendar();
-  else if(dtRightView==='cal')h+='<div class="sec-lbl">'+esc((CREATORS[creator]||{name:''}).name)+' — Upload Schedule</div>'+(clips.length?renderCalendar():'<div class="dt-empty">No clips scheduled yet.</div>')+dtCalEditPane();
+  else if(dtRightView==='cal')h+='<div class="sec-lbl">'+esc((CREATORS[creator]||{name:''}).name)+' — Upload Schedule</div>'+((clips.length||isSimple())?renderCalendar():'<div class="dt-empty">No clips scheduled yet.</div>')+dtCalEditPane()+dtCalAddPane();
   else if(dtRightView==='inv'&&isSimple())h+=renderInvoicingTab();
   else if(dtRightView==='promote'&&!isSimple())h+=dtPromoteNext();
   else { if(dtNextId)h+=dtQuoteCard(); h+=dtDetail(); }
@@ -2485,7 +2539,7 @@ function renderDesktop(){
   document.getElementById('root').innerHTML=h;
   var newList=document.querySelector('.dt-list');if(newList)newList.scrollTop=listScroll;
   var newDet=document.querySelector('.dt-detail');if(newDet)newDet.scrollTop=detScroll;
-  if(_dtCalScroll){_dtCalScroll=false;var ep=document.querySelector('.cal-edit-pane');if(ep)ep.scrollIntoView({behavior:'smooth',block:'start'});}
+  if(_dtCalScroll){_dtCalScroll=false;var ep=document.querySelector('.cal-edit-pane,.cal-add-pane');if(ep)ep.scrollIntoView({behavior:'smooth',block:'start'});}
   if(editField){var el=document.getElementById('fe_'+editField.id+'_'+editField.field);if(el){el.focus();if(el.tagName==='TEXTAREA')el.setSelectionRange(el.value.length,el.value.length);}}
 }
 
