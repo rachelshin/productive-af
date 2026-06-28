@@ -458,6 +458,10 @@ var CREATOR_CONFIG={
   LV:{rate:37,currency:'£',platformDesc:'OF & C4S management'}
 };
 var PL=['SM','MFC','CB','SC','NF','SP','C4S'];
+// Platforms whose sales figures can't be pulled from the site — excluded entirely
+// from the Sales card (no row, and not counted in the grand total).
+var NO_SALES_PL=['CB','MFC','SC'];
+function salesTracked(pl){return NO_SALES_PL.indexOf(pl)<0;}
 var P='pending',U='uploaded',PR='promoted',N='na',PPV='ppv',IR='inreview';
 // PPV (sent as pay-per-view) is a terminal state like Promoted — it's both uploaded
 // AND promoted in one, so it's the end of a platform's cycle (no promote step left).
@@ -584,6 +588,7 @@ var clips=[],tab='queue',expanded=false,editField=null,addingNew=false,nextId=20
 var openGroups={};
 var dtGrpOpen={}; // desktop clip-list accordion: which group headers are expanded (collapsed by default)
 var dtByPlatOpen=false; // desktop "By Platform" section: whole block collapsed by default
+var _renderTimer=null;  // debounce handle for scheduleRender() (rapid chip clicks)
 var detailsOpen=false; // collapsed "Clip details" section in the edit pane (posted clips)
 var salesOpen=null;    // Sales dropdown: null = per-layout default (open on All Done, closed elsewhere); else explicit
 var calDrag=null;
@@ -1015,7 +1020,17 @@ function cyclePlatform(id,pl){
   var allDone=PL.every(function(q){return isPromoted(c.platforms[q])||c.platforms[q]===N;});
   if(allDone&&c.status!=='uploaded')c.status='uploaded';
   autoDescDone(c);
-  saveCreator();render();
+  saveCreator();
+  // Update the clicked chip + its date cell IN PLACE so the button stays the same
+  // DOM node — rapid clicks always land on a live element instead of one that a
+  // full re-render just replaced. The heavier refresh (groups, sales, "do this
+  // next", counts) is debounced so it runs once after the clicks settle.
+  var ch=pstChip(c.platforms[pl]);
+  var btn=document.getElementById('pst_'+id+'_'+pl);
+  if(btn){btn.className='pst-btn '+ch.c;btn.innerHTML=ch.t;}
+  var dcell=document.getElementById('pdate_'+id+'_'+pl);
+  if(dcell)dcell.innerHTML=platDateInner(c,pl);
+  scheduleRender();
 }
 function toggleNA(id,pl){
   var c=clips.find(function(x){return x.id===id;});if(!c)return;
@@ -1080,9 +1095,15 @@ function calcPlatSales(id,pl){
 function clipGrandSales(c){
   var sum=0;
   if(c.platformSales)Object.keys(c.platformSales).forEach(function(pl){
+    if(!salesTracked(pl))return; // ignore untrackable platforms (CB/MFC/SC), incl. any old data
     var t=numOnly(c.platformSales[pl].total);if(t)sum+=t;
   });
   return Math.round(sum*100)/100;
+}
+// Total sales recorded for a single platform on this clip (0 if none/blank).
+function clipPlatSales(c,pl){
+  var t=c.platformSales&&c.platformSales[pl]?numOnly(c.platformSales[pl].total):null;
+  return t||0;
 }
 function advanceStatus(id){
   var c=clips.find(function(x){return x.id===id;});if(!c)return;
@@ -1188,42 +1209,43 @@ function renderAssets(c){
   h+='</div></div>';return h;
 }
 
+// Class + label for a platform status chip. Shared by the full render and the
+// in-place update in cyclePlatform (so a fast click never hits a stale button).
+function pstChip(st){
+  if(st===IR) return {c:'is-review',t:'◷ In Review'};
+  if(st===U)  return {c:'is-up',    t:'▲ Uploaded'};
+  if(st===PPV)return {c:'is-ppv',   t:'$ PPV'};
+  if(st===PR) return {c:'is-pr',    t:'★ Promoted'};
+  return {c:'',t:'□ To Upload'}; // P / unknown
+}
+// Inner HTML for a platform's date cell, by status. Promoted = label only;
+// Uploaded/PPV = editable upload date; To Upload/In Review = schedule date (+ overdue).
+function platDateInner(c,pl){
+  var st=c.platforms[pl];if(typeof st==='undefined')st=P;
+  if(st===N)return '<span class="no-date">Not applicable</span>';
+  var dateVal=(c.platformDates&&c.platformDates[pl])||'';
+  if(st===PR)return '<div style="font-size:14px;color:var(--green);font-weight:600">★ Promoted</div>';
+  if(st===U||st===PPV)
+    return '<div style="display:flex;flex-direction:column;gap:4px">'+
+      '<input type="date" value="'+esc(dateVal)+'" onchange="setUploadDate('+c.id+',\''+pl+'\',this.value)" style="font-size:13px">'+
+      (!dateVal?'<div style="font-size:11px;color:var(--faint)">Date unknown</div>':'')+'</div>';
+  var isOverdue=dateVal&&dateVal<=todayStr()&&st===P;
+  return '<div style="display:flex;flex-direction:column;gap:4px">'+
+    '<input type="date" value="'+esc(dateVal)+'" onchange="setPlatformDate('+c.id+',\''+pl+'\',this.value)" style="font-size:13px">'+
+    (isOverdue?'<div class="plat-date-due">⚠ Overdue</div>':'')+'</div>';
+}
+
 function renderPlatforms(c){
-  var today=todayStr();var dates=c.platformDates||{};
   var plats=platformsFor(creator); // this creator's platforms, not Lux's full set
   // Always the "Upload Schedule" table (Venus = just C4S; Brigit = LF + C4S; Lux = all 7)
   var h='<div class="field-row"><div class="field-lbl">Upload Schedule</div><div class="plat-table">';
   plats.forEach(function(pl){
-    var st=c.platforms[pl];if(typeof st==='undefined')st=P;var isNA=st===N;var dateVal=dates[pl]||'';
-    var isOverdue=dateVal&&dateVal<=today&&st===P;
+    var st=c.platforms[pl];if(typeof st==='undefined')st=P;var isNA=st===N;
     h+='<div class="plat-row'+(isNA?' na-row-dim':'')+'">';
     h+='<div class="plat-name-lbl">'+pl+'</div>';
-    h+='<div class="plat-date-col">';
-    if(!isNA){
-      if(st===PR){h+='<div style="font-size:14px;color:var(--green);font-weight:600">★ Promoted</div>';}
-      else if(st===PPV){h+='<div style="font-size:14px;color:var(--violet);font-weight:600">$ PPV</div>';}
-      else if(st===U){
-        h+='<div style="display:flex;flex-direction:column;gap:4px">';
-        h+='<input type="date" value="'+esc(dateVal)+'" onchange="setUploadDate('+c.id+',\''+pl+'\',this.value)" style="font-size:13px">';
-        if(!dateVal)h+='<div style="font-size:11px;color:var(--faint)">Date unknown</div>';
-        h+='</div>';
-      }
-      else{
-        h+='<div style="display:flex;flex-direction:column;gap:4px">';
-        h+='<input type="date" value="'+esc(dateVal)+'" onchange="setPlatformDate('+c.id+',\''+pl+'\',this.value)" style="font-size:13px">';
-        if(isOverdue)h+='<div class="plat-date-due">⚠ Overdue</div>';
-        h+='</div>';
-      }
-    } else {h+='<span class="no-date">Not applicable</span>';}
-    h+='</div>';
+    h+='<div class="plat-date-col" id="pdate_'+c.id+'_'+pl+'">'+platDateInner(c,pl)+'</div>';
     h+='<div class="plat-status-col">';
-    if(!isNA){
-      if(st===P)h+='<button class="pst-btn" onclick="cyclePlatform('+c.id+',\''+pl+'\')">□ To Upload</button>';
-      else if(st===IR)h+='<button class="pst-btn is-review" onclick="cyclePlatform('+c.id+',\''+pl+'\')">◷ In Review</button>';
-      else if(st===U)h+='<button class="pst-btn is-up" onclick="cyclePlatform('+c.id+',\''+pl+'\')">▲ Uploaded</button>';
-      else if(st===PPV)h+='<button class="pst-btn is-ppv" onclick="cyclePlatform('+c.id+',\''+pl+'\')">$ PPV</button>';
-      else if(st===PR)h+='<button class="pst-btn is-pr" onclick="cyclePlatform('+c.id+',\''+pl+'\')">★ Promoted</button>';
-    }
+    if(!isNA){var ch=pstChip(st);h+='<button class="pst-btn '+ch.c+'" id="pst_'+c.id+'_'+pl+'" onclick="cyclePlatform('+c.id+',\''+pl+'\')">'+ch.t+'</button>';}
     h+='</div>';
     h+='<button class="pna-btn'+(isNA?' na-on':'')+'" onclick="toggleNA('+c.id+',\''+pl+'\')">N/A</button>';
     h+='</div>';
@@ -2208,7 +2230,11 @@ function dtList(){
     // "By platform" — one collapsed dropdown per platform listing every clip that's
     // live (uploaded/promoted/PPV) there. Lets you pull up everything on SM, MFC, etc.
     var byPlat=platformsFor(creator).map(function(pl){
-      return dtClipGroup('Posted on '+pl,'var(--green)',clips.filter(function(c){return isPosted(c.platforms[pl]);}),true);
+      // Within each platform, list clips by that platform's sales, highest first
+      // (blank/zero sales sink to the bottom).
+      var pclips=clips.filter(function(c){return isPosted(c.platforms[pl]);})
+        .sort(function(a,b){return clipPlatSales(b,pl)-clipPlatSales(a,pl);});
+      return dtClipGroup('Posted on '+pl,'var(--green)',pclips,true);
     }).join('');
     if(byPlat){
       // Whole "By Platform" block is collapsible under its heading; search forces it open.
@@ -2230,7 +2256,8 @@ function dtList(){
 // One row per platform that's actually live (uploaded or promoted): Total Sales,
 // Number of Clips, Price + a Calculate button, then a grand total at the bottom.
 function renderSales(c){
-  var plats=platformsFor(creator).filter(function(pl){return isPosted(c.platforms[pl]);});
+  // CB/MFC/SC have no sales row — their figures can't be pulled from the site.
+  var plats=platformsFor(creator).filter(function(pl){return salesTracked(pl)&&isPosted(c.platforms[pl]);});
   var fld=function(pl,field,label){
     var ps=(c.platformSales&&c.platformSales[pl])||{};
     return '<div class="sales-field"><div class="field-lbl">'+label+'</div>'+
@@ -2344,6 +2371,11 @@ function dtQuoteCard(){
 }
 function renderDesktop(){
   var anim=dtAnimate?' dt-anim':'';dtAnimate=false; // animate only on navigation, not edits
+  // Remember scroll so a full rebuild (innerHTML swap) doesn't jump panes to the top.
+  // The list always keeps its place; the detail pane only does on edits, not navigation
+  // (picking a new clip should scroll its detail back to the top).
+  var oldList=document.querySelector('.dt-list'),oldDet=document.querySelector('.dt-detail');
+  var listScroll=oldList?oldList.scrollTop:0,detScroll=(oldDet&&!anim)?oldDet.scrollTop:0;
   var creColor=CAL_COLORS[creator]||'#c4506a';
   var h='<div class="dt" style="--cre:'+creColor+'">'+dtSidebar();
   h+='<section class="dt-list">'+dtListHeader()+'<div class="dt-add">'+renderAddForm()+'</div>'+dtList()+'</section>';
@@ -2355,10 +2387,19 @@ function renderDesktop(){
   else { if(dtNextId)h+=dtQuoteCard(); h+=dtDetail(); }
   h+='</section></div>';
   document.getElementById('root').innerHTML=h;
+  var newList=document.querySelector('.dt-list');if(newList)newList.scrollTop=listScroll;
+  var newDet=document.querySelector('.dt-detail');if(newDet)newDet.scrollTop=detScroll;
   if(editField){var el=document.getElementById('fe_'+editField.id+'_'+editField.field);if(el){el.focus();if(el.tagName==='TEXTAREA')el.setSelectionRange(el.value.length,el.value.length);}}
 }
 
+// Coalesce a burst of rapid state changes (e.g. spamming a status chip) into a
+// single full re-render shortly after the last one, so each click stays instant.
+function scheduleRender(){
+  clearTimeout(_renderTimer);
+  _renderTimer=setTimeout(function(){_renderTimer=null;render();},200);
+}
 function render(){
+  clearTimeout(_renderTimer);_renderTimer=null; // a real render supersedes any pending debounced one
   if(isDesktop()){renderDesktop();return;}
   if(creator==='ALL'){renderAllView();return;}
   var next=isSimple()?getNextSimple():getNext();
