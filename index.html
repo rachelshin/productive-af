@@ -238,6 +238,9 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .unsched-chip.is-c4s{background:#f5d5da;border-color:#d4909e;color:#6a1f2e}
 .unsched-chip.is-lf{background:#d5dff5;border-color:#90a0d4;color:#1f2e6a}
 .cal-more{font-size:11px;color:var(--faint);padding:2px 4px}
+.cal-edit-pane{border-top:1.5px solid var(--border);margin-top:8px}
+.cal-edit-close{cursor:pointer;font-size:20px;line-height:1;color:var(--faint);font-weight:400;padding:0 6px}
+.cal-edit-close:hover{color:var(--text)}
 .cal-legend{display:flex;gap:14px;padding:12px 0 0;flex-wrap:wrap}
 .cal-leg-item{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);font-weight:500}
 .cal-leg-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
@@ -801,7 +804,7 @@ function switchCreator(key){
   if(timerRunning)stopTimer(true);
   creator=key;
   PL=platformsFor(key);
-  expanded=false;editField=null;addingNew=false;
+  expanded=false;editField=null;addingNew=false;dtCalClip=null;
   openGroups={};dtGrpOpen={};tab='queue';pipeSearch='';
   var cr=CREATORS[key];
   document.documentElement.style.setProperty('--accent','var('+cr.accentVar+')');
@@ -1181,6 +1184,7 @@ function doRemove(id){
   clips=clips.filter(function(c){return c.id!==id;});saveCreator();render();
 }
 function jumpToClip(id){
+  if(isDesktop()){calSelectClip(id);return;} // desktop: show edit screen under the calendar
   if(isSimple()){tab='pipe';}else{tab='queue';}
   expanded=id;editField=null;render();
 }
@@ -2119,6 +2123,13 @@ function renderAllView(){
 // ===== Desktop UI: three-pane app — sidebar | clip list | right pane =====
 function isDesktop(){return typeof window!=='undefined'&&!!window.matchMedia&&window.matchMedia('(min-width:1024px)').matches;}
 var dtRightView='edit',dtNextId=null,dtAnimate=false; // right pane: 'edit' | 'cal' | 'inv' | 'allcal'
+var dtCalClip=null; // desktop: clip whose edit screen is shown UNDER the calendar (set by clicking a cal event)
+var _dtCalScroll=false; // one-shot: after the next render, scroll the right pane down to reveal that edit screen
+// Desktop only: clicking a clip on the creator's calendar opens its edit screen
+// under the calendar (and scrolls down to reveal it).
+function calSelectClip(id){
+  dtCalClip=id;expanded=id;editField=null;_dtCalScroll=true;render();
+}
 
 // Lightweight DOM confetti — a little celebration when you finish something.
 function confetti(){
@@ -2405,6 +2416,17 @@ function dtDetail(){
   return dtClipEditor(c,step);
 }
 
+// The edit screen shown UNDER the calendar after clicking a calendar event.
+// Only renders when a clip was explicitly picked from the calendar and it belongs
+// to the creator currently loaded (guards against a stale id after switching creators).
+function dtCalEditPane(){
+  if(dtCalClip==null)return '';
+  var c=clips.find(function(x){return x.id===dtCalClip;});
+  if(!c)return '';
+  var step=isSimple()?getClipStepSimple(c):getClipStep(c);
+  return '<div class="cal-edit-pane"><div class="sec-lbl" style="margin-top:24px;display:flex;justify-content:space-between;align-items:center">Editing &mdash; '+esc(c.title)+'<span class="cal-edit-close" onclick="dtCalClip=null;render()">&times;</span></div>'+dtClipEditor(c,step)+'</div>';
+}
+
 // The "why" reminder (shown on every right-pane screen) + the rotating quote.
 function dtWhyCard(){
   return '<div class="goal-card dt-why"><div class="goal-icon">&#10024;</div>'
@@ -2446,7 +2468,7 @@ function renderDesktop(){
   h+='<section class="dt-detail'+anim+'">';
   h+=dtWhyCard();
   if(dtRightView==='allcal')h+='<div class="sec-lbl">Combined Calendar — all creators</div>'+renderAllCalendar();
-  else if(dtRightView==='cal')h+='<div class="sec-lbl">'+esc((CREATORS[creator]||{name:''}).name)+' — Upload Schedule</div>'+(clips.length?renderCalendar():'<div class="dt-empty">No clips scheduled yet.</div>');
+  else if(dtRightView==='cal')h+='<div class="sec-lbl">'+esc((CREATORS[creator]||{name:''}).name)+' — Upload Schedule</div>'+(clips.length?renderCalendar():'<div class="dt-empty">No clips scheduled yet.</div>')+dtCalEditPane();
   else if(dtRightView==='inv'&&isSimple())h+=renderInvoicingTab();
   else if(dtRightView==='promote'&&!isSimple())h+=dtPromoteNext();
   else { if(dtNextId)h+=dtQuoteCard(); h+=dtDetail(); }
@@ -2454,6 +2476,7 @@ function renderDesktop(){
   document.getElementById('root').innerHTML=h;
   var newList=document.querySelector('.dt-list');if(newList)newList.scrollTop=listScroll;
   var newDet=document.querySelector('.dt-detail');if(newDet)newDet.scrollTop=detScroll;
+  if(_dtCalScroll){_dtCalScroll=false;var ep=document.querySelector('.cal-edit-pane');if(ep)ep.scrollIntoView({behavior:'smooth',block:'start'});}
   if(editField){var el=document.getElementById('fe_'+editField.id+'_'+editField.field);if(el){el.focus();if(el.tagName==='TEXTAREA')el.setSelectionRange(el.value.length,el.value.length);}}
 }
 
