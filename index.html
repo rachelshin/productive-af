@@ -260,6 +260,11 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .all-clear{text-align:center;padding:60px 24px;color:var(--faint)}
 .all-clear .big{font-size:48px;margin-bottom:14px}
 .all-clear p{font-size:17px;font-weight:500}
+.all-done-hero{text-align:center;padding:80px 28px 88px;margin:8px 0;border:1.5px solid var(--green-b);border-radius:24px;box-shadow:var(--sh);background:linear-gradient(165deg,var(--green-bg),var(--surface) 70%)}
+.all-done-hero .adh-emoji{font-size:88px;line-height:1;margin-bottom:20px;filter:drop-shadow(0 8px 12px rgba(74,140,104,.22));animation:adhPop .55s cubic-bezier(.34,1.56,.64,1) both}
+.all-done-hero h2{font-size:42px;font-weight:800;letter-spacing:-.5px;color:var(--green);margin:0 0 12px}
+.all-done-hero p{font-size:18px;font-weight:500;color:var(--muted);margin:0}
+@keyframes adhPop{0%{transform:scale(.5);opacity:0}100%{transform:scale(1);opacity:1}}
 .sep{height:1px;background:var(--border);margin:16px 0}
 .err-box{background:var(--rose-bg);border:1px solid var(--rose-b);border-radius:12px;padding:16px;color:var(--rose);font-size:13px;margin:24px;font-family:monospace;white-space:pre-wrap}
 
@@ -827,11 +832,13 @@ function getClipStep(c){
   if(c.needsEdit&&c.status!=='idea')return {type:'edit',clip:c,pl:null};
   if(c.status==='idea')  return {type:'film',clip:c,pl:null};
   if(c.status==='filmed')return {type:'edit',clip:c,pl:null};
+  // Post-edit prep order: thumbnail → trailer → description → keywords → NF GB cover.
+  if(!c.thumbnail)                           return {type:'make-thumbnail',clip:c,pl:null};
+  if(c.type!=='photoset'&&!c.preview)        return {type:'make-preview',  clip:c,pl:null};
   if(c.type!=='photoset'&&!c.descDone&&(!c.desc||c.desc.trim().length<10))   return {type:'write-desc',    clip:c,pl:null};
   if(c.type!=='photoset'&&!c.kwDone&&(!c.keywords||!c.keywords.length))    return {type:'write-keywords',clip:c,pl:null};
-  if(!c.thumbnail)                           return {type:'make-thumbnail',clip:c,pl:null};
-  if(creator==='LG'&&!c.nfGbCover)           return {type:'make-nfgbcover',clip:c,pl:null};
-  if(c.type!=='photoset'&&!c.preview)        return {type:'make-preview',  clip:c,pl:null};
+  // NF GB cover only matters if NF is an active target — skip it when NF is marked N/A.
+  if(creator==='LG'&&!c.nfGbCover&&c.platforms['NF']!==N)           return {type:'make-nfgbcover',clip:c,pl:null};
   var pp=firstIn(c,P);if(pp)return {type:'upload', clip:c,pl:pp};
   var up=firstIn(c,U);if(up)return {type:'promote',clip:c,pl:up};
   // "approve" is checked last: a clip only counts as In Review when awaiting approval
@@ -841,7 +848,7 @@ function getClipStep(c){
   return null;
 }
 
-var GPRI={'upload':0,'approve':0.5,'promote':1,'make-thumbnail':2,'make-nfgbcover':3,'make-preview':4,'write-desc':5,'write-title':6,'write-keywords':7,'edit':8,'film':9};
+var GPRI={'upload':0,'approve':0.5,'promote':1,'make-thumbnail':2,'make-preview':3,'write-desc':4,'write-keywords':5,'make-nfgbcover':6,'write-title':6.5,'edit':8,'film':9};
 var TCOLOR={'upload':'var(--rose)','approve':'var(--amber)','promote':'var(--teal)','make-thumbnail':'var(--amber)','make-nfgbcover':'var(--amber)','make-preview':'var(--amber)','write-desc':'var(--violet)','write-title':'var(--violet)','write-keywords':'var(--violet)','edit':'var(--sky)','film':'var(--faint)'};
 var TLABEL={'upload':'Upload to','approve':'Awaiting approval on','promote':'Promote on','make-thumbnail':'Make a thumbnail for','make-nfgbcover':'Make an NF GB Cover for','make-preview':'Make a trailer for','write-desc':'Write a description for','write-title':'Write a title for','write-keywords':'Add keywords for','edit':'Edit','film':'Film'};
 
@@ -924,7 +931,7 @@ function nextCalDate(c){ // earliest scheduled pending-upload date for this crea
   return best;
 }
 function clipNumVal(c){var n=c.num?parseInt(c.num.replace(/[^0-9]/g,'')):NaN;return isNaN(n)?c.id:n;}
-function lgReadiness(c){ // how many upload prerequisites are already satisfied
+function lgCompleteness(c){ // how close to fully done: prep milestones + per-platform upload/promote progress
   var n=0;
   if(c.status==='edited'||c.status==='uploaded')n+=2;else if(c.status==='filmed')n+=1;
   if(c.thumbnail)n++;
@@ -934,6 +941,13 @@ function lgReadiness(c){ // how many upload prerequisites are already satisfied
     if(c.keywords&&c.keywords.length)n++;
     if(c.preview)n++;
   }
+  // Per-platform progress so a clip that's already live on most platforms ranks as closer to done.
+  platformsFor(creator).forEach(function(pl){
+    var st=c.platforms[pl];
+    if(isPromoted(st)||st===N)n+=3;      // terminal: promoted / PPV / N/A
+    else if(st===U)n+=2;                 // uploaded, just needs promoting
+    else if(st===IR)n+=1;                // in review
+  });
   return n;
 }
 var _lgPick={sig:'',id:null}; // remembers the random tie-break pick so it doesn't jump on every render
@@ -952,7 +966,7 @@ function dtDefaultClip(){
     unposted.sort(function(a,b){return clipNumVal(a)-clipNumVal(b);});
     return unposted[0];
   }
-  // Lux: closest to upload-ready (most fields filled); random tie-break.
+  // Lux: closest to fully done (most prep + most platforms already live); random tie-break.
   var hasStep=clips.filter(function(c){return getClipStep(c);}); // still has work to do
   if(!hasStep.length)return null;
   // In Review is set aside — never lead "Do this next" with an awaiting-approval clip.
@@ -963,8 +977,8 @@ function dtDefaultClip(){
   // unless that's all that's left.
   var cands=actionable.filter(function(c){return getClipStep(c).type!=='promote';});
   if(!cands.length)cands=actionable;
-  var best=-1;cands.forEach(function(c){var r=lgReadiness(c);if(r>best)best=r;});
-  var top=cands.filter(function(c){return lgReadiness(c)===best;});
+  var best=-1;cands.forEach(function(c){var r=lgCompleteness(c);if(r>best)best=r;});
+  var top=cands.filter(function(c){return lgCompleteness(c)===best;});
   var sig=top.map(function(c){return c.id;}).sort(function(a,b){return a-b;}).join(',');
   if(_lgPick.sig!==sig||!top.some(function(c){return c.id===_lgPick.id;}))
     _lgPick={sig:sig,id:top[Math.floor(Math.random()*top.length)].id};
@@ -2149,6 +2163,7 @@ function dtSidebar(){
   var h='<aside class="dt-side">';
   h+='<div class="dt-brand"><div class="dt-logo">&#9889;</div><span class="brand-name">Productive AF</span></div>';
   h+='<button class="dt-donext" onclick="dtDoNext()">&#9889;&nbsp; Do This Next</button>';
+  if(!isSimple())h+='<div class="dt-navitem'+(dtRightView==='promote'?' active':'')+'" style="margin-bottom:4px" onclick="dtRightView=\'promote\';dtAnimate=true;render()">&#9733;&nbsp; Promote Next</div>';
   h+='<div class="dt-navitem'+(dtRightView==='allcal'?' active':'')+'" style="margin-bottom:4px" onclick="dtRightView=\'allcal\';dtAnimate=true;render()">&#128197;&nbsp; Combined Calendar</div>';
   h+='<div class="dt-sec-lbl">Creators</div><div class="dt-cres">';
   ['LG','BH','LV'].forEach(function(key){
@@ -2399,6 +2414,25 @@ function dtWhyCard(){
 function dtQuoteCard(){
   return '<div class="msg-card dt-quote"><div class="msg-icon">&#128140;</div><div class="msg-text">'+esc(dailyMsg())+'</div></div>';
 }
+// Lux-only "Promote Next": every clip whose remaining work is promotion, ranked by how
+// close to fully done it already is (most platforms live first) so you finish what's nearest the end.
+function dtPromoteNext(){
+  var items=clipsForTypes(['promote']).slice().sort(function(a,b){return lgCompleteness(b)-lgCompleteness(a)||a.id-b.id;});
+  var h='<div class="sec-lbl">Promote Next &mdash; most complete first</div>';
+  if(!items.length)return h+'<div class="dt-empty"><div class="dt-emoji">&#9733;</div>Nothing waiting to promote.<br><small>Clips land here once they\'re uploaded and just need promoting.</small></div>';
+  h+='<div class="dt-grp open">';
+  items.forEach(function(c){
+    var active=platformsFor(creator).filter(function(pl){return c.platforms[pl]!==N;});
+    var doneN=active.filter(function(pl){return isPromoted(c.platforms[pl]);}).length;
+    var toPromote=platformsFor(creator).filter(function(pl){return c.platforms[pl]===U;});
+    h+='<div class="dt-card" style="--row:var(--teal)" onclick="dtRightView=\'edit\';dtNextId=null;dtAnimate=true;expanded='+c.id+';render()">';
+    h+='<span class="dt-card-dot" style="background:var(--teal)"></span>';
+    h+='<span class="id-badge">'+(c.num?esc(c.num):fid(c.id))+'</span>';
+    h+='<span class="dt-row-name">'+esc(c.title)+(toPromote.length?' <span style="color:var(--faint);font-size:13px;font-weight:400">&middot; promote on '+esc(toPromote.join(', '))+'</span>':'')+'</span>';
+    h+='<span class="dt-pill" style="color:var(--teal);border-color:var(--teal)">'+doneN+'/'+active.length+' promoted</span></div>';
+  });
+  return h+'</div>';
+}
 function renderDesktop(){
   var anim=dtAnimate?' dt-anim':'';dtAnimate=false; // animate only on navigation, not edits
   // Remember scroll so a full rebuild (innerHTML swap) doesn't jump panes to the top.
@@ -2414,6 +2448,7 @@ function renderDesktop(){
   if(dtRightView==='allcal')h+='<div class="sec-lbl">Combined Calendar — all creators</div>'+renderAllCalendar();
   else if(dtRightView==='cal')h+='<div class="sec-lbl">'+esc((CREATORS[creator]||{name:''}).name)+' — Upload Schedule</div>'+(clips.length?renderCalendar():'<div class="dt-empty">No clips scheduled yet.</div>');
   else if(dtRightView==='inv'&&isSimple())h+=renderInvoicingTab();
+  else if(dtRightView==='promote'&&!isSimple())h+=dtPromoteNext();
   else { if(dtNextId)h+=dtQuoteCard(); h+=dtDetail(); }
   h+='</section></div>';
   document.getElementById('root').innerHTML=h;
@@ -2501,7 +2536,7 @@ function render(){
         h+='<p>No clips yet for '+esc(cr.name)+'.</p>';
         h+='<small>Add the first one below to get started.</small></div>';
       } else {
-        h+='<div class="all-clear"><div class="big">&#127881;</div><p>All caught up'+(cr.isMe?'. She\'s so proud of you.':'.')+'</p></div>';
+        h+='<div class="all-done-hero"><div class="adh-emoji">&#127881;</div><h2>All done!</h2><p>Nothing left in the pipeline'+(cr.isMe?' &mdash; she\'s so proud of you.':'.')+'</p></div>';
       }
     } else {
       var col=TCOLOR[next.type]||'var(--faint)';
@@ -2541,7 +2576,7 @@ function render(){
         if(same.length)h+='<div class="ctx-line">+'+same.length+' more clip'+(same.length>1?'s':'')+' also need this &mdash; <a onclick="tab=\'pipe\';render()">see pipeline</a></div>';
       }
     }
-    if(!isSimple()){
+    if(!isSimple()&&next){
       var cats=[
         {l:'Upload',n:counts.upload,c:'var(--rose)'},{l:'In Review',n:counts.review,c:'var(--amber)'},{l:'Promote',n:counts.promote,c:'var(--teal)'},
         {l:'Description',n:counts.desc,c:'var(--violet)'},{l:'Title',n:counts.title,c:'var(--violet)'},
