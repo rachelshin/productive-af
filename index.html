@@ -106,11 +106,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 /* fields */
 .field-row{margin-bottom:14px}
 .field-lbl{font-size:13px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}
-.field-val{font-size:16px;line-height:1.6;color:#4a3530;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:11px 14px;min-height:38px;cursor:pointer;transition:border-color .15s}
+.field-val{font-size:16px;line-height:1.6;white-space:pre-wrap;color:#4a3530;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:11px 14px;min-height:38px;cursor:pointer;transition:border-color .15s}
 .field-val:hover{border-color:var(--rose-mid)}
 .field-val.empty{color:var(--faint);font-style:italic}
-.kw-wrap{display:flex;flex-wrap:wrap;gap:6px;cursor:pointer;min-height:34px;padding:4px 0}
-.kw-chip{background:var(--sky-bg);color:var(--sky);border:1px solid var(--sky-b);border-radius:20px;padding:3px 12px;font-size:13px;font-weight:600}
 input[type=text],textarea,select{width:100%;font-family:inherit;font-size:16px;color:var(--text);background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:11px 14px;outline:none;transition:border-color .15s,box-shadow .15s}
 input[type=date]{font-family:inherit;font-size:14px;color:var(--text);background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;outline:none;transition:border-color .15s;width:100%;cursor:pointer}
 input[type=text]:focus,textarea:focus,select:focus,input[type=date]:focus{border-color:var(--rose-mid);box-shadow:0 0 0 3px rgba(212,99,122,.12)}
@@ -1384,7 +1382,7 @@ function nextMonth(){calMonth++;if(calMonth>11){calMonth=0;calYear++;}render();}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function fid(id){return '#'+String(id).padStart(3,'0');}
 
-function renderField(c,field,label,placeholder){
+function renderField(c,field,label){
   var isE=editField&&editField.id===c.id&&editField.field===field;
   var eid='fe_'+c.id+'_'+field;
   var h='<div class="field-row"><div class="field-lbl">'+label+'</div>';
@@ -1397,15 +1395,13 @@ function renderField(c,field,label,placeholder){
     h+='<button class="btn btn-ghost" onclick="editField=null;render()">Cancel</button></div>';
   } else {
     if(field==='keywords'){
-      var kws=c.keywords||[];
-      h+='<div class="kw-wrap" onclick="editField={id:'+c.id+',field:\'keywords\'};render()">';
-      if(kws.length)kws.forEach(function(k){h+='<span class="kw-chip">'+esc(k)+'</span>';});
-      else h+='<span class="field-val empty">click to add keywords</span>';
-      h+='</div>';
+      var kw=(c.keywords||[]).join(', ');
+      h+='<div class="field-val'+(kw?'':' empty')+'" onclick="editField={id:'+c.id+',field:\'keywords\'};render()">';
+      h+=kw?esc(kw):'';h+='</div>';
     } else {
       var val=c[field]||'';
       h+='<div class="field-val'+(val?'':' empty')+'" onclick="editField={id:'+c.id+',field:\''+field+'\'};render()">';
-      h+=val?esc(val):'Click to add';h+='</div>';
+      h+=val?esc(val):'';h+='</div>';
     }
   }
   if(field==='desc')h+=descDoneCheck(c);
@@ -1522,7 +1518,7 @@ function renderActionPanel(step){
       h+='<button class="btn btn-ghost" onclick="editField=null;render()">Cancel</button></div>';
     } else {
       h+='<div class="field-val'+(c.desc&&c.desc.trim()?'':' empty')+'" onclick="editField={id:'+c.id+',field:\'desc\'};render()" style="min-height:70px">';
-      h+=(c.desc&&c.desc.trim())?esc(c.desc):'Click to write description…';h+='</div>';
+      h+=(c.desc&&c.desc.trim())?esc(c.desc):'';h+='</div>';
     }
     h+=descDoneCheck(c);
   } else if(t==='write-title'){
@@ -1534,7 +1530,7 @@ function renderActionPanel(step){
       h+='<button class="btn btn-ghost" onclick="editField=null;render()">Cancel</button></div>';
     } else {
       h+='<div class="field-val'+(c.uploadTitle?'':' empty')+'" onclick="editField={id:'+c.id+',field:\'uploadTitle\'};render()" style="min-height:50px">';
-      h+=c.uploadTitle?esc(c.uploadTitle):'Click to write upload title…';h+='</div>';
+      h+=c.uploadTitle?esc(c.uploadTitle):'';h+='</div>';
     }
   } else if(t==='write-keywords'){
     h+='<div class="action-panel-lbl">Keywords</div>';
@@ -1544,11 +1540,9 @@ function renderActionPanel(step){
       h+='<div class="btn-row"><button class="btn btn-dark" onclick="saveF('+c.id+',\'keywords\',document.getElementById(\'fe_'+c.id+'_keywords\').value)">Save keywords</button>';
       h+='<button class="btn btn-ghost" onclick="editField=null;render()">Cancel</button></div>';
     } else {
-      var kws2=c.keywords||[];
-      h+='<div onclick="editField={id:'+c.id+',field:\'keywords\'};render()" style="cursor:pointer">';
-      if(kws2.length){h+='<div class="kw-wrap">';kws2.forEach(function(k){h+='<span class="kw-chip">'+esc(k)+'</span>';});h+='</div>';}
-      else h+='<div class="field-val empty" style="min-height:50px">Click to add keywords…</div>';
-      h+='</div>';
+      var kw2=(c.keywords||[]).join(', ');
+      h+='<div class="field-val'+(kw2?'':' empty')+'" onclick="editField={id:'+c.id+',field:\'keywords\'};render()" style="min-height:50px">';
+      h+=kw2?esc(kw2):'';h+='</div>';
     }
   } else if(t.indexOf('make-')===0){
     var fm={'make-thumbnail':'thumbnail','make-nfgbcover':'nfGbCover','make-preview':'preview'};
@@ -2667,24 +2661,24 @@ function renderClipDetail(c){
   if(isSimple()){
     // BH/LV: two columns that fill the pane — writing left, schedule + meta right.
     var SL='',SR='';
-    SL+=renderField(c,'desc','Description','No description yet');
-    SL+=renderField(c,'keywords','Keywords','No keywords yet');
+    SL+=renderField(c,'desc','Description');
+    SL+=renderField(c,'keywords','Keywords');
     SR+=renderPlatforms(c);
-    SR+=renderField(c,'length','Length','e.g. 15:52');
+    SR+=renderField(c,'length','Length');
     SR+=renderNeedFrom(c);
     // Venus (C4S only) has a short right column — put Notes at its bottom to even things out.
-    if(creator==='LV')SR+=renderField(c,'notes','Notes','Any notes…');
-    else SL+=renderField(c,'notes','Notes','Any notes…');
+    if(creator==='LV')SR+=renderField(c,'notes','Notes');
+    else SL+=renderField(c,'notes','Notes');
     return wrapDetail(c,'<div class="dt-cols2"><div class="dt-col">'+SL+'</div><div class="dt-col">'+SR+'</div></div>',del);
   }
   // LG: writing on the left, schedule + assets on the right; remove spans full width.
   var L='',R='';
   L+=action;
-  L+=renderField(c,'desc','Description','No description yet');
-  L+=renderField(c,'keywords','Keywords','No keywords yet');
-  if(c.type!=='photoset')L+=renderField(c,'length','Length','e.g. 15:52');
+  L+=renderField(c,'desc','Description');
+  L+=renderField(c,'keywords','Keywords');
+  if(c.type!=='photoset')L+=renderField(c,'length','Length');
   L+=renderAssets(c);
-  L+=renderField(c,'notes','Notes','Any notes…');
+  L+=renderField(c,'notes','Notes');
   R+=renderPlatforms(c);
   // Schedule sits at the top of the right column; the "Needs editing" toggle is pinned
   // to the bottom (margin-top:auto pushes it down past the schedule).
@@ -2915,14 +2909,14 @@ function render(){
         h+='<div class="dtn-body open"><div class="dtn-divider"></div>';
         h+=renderActionPanel(next);
         h+='<div class="sep"></div>';
-        h+=renderField(next.clip,'title','Title','Clip title…');
+        h+=renderField(next.clip,'title','Title');
         if(!isSimple()){
-          h+=renderField(next.clip,'desc','Description','No description yet');
-          h+=renderField(next.clip,'keywords','Keywords','No keywords yet');
+          h+=renderField(next.clip,'desc','Description');
+          h+=renderField(next.clip,'keywords','Keywords');
           h+=renderAssets(next.clip);
         }
         h+=renderPlatforms(next.clip);
-        h+=renderField(next.clip,'notes','Notes','Any notes…');
+        h+=renderField(next.clip,'notes','Notes');
         h+='<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">';
         h+='<button class="btn btn-del" onclick="doRemove('+next.clip.id+')">Remove clip</button></div></div>';
       }
@@ -2976,12 +2970,12 @@ function render(){
           rh+='<div style="padding:16px 18px 18px;border-top:1px solid var(--border);background:var(--bg)">';
           if(showAction)rh+=renderActionPanel({type:'upload',clip:c,pl:pp||PL[0]});
           rh+=renderPlatforms(c);
-          rh+=renderField(c,'title','Title','Clip title…');
-          rh+=renderField(c,'desc','Description','No description yet');
-          rh+=renderField(c,'num','ID #','e.g. 101');
-          rh+=renderField(c,'length','Length','e.g. 15:52');
+          rh+=renderField(c,'title','Title');
+          rh+=renderField(c,'desc','Description');
+          rh+=renderField(c,'num','ID #');
+          rh+=renderField(c,'length','Length');
           rh+=renderNeedFrom(c);
-          rh+=renderField(c,'notes','Notes','Any notes…');
+          rh+=renderField(c,'notes','Notes');
           rh+='<div style="margin-top:12px"><button class="btn btn-del" onclick="event.stopPropagation();doRemove('+c.id+')">Remove clip</button></div>';
           rh+='</div>';
         }
@@ -3034,15 +3028,15 @@ function render(){
         if(isExp){
           rh+='<div style="padding:16px 18px 18px;border-top:1px solid var(--border);background:var(--bg)">';
           if(s){rh+=renderActionPanel(s);rh+='<div class="sep"></div>';}
-          rh+=renderField(c,'title','Title','Clip title…');
-          rh+=renderField(c,'desc','Description','No description yet');
-          rh+=renderField(c,'keywords','Keywords','No keywords yet');
-          rh+=renderField(c,'num','ID #','e.g. 101');
-          rh+=renderField(c,'length','Length','e.g. 15:52');
+          rh+=renderField(c,'title','Title');
+          rh+=renderField(c,'desc','Description');
+          rh+=renderField(c,'keywords','Keywords');
+          rh+=renderField(c,'num','ID #');
+          rh+=renderField(c,'length','Length');
           rh+=renderAssets(c);
           rh+=renderNeedsEdit(c);
           rh+=renderPlatforms(c);
-          rh+=renderField(c,'notes','Notes','Any notes…');
+          rh+=renderField(c,'notes','Notes');
           rh+='<div style="margin-top:12px"><button class="btn btn-del" onclick="event.stopPropagation();doRemove('+c.id+')">Remove clip</button></div>';
           rh+='</div>';
         }
