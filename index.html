@@ -130,6 +130,45 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .sales-calc-btn{margin-top:10px;font-size:14px;padding:7px 16px}
 .sales-grand{display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:17px;font-weight:800;color:var(--muted)}
 .sales-grand span{font-size:20px;color:var(--green)}
+/* Analytics (Lux only) — happy "what's selling" dashboard */
+.ana-mid{padding:4px 2px}
+.ana-mid-h{font-size:21px;font-weight:900;color:var(--text);padding:2px 6px}
+.ana-mid-sub{font-size:13px;color:var(--muted);padding:5px 6px 16px;line-height:1.45}
+.ana-scope{display:flex;align-items:center;gap:11px;padding:12px 13px;border-radius:14px;cursor:pointer;margin-bottom:8px;border:1.5px solid transparent;transition:background .12s,border-color .12s,transform .12s}
+.ana-scope:hover{background:rgba(196,80,106,.06);transform:translateX(2px)}
+.ana-scope.active{background:var(--surface);border-color:var(--rose-b);box-shadow:0 3px 12px rgba(196,80,106,.14)}
+.ana-scope-ic{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;background:var(--rose-bg)}
+.ana-scope.active .ana-scope-ic{background:linear-gradient(135deg,#d4637a,#9b7dbd)}
+.ana-scope-main{flex:1;min-width:0}
+.ana-scope-name{font-size:15px;font-weight:800;color:var(--text)}
+.ana-scope-amt{font-size:13px;font-weight:700;color:var(--green);margin-top:1px}
+.ana-scope-rank{font-size:13px;font-weight:800;color:var(--faint);flex-shrink:0}
+.ana-hero{border-radius:24px;padding:32px 32px 28px;color:#fff;box-shadow:0 12px 34px rgba(196,80,106,.30);background:linear-gradient(135deg,#e0708a,#b06fb0 55%,#8b7dc4);margin-bottom:28px}
+.ana-hero-eyebrow{font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;opacity:.92}
+.ana-hero-amt{font-size:54px;font-weight:900;letter-spacing:-1.5px;line-height:1.02;margin:10px 0 8px}
+.ana-hero-msg{font-size:15px;font-weight:600;opacity:.96;line-height:1.45;max-width:460px}
+.ana-hero-stats{display:flex;gap:30px;margin-top:24px;flex-wrap:wrap}
+.ana-stat-v{font-size:25px;font-weight:900}
+.ana-stat-l{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.85;margin-top:3px}
+.ana-rank-h{font-size:19px;font-weight:900;color:var(--text);margin:4px 0 4px}
+.ana-rank-sub{font-size:14px;color:var(--muted);margin-bottom:18px}
+.ana-row{display:flex;align-items:center;gap:14px;padding:14px 16px;border:1.5px solid var(--border);border-radius:16px;margin-bottom:11px;background:var(--surface);transition:box-shadow .15s,transform .12s;cursor:pointer}
+.ana-row:hover{box-shadow:0 7px 20px rgba(120,70,90,.13);transform:translateY(-1px)}
+.ana-medal{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:900;flex-shrink:0;background:var(--bg);color:var(--faint)}
+.ana-row.r1 .ana-medal{background:linear-gradient(135deg,#f7d774,#e8b84b)}
+.ana-row.r2 .ana-medal{background:linear-gradient(135deg,#e3e6ea,#c2c8d0)}
+.ana-row.r3 .ana-medal{background:linear-gradient(135deg,#f0c39a,#dba06a)}
+.ana-row-main{flex:1;min-width:0}
+.ana-row-title{font-size:15px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ana-bar-track{height:9px;border-radius:5px;background:var(--bg);margin-top:9px;overflow:hidden}
+.ana-bar-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,#d4637a,#9b7dbd)}
+.ana-row-amt{text-align:right;flex-shrink:0}
+.ana-row-amt-v{font-size:17px;font-weight:900;color:var(--green)}
+.ana-row-amt-l{font-size:12px;color:var(--faint);font-weight:600;margin-top:1px}
+.ana-empty{text-align:center;padding:72px 30px;border:1.5px dashed var(--rose-b);border-radius:24px;background:var(--rose-bg)}
+.ana-empty-emoji{font-size:48px}
+.ana-empty h3{font-size:22px;font-weight:800;color:var(--rose);margin:16px 0 8px}
+.ana-empty p{font-size:15px;color:var(--muted);max-width:380px;margin:0 auto;line-height:1.5}
 .clip-details-box{border:1.5px solid var(--border);border-radius:12px;overflow:hidden}
 .clip-details-summary{display:flex;justify-content:space-between;align-items:center;padding:13px 16px;font-size:15px;font-weight:700;color:var(--muted);cursor:pointer;background:var(--bg);user-select:none}
 .clip-details-summary:hover{color:var(--text)}
@@ -604,6 +643,7 @@ var dtByPlatOpen=false; // desktop "By Platform" section: whole block collapsed 
 var _renderTimer=null;  // debounce handle for scheduleRender() (rapid chip clicks)
 var detailsOpen=false; // collapsed "Clip details" section in the edit pane (posted clips)
 var salesOpen=null;    // Sales dropdown: null = per-layout default (open on All Done, closed elsewhere); else explicit
+var anaScope='total';  // Analytics view scope: 'total' (all platforms) or a platform code (SM/NF/SP/C4S/MV)
 var calDrag=null;
 var pipeSearch='';
 var addPlatforms=null; // per-platform upload status chosen in the Lux add form (null until used)
@@ -1159,6 +1199,85 @@ function clipPlatSales(c,pl){
   var t=c.platformSales&&c.platformSales[pl]?numOnly(c.platformSales[pl].total):null;
   return t||0;
 }
+
+// ── Analytics (Lux only): top-selling clips overall and per platform ──────
+// Money with thousands separators for the big hero figures.
+function anaMoney(n){n=Math.round(n*100)/100;return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+// Tracked platforms (CB/MFC/SC excluded — no sales figures), best earner first.
+function anaPlatforms(){return platformsFor(creator).filter(salesTracked).sort(function(a,b){return anaPlatTotal(b)-anaPlatTotal(a);});}
+function anaPlatTotal(pl){var s=0;clips.forEach(function(c){s+=clipPlatSales(c,pl);});return Math.round(s*100)/100;}
+function anaGrandTotal(){var s=0;clips.forEach(function(c){s+=clipGrandSales(c);});return Math.round(s*100)/100;}
+// Units sold (the "Number of Clips" field) for a clip — one platform, or all tracked.
+function anaUnits(c,pl){
+  if(!c.platformSales)return 0;
+  if(pl){return numOnly((c.platformSales[pl]||{}).clips)||0;}
+  var t=0;Object.keys(c.platformSales).forEach(function(k){if(salesTracked(k)){t+=numOnly(c.platformSales[k].clips)||0;}});return t;
+}
+
+// Middle pane while in Analytics: pick what to look at — everything, or one platform.
+function anaMiddle(){
+  var h='<div class="ana-mid"><div class="ana-mid-h">&#128202; Analytics</div>';
+  h+='<div class="ana-mid-sub">See what&rsquo;s selling so you can make more of what your audience loves. Pick a view &#128150;</div>';
+  h+='<div class="ana-scope'+(anaScope==='total'?' active':'')+'" onclick="anaScope=\'total\';dtAnimate=true;render()">'+
+     '<div class="ana-scope-ic">&#127942;</div><div class="ana-scope-main"><div class="ana-scope-name">All Platforms</div>'+
+     '<div class="ana-scope-amt">'+anaMoney(anaGrandTotal())+' total</div></div></div>';
+  anaPlatforms().forEach(function(pl,i){
+    var amt=anaPlatTotal(pl);
+    h+='<div class="ana-scope'+(anaScope===pl?' active':'')+'" onclick="anaScope=\''+pl+'\';dtAnimate=true;render()">'+
+       '<div class="ana-scope-ic">'+(i===0&&amt>0?'&#11088;':'&#128200;')+'</div>'+
+       '<div class="ana-scope-main"><div class="ana-scope-name">'+esc(pl)+'</div>'+
+       '<div class="ana-scope-amt">'+anaMoney(amt)+(amt>0?' earned':'')+'</div></div>'+
+       '<div class="ana-scope-rank">#'+(i+1)+'</div></div>';
+  });
+  return h+'</div>';
+}
+
+// Right pane while in Analytics: the motivating top-sellers breakdown.
+function renderAnalytics(){
+  var pl=(anaScope==='total')?null:anaScope;
+  var ranked=clips.map(function(c){return {c:c,amt:pl?clipPlatSales(c,pl):clipGrandSales(c),units:anaUnits(c,pl)};})
+    .filter(function(r){return r.amt>0;})
+    .sort(function(a,b){return b.amt-a.amt;});
+
+  if(!ranked.length){
+    return '<div class="ana-empty"><div class="ana-empty-emoji">&#127793;</div>'+
+      '<h3>'+(pl?esc(pl)+' is ready for its first sale':'No sales logged yet')+'</h3>'+
+      '<p>Once you add sales on your posted clips, your top performers will bloom right here. Every number starts at one. &#128150;</p></div>';
+  }
+
+  var total=pl?anaPlatTotal(pl):anaGrandTotal();
+  var totalUnits=ranked.reduce(function(s,r){return s+r.units;},0);
+  var top=ranked[0].amt||1;
+  var msg=pl
+    ?'Your best-selling content on '+esc(pl)+'. Make more like the ones up top &mdash; they&rsquo;re working! &#10024;'
+    :'Look at everything you&rsquo;ve built. These are the clips your audience loves most &mdash; lean into them. &#128170;';
+
+  var h='<div class="ana-hero">';
+  h+='<div class="ana-hero-eyebrow">'+(pl?esc(pl)+' Earnings':'Total Earnings')+'</div>';
+  h+='<div class="ana-hero-amt">'+anaMoney(total)+'</div>';
+  h+='<div class="ana-hero-msg">'+msg+'</div>';
+  h+='<div class="ana-hero-stats">';
+  h+='<div><div class="ana-stat-v">'+ranked.length+'</div><div class="ana-stat-l">Earning Clips</div></div>';
+  if(totalUnits>0)h+='<div><div class="ana-stat-v">'+totalUnits+'</div><div class="ana-stat-l">Clips Sold</div></div>';
+  if(!pl){var bp=anaPlatforms()[0];if(bp&&anaPlatTotal(bp)>0)h+='<div><div class="ana-stat-v">'+esc(bp)+'</div><div class="ana-stat-l">Top Platform</div></div>';}
+  h+='</div></div>';
+
+  h+='<div class="ana-rank-h">&#128293; Top Sellers</div>';
+  h+='<div class="ana-rank-sub">Ranked by sales across '+(pl?esc(pl):'all platforms')+'. Tap any clip to open it.</div>';
+  ranked.forEach(function(r,i){
+    var rk=i+1,rcls=rk<=3?' r'+rk:'';
+    var medal=rk===1?'&#129351;':rk===2?'&#129352;':rk===3?'&#129353;':String(rk);
+    var w=Math.max(5,Math.round(r.amt/top*100));
+    h+='<div class="ana-row'+rcls+'" onclick="dtRightView=\'edit\';dtNextId=null;dtAnimate=true;expanded='+r.c.id+';render()">'+
+       '<div class="ana-medal">'+medal+'</div>'+
+       '<div class="ana-row-main"><div class="ana-row-title">'+esc(r.c.title||('Clip '+(r.c.num||r.c.id)))+'</div>'+
+       '<div class="ana-bar-track"><div class="ana-bar-fill" style="width:'+w+'%"></div></div></div>'+
+       '<div class="ana-row-amt"><div class="ana-row-amt-v">'+anaMoney(r.amt)+'</div>'+
+       (r.units>0?'<div class="ana-row-amt-l">'+r.units+' sold</div>':'')+'</div></div>';
+  });
+  return h;
+}
+
 function advanceStatus(id){
   var c=clips.find(function(x){return x.id===id;});if(!c)return;
   var ord=['idea','filmed','edited','uploaded'];var i=ord.indexOf(c.status);
@@ -2257,6 +2376,7 @@ function dtSidebar(){
   h+='</div>';
   h+='<div class="dt-sec-lbl">View</div><div class="dt-nav">';
   h+='<div class="dt-navitem'+(dtRightView==='cal'?' active':'')+'" onclick="dtRightView=\'cal\';dtAnimate=true;render()">Calendar</div>';
+  if(!isSimple())h+='<div class="dt-navitem'+(dtRightView==='analytics'?' active':'')+'" onclick="dtRightView=\'analytics\';dtAnimate=true;render()">&#128202;&nbsp; Analytics</div>';
   if(isSimple())h+='<div class="dt-navitem'+(dtRightView==='inv'?' active':'')+'" onclick="dtRightView=\'inv\';dtAnimate=true;render()">Invoicing</div>';
   h+='</div>';
   if(isSimple()){ // consulting timer — always visible in the sidebar for Brigit/Venus
@@ -2575,10 +2695,12 @@ function renderDesktop(){
   var listScroll=oldList?oldList.scrollTop:0,detScroll=(oldDet&&!anim)?oldDet.scrollTop:0;
   var creColor=CAL_COLORS[creator]||'#c4506a';
   var h='<div class="dt" style="--cre:'+creColor+'">'+dtSidebar();
-  h+='<section class="dt-list">'+dtListHeader()+'<div class="dt-add">'+renderAddForm()+'</div>'+dtList()+'</section>';
+  if(dtRightView==='analytics'&&!isSimple())h+='<section class="dt-list">'+anaMiddle()+'</section>';
+  else h+='<section class="dt-list">'+dtListHeader()+'<div class="dt-add">'+renderAddForm()+'</div>'+dtList()+'</section>';
   h+='<section class="dt-detail'+anim+'">';
   h+=dtWhyCard();
-  if(dtRightView==='allcal')h+='<div class="sec-lbl">Combined Calendar — all creators</div>'+renderAllCalendar();
+  if(dtRightView==='analytics'&&!isSimple())h+=renderAnalytics();
+  else if(dtRightView==='allcal')h+='<div class="sec-lbl">Combined Calendar — all creators</div>'+renderAllCalendar();
   else if(dtRightView==='cal')h+='<div class="sec-lbl">'+esc((CREATORS[creator]||{name:''}).name)+' — Upload Schedule</div>'+((clips.length||isSimple())?renderCalendar():'<div class="dt-empty">No clips scheduled yet.</div>')+dtCalEditPane()+dtCalAddPane();
   else if(dtRightView==='inv'&&isSimple())h+=renderInvoicingTab();
   else if(dtRightView==='promote'&&!isSimple())h+=dtPromoteNext();
