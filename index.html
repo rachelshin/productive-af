@@ -599,6 +599,7 @@ var creator='LG';
 var clips=[],tab='queue',expanded=false,editField=null,addingNew=false,nextId=200;
 var openGroups={};
 var dtGrpOpen={}; // desktop clip-list accordion: which group headers are expanded (collapsed by default)
+var dtCollapseAll=true; // on boot / creator switch every group starts collapsed (tidy); cleared on first list interaction
 var dtByPlatOpen=false; // desktop "By Platform" section: whole block collapsed by default
 var _renderTimer=null;  // debounce handle for scheduleRender() (rapid chip clicks)
 var detailsOpen=false; // collapsed "Clip details" section in the edit pane (posted clips)
@@ -806,7 +807,7 @@ function switchCreator(key){
   creator=key;
   PL=platformsFor(key);
   expanded=false;editField=null;addingNew=false;dtCalClip=null;dtCalAddDate=null;
-  openGroups={};dtGrpOpen={};tab='queue';pipeSearch='';
+  openGroups={};dtGrpOpen={};dtCollapseAll=true;tab='queue';pipeSearch='';
   var cr=CREATORS[key];
   document.documentElement.style.setProperty('--accent','var('+cr.accentVar+')');
   document.documentElement.style.setProperty('--accent-bg','var('+cr.accentBg+')');
@@ -2308,10 +2309,12 @@ function dtClipGroup(label,col,items,noAutoOpen){
   // platform groups, where a posted clip lives in several groups at once and
   // auto-opening all of them would be noisy — they stay click-to-open).
   var searching=pipeSearch.trim().length>0;
-  var hasSel=(!noAutoOpen)&&(dtRightView==='edit')&&items.some(function(c){return c.id===expanded;});
+  // After a creator switch every group starts collapsed (tidy) until the user
+  // touches the list; then the selected clip's group can auto-open as usual.
+  var hasSel=(!dtCollapseAll)&&(!noAutoOpen)&&(dtRightView==='edit')&&items.some(function(c){return c.id===expanded;});
   var open=searching?true:dtGrpOpen[label]===true?true:dtGrpOpen[label]===false?false:hasSel;
   var key=label.replace(/'/g,"\\'");
-  var h='<div class="dt-grp'+(open?' open':'')+'"><div class="dt-grp-h" style="color:'+col+'" onclick="dtGrpOpen[\''+key+'\']=!('+(open?'true':'false')+');render()">';
+  var h='<div class="dt-grp'+(open?' open':'')+'"><div class="dt-grp-h" style="color:'+col+'" onclick="dtCollapseAll=false;dtGrpOpen[\''+key+'\']=!('+(open?'true':'false')+');render()">';
   h+='<span class="dt-grp-caret">'+(open?'&#9662;':'&#9656;')+'</span>'+esc(label)+'<span class="dt-grp-count">'+items.length+'</span></div>';
   if(open)items.forEach(function(c){
     var sel=(dtRightView==='edit'&&expanded===c.id);
@@ -2323,7 +2326,7 @@ function dtClipGroup(label,col,items,noAutoOpen){
     var pill=st?esc(dtStepShort(st)):'&#10003; Done';
     // In the Scheduled group, the pill shows when it goes up, not its pipeline step.
     if(isScheduledFuture(c)){scol=col;pill='&#128197; '+esc(fmtDate(clipScheduleDate(c)));}
-    h+='<div class="dt-card'+(sel?' sel':'')+'" style="--row:'+scol+'" onclick="dtRightView=\'edit\';dtNextId=null;dtAnimate=true;expanded='+c.id+';render()">';
+    h+='<div class="dt-card'+(sel?' sel':'')+'" style="--row:'+scol+'" onclick="dtCollapseAll=false;dtRightView=\'edit\';dtNextId=null;dtAnimate=true;expanded='+c.id+';render()">';
     h+='<span class="dt-card-dot" style="background:'+scol+'"></span>';
     h+='<span class="id-badge">'+(c.num?esc(c.num):fid(c.id))+'</span>';
     if(c.type==='photoset')h+='<span class="ps-tag">&#128247; Photoset</span>';
