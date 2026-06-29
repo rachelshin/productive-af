@@ -268,7 +268,9 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .cal-event{font-size:13px;background:var(--violet-bg);border:1px solid var(--violet-b);border-radius:7px;padding:4px 8px;margin-bottom:3px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--violet);font-weight:600}
 .cal-event:hover{background:var(--violet-b)}
 /* Lone clip on a day: colour fills the whole cell (not a chip) so the full title can wrap in. */
-.cal-event-full{position:absolute;inset:0;margin:0;border:none;border-radius:0;padding:28px 10px 10px;white-space:normal;line-height:1.3;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;line-clamp:4;overflow:hidden}
+.cal-event-full{position:absolute;inset:0;margin:0;border:none;border-radius:0;padding:28px 10px 10px;overflow:hidden}
+/* Title clipped on a clean line boundary: max-height is an exact multiple of line-height (4 × 17px). */
+.cal-full-txt{display:block;white-space:normal;line-height:17px;max-height:68px;overflow:hidden}
 .cal-event-plat{font-weight:800;font-size:11px;margin-right:4px;opacity:.85}
 .cal-event.is-c4s .cal-event-plat,.cal-event.is-lf .cal-event-plat{display:none}
 .cal-event.is-review{background:var(--amber-bg);border-color:var(--amber-b);color:var(--amber)}
@@ -1933,8 +1935,9 @@ function renderCalendar(){
       var stCls=ev.status===IR?' is-review':ev.status===U?' is-up':ev.status===PPV?' is-ppv':ev.status===PR?' is-pr':'';
       var short=single?ev.clip.title:(ev.clip.title.length>16?ev.clip.title.substring(0,15)+'…':ev.clip.title);
       var showPlat=platformsFor(ev.creator||creator).length>1;
+      var inner=(showPlat?'<span class="cal-event-plat">'+ev.platform+'</span>':'')+(isSimple()&&ev.clip.needFrom?'&#128229; ':'')+(isSimple()&&clipIsShort(ev.clip)?'★ ':'')+esc(short);
       s+='<div class="cal-event'+stCls+(single?' cal-event-full':'')+'" data-drag-clip="'+ev.clip.id+'" data-drag-platform="'+ev.platform+'" onclick="event.stopPropagation();jumpToClip('+ev.clip.id+')" style="cursor:grab">';
-      s+=(showPlat?'<span class="cal-event-plat">'+ev.platform+'</span>':'')+(isSimple()&&ev.clip.needFrom?'&#128229; ':'')+(isSimple()&&clipIsShort(ev.clip)?'★ ':'')+esc(short)+'</div>';
+      s+=(single?'<span class="cal-full-txt">'+inner+'</span>':inner)+'</div>';
     });
     if(evs.length>3)s+='<div class="cal-more">+' +(evs.length-3)+' more</div>';
     return s;
