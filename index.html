@@ -253,7 +253,7 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .cal-today{border-color:var(--accent);background:var(--accent-bg)}
 .cal-drop-hover{border-color:var(--accent)!important;background:var(--accent-bg)!important;box-shadow:0 0 0 2px var(--accent)}
 .cal-drag-ghost{opacity:.92;box-shadow:0 8px 22px rgba(40,15,10,.28);transform:scale(1.03)}
-.cal-event[data-drag-clip],.unsched-chip[data-drag-clip]{touch-action:none}
+.cal-event[data-drag-clip],.unsched-chip[data-drag-clip],.dt-card[data-drag-clip]{touch-action:none}
 .unsched-pool{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;border-radius:12px}
 .unsched-pool.empty{min-height:46px;border:1.5px dashed var(--border)}
 .unsched-chip{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:var(--surface);border:2px solid var(--border);border-radius:20px;font-size:14px;font-weight:700;color:var(--text);cursor:grab;user-select:none;white-space:nowrap}
@@ -2606,7 +2606,12 @@ function dtClipGroup(label,col,items,noAutoOpen,pl){
     if(isScheduledFuture(c)&&!pl){scol=col;pill='&#128197; '+esc(fmtDate(clipScheduleDate(c)));}
     // Platform-filter mode: pill = this platform's status (color matches the group).
     if(pl){scol=col;pill=esc(platPill(c,pl));}
-    h+='<div class="dt-card'+(sel?' sel':'')+'" style="--row:'+scol+'" onclick="dtCollapseAll=false;dtRightView=\'edit\';dtNextId=null;dtAnimate=true;expanded='+c.id+';render()">';
+    // Draggable into the calendar (right pane) to schedule it: drop onto a day to set
+    // its date. Platform = the group's filter, else the clip's next-upload platform,
+    // else __all__ (date applies to every pending platform). A plain click still opens
+    // the clip — the drag system only treats it as a drag once the pointer moves.
+    var dragPl=pl||(st&&st.pl)||'__all__';
+    h+='<div class="dt-card'+(sel?' sel':'')+'" data-drag-clip="'+c.id+'" data-drag-platform="'+dragPl+'" style="--row:'+scol+';cursor:grab" onclick="dtCollapseAll=false;dtRightView=\'edit\';dtNextId=null;dtAnimate=true;expanded='+c.id+';render()">';
     h+='<span class="dt-card-dot" style="background:'+scol+'"></span>';
     h+='<span class="id-badge">'+(c.num?esc(c.num):fid(c.id))+'</span>';
     if(c.type==='photoset')h+='<span class="ps-tag">&#128247; Photoset</span>';
@@ -3268,6 +3273,11 @@ function doAdd(){
 
   var uid = null;
   var writeTimers = {};
+  // The last value we wrote locally per key, with a timestamp. Used to reject a
+  // late-arriving server snapshot that echoes an OLDER state (committed before our
+  // newest local write reaches the server) — that race caused a status chip to
+  // visibly flash back to its previous value right after being changed.
+  var lastLocalWrite = {};
 
   function docRef(key) {
     // users/{uid}/kv/{key}  ->  { value: "<json string>", updated: <ts> }
@@ -3281,6 +3291,7 @@ function doAdd(){
     getItem: function (k) { return localStorage.getItem(k); },
     setItem: function (k, v) {
       localStorage.setItem(k, v);                 // instant local cache
+      lastLocalWrite[k] = { value: v, at: Date.now() };
       if (!uid) return;                            // not signed in yet
       clearTimeout(writeTimers[k]);
       writeTimers[k] = setTimeout(function () {
@@ -3325,8 +3336,17 @@ function doAdd(){
       docRef(k).onSnapshot(function (snap) {
         if (snap.metadata.hasPendingWrites) return;       // ignore our own writes
         var data = snap.exists ? snap.data() : null;
-        if (data && typeof data.value === 'string' &&
-            localStorage.getItem(k) !== data.value) {
+        if (!data || typeof data.value !== 'string') return;
+        // Guard against a stale echo of an older state racing our newest local write.
+        var lw = lastLocalWrite[k];
+        if (lw) {
+          if (data.value === lw.value) {
+            delete lastLocalWrite[k];                      // our write confirmed — back in sync
+          } else if (Date.now() - lw.at < 8000) {
+            return;                                        // older value arriving late — keep ours
+          }
+        }
+        if (localStorage.getItem(k) !== data.value) {
           localStorage.setItem(k, data.value);
           var c = (typeof creator !== 'undefined') ? creator : null;
           if (c && (k === 'lg-v8-' + c || k === 'lg-consulting-' + c)) {
