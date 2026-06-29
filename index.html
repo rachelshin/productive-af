@@ -1053,15 +1053,16 @@ function lgCompleteness(c){ // how close to fully done: prep milestones + per-pl
 var _lgPick={sig:'',id:null}; // remembers the random tie-break pick so it doesn't jump on every render
 function dtDefaultClip(){
   if(!clips.length)return null;
-  // 1) Soonest clip scheduled on the calendar.
-  var dated=clips.filter(function(c){return nextCalDate(c);});
+  // 1) Soonest clip scheduled on the calendar. needFrom clips (footage not yet
+  // received) are out of the workflow, so they never lead "Do this next".
+  var dated=clips.filter(function(c){return nextCalDate(c)&&!c.needFrom;});
   if(dated.length){
     dated.sort(function(a,b){var da=nextCalDate(a),db=nextCalDate(b);return da<db?-1:da>db?1:a.id-b.id;});
     return dated[0];
   }
   // 2) Nothing scheduled → creator-specific fallback.
   if(isSimple()){
-    var unposted=clips.filter(function(c){return !clipUploadedSimple(c);});
+    var unposted=clips.filter(function(c){return !clipUploadedSimple(c)&&!c.needFrom;});
     if(!unposted.length)return null;
     unposted.sort(function(a,b){return clipNumVal(a)-clipNumVal(b);});
     return unposted[0];
@@ -2403,7 +2404,8 @@ function confetti(){
 // The single most pressing thing across ALL creators: soonest scheduled upload.
 function dtGlobalNext(){
   var evMap=getAllCalEvents(),all=[];
-  Object.keys(evMap).forEach(function(d){(evMap[d]||[]).forEach(function(ev){if(ev.status===P)all.push({date:d,ev:ev});});});
+  // Skip clips we don't have yet (needFrom) — they're out of the workflow until received.
+  Object.keys(evMap).forEach(function(d){(evMap[d]||[]).forEach(function(ev){if(ev.status===P&&!ev.clip.needFrom)all.push({date:d,ev:ev});});});
   all.sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:0;});
   return all.length?all[0]:null;
 }
@@ -2556,18 +2558,23 @@ function dtList(){
     var needFromList=clips.filter(function(c){return c.needFrom;});
     var needIds={};needFromList.forEach(function(c){needIds[c.id]=true;});
     function notNeed(c){return !needIds[c.id];}
-    var schedF=scheduled.filter(notNeed);
-    // Groups follow each clip's current step so In Review clips get their own bucket
-    // (a clip with no step is live → "Uploaded"). Scheduled sits above In Review.
+    // In Review = ANY clip awaiting approval on ANY platform. It takes priority:
+    // an in-review clip shows ONLY here — pulled out of Scheduled and the upload
+    // buckets — matching the per-platform workflow (schedule → upload → in review
+    // → published → next platform), so you don't act on it until it's approved.
+    var inReviewList=clips.filter(function(c){return notNeed(c)&&platformsFor(creator).some(function(pl){return c.platforms[pl]===IR;});});
+    var revIds={};inReviewList.forEach(function(c){revIds[c.id]=true;});
+    function avail(c){return notNeed(c)&&notSched(c)&&!revIds[c.id];}
+    var schedF=scheduled.filter(notNeed).filter(function(c){return !revIds[c.id];});
     h+=dtClipGroup('Need from '+creatorShortName(),'var(--violet)',needFromList);
     if(platformsFor(creator).length>1){
-      h+=dtClipGroup('Upload to C4S','var(--rose)',clips.filter(function(c){var s=getClipStepSimple(c);return notNeed(c)&&notSched(c)&&s&&s.type==='upload'&&s.pl==='C4S';}));
-      h+=dtClipGroup('Upload to LF','var(--sky)',clips.filter(function(c){var s=getClipStepSimple(c);return notNeed(c)&&notSched(c)&&s&&s.type==='upload'&&s.pl!=='C4S';}));
+      h+=dtClipGroup('Upload to C4S','var(--rose)',clips.filter(function(c){var s=getClipStepSimple(c);return avail(c)&&s&&s.type==='upload'&&s.pl==='C4S';}));
+      h+=dtClipGroup('Upload to LF','var(--sky)',clips.filter(function(c){var s=getClipStepSimple(c);return avail(c)&&s&&s.type==='upload'&&s.pl!=='C4S';}));
     } else {
-      h+=dtClipGroup('To Upload','var(--rose)',clips.filter(function(c){var s=getClipStepSimple(c);return notNeed(c)&&notSched(c)&&s&&s.type==='upload';}));
+      h+=dtClipGroup('To Upload','var(--rose)',clips.filter(function(c){var s=getClipStepSimple(c);return avail(c)&&s&&s.type==='upload';}));
     }
     h+=dtClipGroup('Scheduled','var(--violet)',schedF);
-    h+=dtClipGroup('In Review','var(--amber)',clips.filter(function(c){var s=getClipStepSimple(c);return notNeed(c)&&notSched(c)&&s&&s.type==='approve';}));
+    h+=dtClipGroup('In Review','var(--amber)',inReviewList);
     h+=dtClipGroup('Uploaded','var(--green)',clips.filter(function(c){return notNeed(c)&&notSched(c)&&clipUploadedSimple(c);}));
   } else if(pipePlatFilter!=='ALL'){
     // Lux, one platform selected: every group is THIS platform's own status.
