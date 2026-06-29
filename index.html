@@ -109,6 +109,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .field-val{font-size:16px;line-height:1.6;white-space:pre-wrap;color:#4a3530;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:11px 14px;min-height:38px;cursor:pointer;transition:border-color .15s}
 .field-val:hover{border-color:var(--rose-mid)}
 .field-val.empty{color:var(--faint);font-style:italic}
+.kw-count{font-size:13px;color:var(--muted);margin-top:6px;font-weight:600}
 input[type=text],textarea,select{width:100%;font-family:inherit;font-size:16px;color:var(--text);background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:11px 14px;outline:none;transition:border-color .15s,box-shadow .15s}
 input[type=date]{font-family:inherit;font-size:14px;color:var(--text);background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;outline:none;transition:border-color .15s;width:100%;cursor:pointer}
 input[type=text]:focus,textarea:focus,select:focus,input[type=date]:focus{border-color:var(--rose-mid);box-shadow:0 0 0 3px rgba(212,99,122,.12)}
@@ -1382,13 +1383,20 @@ function nextMonth(){calMonth++;if(calMonth>11){calMonth=0;calYear++;}render();}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function fid(id){return '#'+String(id).padStart(3,'0');}
 
+// Keyword counter: count comma-separated non-empty entries, with a live updater
+// wired to the input's oninput so the tally tracks what you're typing.
+function kwCount(s){return String(s||'').split(',').map(function(k){return k.trim();}).filter(Boolean).length;}
+function kwCountLabel(n){return n+' keyword'+(n===1?'':'s');}
+function kwCountHtml(inputId,n){return '<div class="kw-count" id="kwc_'+inputId+'">'+kwCountLabel(n)+'</div>';}
+function updKwCount(inEl){var el=document.getElementById('kwc_'+inEl.id);if(el)el.textContent=kwCountLabel(kwCount(inEl.value));}
+
 function renderField(c,field,label){
   var isE=editField&&editField.id===c.id&&editField.field===field;
   var eid='fe_'+c.id+'_'+field;
   var h='<div class="field-row"><div class="field-lbl">'+label+'</div>';
   if(isE){
     if(field==='desc')h+='<textarea id="'+eid+'">'+esc(c.desc||'')+'</textarea>';
-    else if(field==='keywords')h+='<input type="text" id="'+eid+'" value="'+esc((c.keywords||[]).join(', '))+'">';
+    else if(field==='keywords'){h+='<input type="text" id="'+eid+'" value="'+esc((c.keywords||[]).join(', '))+'" oninput="updKwCount(this)">';h+=kwCountHtml(eid,(c.keywords||[]).length);}
     else if(field==='num')h+='<input type="text" id="'+eid+'" value="'+esc((c.num||'').replace(/^#+/,''))+'">';
     else h+='<input type="text" id="'+eid+'" value="'+esc(c[field]||'')+'">';
     h+='<div class="btn-row"><button class="btn btn-dark" onclick="saveF('+c.id+',\''+field+'\',document.getElementById(\''+eid+'\').value)">Save</button>';
@@ -1398,6 +1406,7 @@ function renderField(c,field,label){
       var kw=(c.keywords||[]).join(', ');
       h+='<div class="field-val'+(kw?'':' empty')+'" onclick="editField={id:'+c.id+',field:\'keywords\'};render()">';
       h+=kw?esc(kw):'';h+='</div>';
+      h+=kwCountHtml(eid,(c.keywords||[]).length);
     } else {
       var val=c[field]||'';
       h+='<div class="field-val'+(val?'':' empty')+'" onclick="editField={id:'+c.id+',field:\''+field+'\'};render()">';
@@ -1536,13 +1545,15 @@ function renderActionPanel(step){
     h+='<div class="action-panel-lbl">Keywords</div>';
     var isE3=editField&&editField.id===c.id&&editField.field==='keywords';
     if(isE3){
-      h+='<input type="text" id="fe_'+c.id+'_keywords" value="'+esc((c.keywords||[]).join(', '))+'">';
+      h+='<input type="text" id="fe_'+c.id+'_keywords" value="'+esc((c.keywords||[]).join(', '))+'" oninput="updKwCount(this)">';
+      h+=kwCountHtml('fe_'+c.id+'_keywords',(c.keywords||[]).length);
       h+='<div class="btn-row"><button class="btn btn-dark" onclick="saveF('+c.id+',\'keywords\',document.getElementById(\'fe_'+c.id+'_keywords\').value)">Save keywords</button>';
       h+='<button class="btn btn-ghost" onclick="editField=null;render()">Cancel</button></div>';
     } else {
       var kw2=(c.keywords||[]).join(', ');
       h+='<div class="field-val'+(kw2?'':' empty')+'" onclick="editField={id:'+c.id+',field:\'keywords\'};render()" style="min-height:50px">';
       h+=kw2?esc(kw2):'';h+='</div>';
+      h+=kwCountHtml('fe_'+c.id+'_keywords',(c.keywords||[]).length);
     }
   } else if(t.indexOf('make-')===0){
     var fm={'make-thumbnail':'thumbnail','make-nfgbcover':'nfGbCover','make-preview':'preview'};
@@ -3306,14 +3317,22 @@ function doAdd(){
         .then(function () {
           if (typeof loadCreator === 'function')    loadCreator();
           if (typeof loadConsulting === 'function') loadConsulting();
-          if (typeof render === 'function')         render();
+          // Open on the global "Do This Next": right pane shows the single most
+          // pressing clip across all creators, with that creator highlighted on
+          // the left and their inventory loaded in the middle pane.
+          if (typeof dtDoNext === 'function')       dtDoNext();
+          else if (typeof render === 'function')    render();
         })
         .catch(function (e) {
           console.error('hydrate failed', e);
           // Fall back to local cache so the app still opens.
           if (typeof loadCreator === 'function')    loadCreator();
           if (typeof loadConsulting === 'function') loadConsulting();
-          if (typeof render === 'function')         render();
+          // Open on the global "Do This Next": right pane shows the single most
+          // pressing clip across all creators, with that creator highlighted on
+          // the left and their inventory loaded in the middle pane.
+          if (typeof dtDoNext === 'function')       dtDoNext();
+          else if (typeof render === 'function')    render();
         });
     } else {
       uid = null;
