@@ -142,6 +142,7 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .ana-scope-main{flex:1;min-width:0}
 .ana-scope-name{font-size:15px;font-weight:800;color:var(--text)}
 .ana-scope-amt{font-size:13px;font-weight:700;color:var(--green);margin-top:1px}
+.ana-scope-ctx{font-size:12px;font-weight:600;color:var(--faint);margin-top:1px}
 .ana-scope-rank{font-size:13px;font-weight:800;color:var(--faint);flex-shrink:0}
 .ana-hero{border-radius:24px;padding:32px 32px 28px;color:#fff;box-shadow:0 12px 34px rgba(196,80,106,.30);background:linear-gradient(135deg,#e0708a,#b06fb0 55%,#8b7dc4);margin-bottom:28px}
 .ana-hero-eyebrow{font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;opacity:.92}
@@ -1233,9 +1234,15 @@ function clipPlatSales(c,pl){
 // ── Analytics (Lux only): top-selling clips overall and per platform ──────
 // Money with thousands separators for the big hero figures.
 function anaMoney(n){n=Math.round(n*100)/100;return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
-// Tracked platforms (CB/MFC/SC excluded — no sales figures), best earner first.
-function anaPlatforms(){return platformsFor(creator).filter(salesTracked).sort(function(a,b){return anaPlatTotal(b)-anaPlatTotal(a);});}
+// Tracked platforms (CB/MFC/SC excluded — no sales figures), ranked by how much
+// each clip earns there on average (total sales / clips uploaded), not gross total
+// — so a platform that earns a lot per upload beats one that's just had more clips.
+function anaPlatforms(){return platformsFor(creator).filter(salesTracked).sort(function(a,b){return anaPlatPerClip(b)-anaPlatPerClip(a);});}
 function anaPlatTotal(pl){var s=0;clips.forEach(function(c){s+=clipPlatSales(c,pl);});return Math.round(s*100)/100;}
+// How many clips are actually live on this platform (uploaded / promoted / PPV).
+function anaPlatUploaded(pl){var n=0;clips.forEach(function(c){if(isPosted(c.platforms[pl]))n++;});return n;}
+// Average earnings per uploaded clip — the metric platforms are judged/ranked by.
+function anaPlatPerClip(pl){var n=anaPlatUploaded(pl);return n?Math.round(anaPlatTotal(pl)/n*100)/100:0;}
 function anaGrandTotal(){var s=0;clips.forEach(function(c){s+=clipGrandSales(c);});return Math.round(s*100)/100;}
 // Units sold (the "Number of Clips" field) for a clip — one platform, or all tracked.
 function anaUnits(c,pl){
@@ -1252,11 +1259,16 @@ function anaMiddle(){
      '<div class="ana-scope-ic">&#127942;</div><div class="ana-scope-main"><div class="ana-scope-name">All Platforms</div>'+
      '<div class="ana-scope-amt">'+anaMoney(anaGrandTotal())+' total</div></div></div>';
   anaPlatforms().forEach(function(pl,i){
-    var amt=anaPlatTotal(pl);
+    var amt=anaPlatTotal(pl),per=anaPlatPerClip(pl),up=anaPlatUploaded(pl);
+    // Headline = avg sales per uploaded clip (what the ranking is based on);
+    // gross total + upload count shown underneath for context.
+    var sub=per>0?anaMoney(per)+'/clip':(up>0?up+' uploaded':'no clips yet');
+    var ctx=up>0?anaMoney(amt)+' from '+up+' clip'+(up===1?'':'s'):'';
     h+='<div class="ana-scope'+(anaScope===pl?' active':'')+'" onclick="anaScope=\''+pl+'\';dtAnimate=true;render()">'+
-       '<div class="ana-scope-ic">'+(i===0&&amt>0?'&#11088;':'&#128200;')+'</div>'+
+       '<div class="ana-scope-ic">'+(i===0&&per>0?'&#11088;':'&#128200;')+'</div>'+
        '<div class="ana-scope-main"><div class="ana-scope-name">'+esc(pl)+'</div>'+
-       '<div class="ana-scope-amt">'+anaMoney(amt)+(amt>0?' earned':'')+'</div></div>'+
+       '<div class="ana-scope-amt">'+sub+'</div>'+
+       (ctx?'<div class="ana-scope-ctx">'+ctx+'</div>':'')+'</div>'+
        '<div class="ana-scope-rank">#'+(i+1)+'</div></div>';
   });
   return h+'</div>';
@@ -2424,9 +2436,8 @@ function dtSidebar(){
 // new platform's groups start fresh, and open the actionable ones by default.
 function setPipePlat(pl){
   pipePlatFilter=pl;
-  if(pl==='ALL'){dtGrpOpen={};}
-  else{dtGrpOpen={};dtGrpOpen['Ready to Upload']=true;dtGrpOpen['Ready to Promote']=true;}
-  dtCollapseAll=false;
+  // Every group starts collapsed; the user expands what they want to see.
+  dtGrpOpen={};dtCollapseAll=true;
   render();
 }
 function dtListHeader(){
