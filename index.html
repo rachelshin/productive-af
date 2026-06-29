@@ -272,7 +272,7 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .cal-event-plat{font-weight:800;font-size:11px;margin-right:4px;opacity:.85}
 .cal-event.is-c4s .cal-event-plat,.cal-event.is-lf .cal-event-plat{display:none}
 .cal-event.is-review{background:var(--amber-bg);border-color:var(--amber-b);color:var(--amber)}
-.cal-event.is-up{background:var(--sky);border-color:var(--sky);color:#fff}
+.cal-event.is-up{background:var(--sky-bg);border-color:var(--sky-b);color:var(--sky)}
 .cal-event.is-ppv{background:var(--violet);border-color:var(--violet);color:#fff}
 .cal-event.is-pr{background:var(--green-bg);border-color:var(--green-b);color:var(--green)}
 .cal-event.is-c4s{background:#f5d5da;border-color:#d4909e;color:#6a1f2e}
@@ -2909,7 +2909,20 @@ function renderDesktop(){
   var newDet=document.querySelector('.dt-detail');if(newDet)newDet.scrollTop=detScroll;
   if(_dtCalScroll){_dtCalScroll=false;var ep=document.querySelector('.cal-edit-pane,.cal-add-pane');if(ep)ep.scrollIntoView({behavior:'smooth',block:'start'});}
   if(editField){var el=document.getElementById('fe_'+editField.id+'_'+editField.field);if(el){el.focus({preventScroll:true});if(el.tagName==='TEXTAREA')el.setSelectionRange(el.value.length,el.value.length);}}
+  fitCalTitles();
 }
+// A lone clip's title fills its whole calendar square; shrink the font until it stops
+// overflowing so long titles still fit. Runs after every render and on window resize.
+function fitCalTitles(){
+  var els=document.querySelectorAll('.cal-event-full');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    el.style.fontSize=''; // reset to the CSS base before measuring
+    var fs=parseFloat(getComputedStyle(el).fontSize)||13.5,guard=0;
+    while(el.scrollHeight>el.clientHeight&&fs>8.5&&guard<40){fs-=0.5;el.style.fontSize=fs+'px';guard++;}
+  }
+}
+window.addEventListener('resize',function(){clearTimeout(window._calFitT);window._calFitT=setTimeout(fitCalTitles,120);});
 
 // Coalesce a burst of rapid state changes (e.g. spamming a status chip) into a
 // single full re-render shortly after the last one, so each click stays instant.
