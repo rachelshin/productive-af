@@ -1191,7 +1191,7 @@ function saveF(id,field,value){
       value=nextClipNum(id); // erased/blank → auto-assign highest existing number + 1
     } else {
       var dup=clips.find(function(x){return x.id!==id&&x.num&&x.num.replace(/^#+/,'')===norm;});
-      if(dup){alert('ID #'+norm+' is already used by "'+dup.title+'". Please choose a different number.');return;}
+      if(dup){alert('ID '+norm+' is already used by "'+dup.title+'". Please choose a different number.');return;}
       value='#'+norm;
     }
   }
@@ -1324,7 +1324,7 @@ function renderAnalytics(){
     var w=Math.max(5,Math.round(r.amt/top*100));
     h+='<div class="ana-row'+rcls+'" onclick="dtRightView=\'edit\';dtNextId=null;dtAnimate=true;expanded='+r.c.id+';render()">'+
        '<div class="ana-medal">'+medal+'</div>'+
-       '<div class="ana-row-main"><div class="ana-row-title">'+esc(r.c.title||('Clip '+(r.c.num||r.c.id)))+'</div>'+
+       '<div class="ana-row-main"><div class="ana-row-title">'+esc(r.c.title||('Clip '+numDisp(r.c)))+'</div>'+
        '<div class="ana-bar-track"><div class="ana-bar-fill" style="width:'+w+'%"></div></div></div>'+
        '<div class="ana-row-amt"><div class="ana-row-amt-v">'+anaMoney(r.amt)+'</div>'+
        (r.units>0?'<div class="ana-row-amt-l">'+r.units+' sold</div>':'')+'</div></div>';
@@ -1398,7 +1398,9 @@ function nextMonth(){calMonth++;if(calMonth>11){calMonth=0;calYear++;}render();}
 
 // ── HELPERS ────────────────────────────────────────────────────
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-function fid(id){return '#'+String(id).padStart(3,'0');}
+function fid(id){return String(id).padStart(3,'0');}        // bare id (no '#') used when a clip has no number
+// Clip number for display, with any leading '#' stripped (stored values keep it).
+function numDisp(c){return c.num?String(c.num).replace(/^#+/,''):fid(c.id);}
 
 // Keyword counter: count comma-separated non-empty entries, with a live updater
 // wired to the input's oninput so the tally tracks what you're typing.
@@ -1614,7 +1616,7 @@ function renderAddForm(){
       '<div class="field-lbl">Title</div>'+
       '<input type="text" id="new-title" onkeydown="if(event.key===\'Enter\')doAdd()">'+
       '<div style="display:flex;gap:8px">'+
-        '<div style="flex:1"><div class="field-lbl">ID #</div><input type="text" id="new-num" style="width:100%;box-sizing:border-box"></div>'+
+        '<div style="flex:1"><div class="field-lbl">ID</div><input type="text" id="new-num" style="width:100%;box-sizing:border-box"></div>'+
         '<div style="flex:1"><div class="field-lbl">Length</div><input type="text" id="new-length" style="width:100%;box-sizing:border-box"></div>'+
       '</div>'+
       '<div style="display:flex;align-items:center;gap:8px">'+
@@ -1635,7 +1637,7 @@ function renderAddForm(){
     '<div class="field-lbl">Title</div>'+
     '<input type="text" id="new-title" onkeydown="if(event.key===\'Enter\')doAdd()">'+
     '<div style="display:flex;gap:8px">'+
-      '<div style="flex:1"><div class="field-lbl">ID #</div><input type="text" id="new-num" style="width:100%;box-sizing:border-box"></div>'+
+      '<div style="flex:1"><div class="field-lbl">ID</div><input type="text" id="new-num" style="width:100%;box-sizing:border-box"></div>'+
       '<div style="flex:1" id="new-length-wrap"><div class="field-lbl">Length</div><input type="text" id="new-length" style="width:100%;box-sizing:border-box"></div>'+
     '</div>'+
     '<div class="field-lbl" id="new-status-lbl">Status</div>'+
@@ -1921,13 +1923,14 @@ function renderCalendar(){
   h+=calGridHtml(getCalEvents(),function(evs){
     var s='';
     evs.slice(0,3).forEach(function(ev){
-      var stCls=isSimple()?(ev.platform==='C4S'?' is-c4s':ev.platform==='LF'?' is-lf':''):(ev.status===IR?' is-review':ev.status===U?' is-up':ev.status===PPV?' is-ppv':ev.status===PR?' is-pr':'');
+      // Colour by status (Scheduled = default violet, In Review = amber, Uploaded = sky).
+      // Show the C4S/LF prefix only when there's more than one platform (Brigit/Lux); a
+      // single-platform creator (Venus = C4S only) gets no redundant prefix.
+      var stCls=ev.status===IR?' is-review':ev.status===U?' is-up':ev.status===PPV?' is-ppv':ev.status===PR?' is-pr':'';
       var short=ev.clip.title.length>16?ev.clip.title.substring(0,15)+'…':ev.clip.title;
-      // Simple creators colour by platform; solidify the chip once uploaded (pending stays lighter).
-      var solid='';
-      if(isSimple()&&(ev.status===U||ev.status===PR)){var base=ev.platform==='C4S'?'#d4909e':'#90a0d4';solid='background:'+base+';border-color:'+base+';color:#fff;';}
-      s+='<div class="cal-event'+stCls+'" data-drag-clip="'+ev.clip.id+'" data-drag-platform="'+ev.platform+'" onclick="event.stopPropagation();jumpToClip('+ev.clip.id+')" style="'+solid+'cursor:grab">';
-      s+='<span class="cal-event-plat">'+ev.platform+'</span>'+(isSimple()&&ev.clip.needFrom?'&#128229; ':'')+(isSimple()&&clipIsShort(ev.clip)?'★ ':'')+esc(short)+'</div>';
+      var showPlat=platformsFor(ev.creator||creator).length>1;
+      s+='<div class="cal-event'+stCls+'" data-drag-clip="'+ev.clip.id+'" data-drag-platform="'+ev.platform+'" onclick="event.stopPropagation();jumpToClip('+ev.clip.id+')" style="cursor:grab">';
+      s+=(showPlat?'<span class="cal-event-plat">'+ev.platform+'</span>':'')+(isSimple()&&ev.clip.needFrom?'&#128229; ':'')+(isSimple()&&clipIsShort(ev.clip)?'★ ':'')+esc(short)+'</div>';
     });
     if(evs.length>3)s+='<div class="cal-more">+' +(evs.length-3)+' more</div>';
     return s;
@@ -1935,8 +1938,9 @@ function renderCalendar(){
   },(isDesktop()&&isSimple())?function(ds){return 'openCalAdd(\''+ds+'\')';}:null);
   h+='<div class="cal-legend">';
   if(isSimple()){
-    h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:#d4909e"></div>C4S</div>';
-    if(platformsFor(creator).indexOf('LF')>=0)h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:#90a0d4"></div>LF</div>';
+    h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--violet-b)"></div>Scheduled</div>';
+    h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--amber-b)"></div>In Review</div>';
+    h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--sky-b)"></div>Uploaded</div>';
   } else {
     h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--violet-b)"></div>Scheduled</div>';
     h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--sky-b)"></div>Uploaded</div>';
@@ -2002,7 +2006,7 @@ function renderCalendar(){
     var c=item.clip,pl=item.pl;
     var uchipCls=isSimple()?(c.platforms['C4S']===P?' is-c4s':' is-lf'):'';
     h+='<div class="unsched-chip'+uchipCls+'" data-drag-clip="'+c.id+'" data-drag-platform="'+pl+'" onclick="event.stopPropagation();jumpToClip('+c.id+')" title="'+esc(c.title)+'" style="cursor:grab">';
-    if(isSimple()&&c.num)h+='<span class="id-badge" style="font-size:10px;padding:1px 5px">'+esc(c.num)+'</span> ';
+    if(isSimple()&&c.num)h+='<span class="id-badge" style="font-size:10px;padding:1px 5px">'+esc(numDisp(c))+'</span> ';
     if(isSimple()&&c.needFrom)h+='&#128229; ';
     h+=esc(c.title.length>22?c.title.substring(0,21)+'…':c.title);
     h+='</div>';
@@ -2613,7 +2617,7 @@ function dtClipGroup(label,col,items,noAutoOpen,pl){
     var dragPl=pl||(st&&st.pl)||'__all__';
     h+='<div class="dt-card'+(sel?' sel':'')+'" data-drag-clip="'+c.id+'" data-drag-platform="'+dragPl+'" style="--row:'+scol+';cursor:grab" onclick="dtCollapseAll=false;dtRightView=\'edit\';dtNextId=null;dtAnimate=true;expanded='+c.id+';render()">';
     h+='<span class="dt-card-dot" style="background:'+scol+'"></span>';
-    h+='<span class="id-badge">'+(c.num?esc(c.num):fid(c.id))+'</span>';
+    h+='<span class="id-badge">'+esc(numDisp(c))+'</span>';
     if(c.type==='photoset')h+='<span class="ps-tag">&#128247; Photoset</span>';
     h+='<span class="dt-row-name">'+esc(c.title)+'</span>';
     h+='<span class="dt-pill" style="color:'+scol+';border-color:'+scol+'">'+pill+'</span></div>';
@@ -2791,14 +2795,14 @@ function dtClipEditor(c,step){
     h+='<div class="dt-next" style="border-left:4px solid '+col+'">';
     h+='<div class="dt-next-eyebrow" style="color:'+col+'"><span class="dtn-pulse" style="background:'+col+'"></span>DO THIS NEXT</div>';
     h+='<div class="dt-next-action">'+esc(head)+'</div>';
-    h+='<div class="dt-next-sub">for '+(c.num?esc(c.num):fid(c.id))+' &ldquo;'+esc(c.title)+'&rdquo;'+(dv?' &middot; scheduled '+esc(fmtDate(dv)):'')+'</div>';
+    h+='<div class="dt-next-sub">for '+esc(numDisp(c))+' &ldquo;'+esc(c.title)+'&rdquo;'+(dv?' &middot; scheduled '+esc(fmtDate(dv)):'')+'</div>';
     h+='</div>';
   }
   var titleEditing=editField&&editField.id===c.id&&editField.field==='title';
   var numEditing=editField&&editField.id===c.id&&editField.field==='num';
   h+='<div class="dt-detail-head">';
   if(numEditing)h+='<input class="id-badge-input" id="fe_'+c.id+'_num" value="'+esc((c.num||'').replace(/^#+/,''))+'" onkeydown="if(event.key===\'Enter\')saveF('+c.id+',\'num\',this.value)" onblur="saveF('+c.id+',\'num\',this.value)">';
-  else h+='<span class="id-badge" title="Click to edit ID #" style="cursor:pointer" onclick="editField={id:'+c.id+',field:\'num\'};render()">'+(c.num?esc(c.num):fid(c.id))+'</span>';
+  else h+='<span class="id-badge" title="Click to edit ID" style="cursor:pointer" onclick="editField={id:'+c.id+',field:\'num\'};render()">'+esc(numDisp(c))+'</span>';
   if(titleEditing)h+='<input class="dt-title-input" id="fe_'+c.id+'_title" value="'+esc(c.title)+'" onkeydown="if(event.key===\'Enter\')saveF('+c.id+',\'title\',this.value)" onblur="saveF('+c.id+',\'title\',this.value)">';
   else h+='<span class="dt-detail-title" title="Click to rename" onclick="editField={id:'+c.id+',field:\'title\'};render()">'+esc(c.title)+'</span>';
   h+='</div>';
@@ -2837,7 +2841,7 @@ function dtCalAddPane(){
       '<div class="field-lbl">Title</div>'+
       '<input type="text" id="caladd-title" onkeydown="if(event.key===\'Enter\')doAddFromCal()">'+
       '<div style="display:flex;gap:8px">'+
-        '<div style="flex:1"><div class="field-lbl">ID #</div><input type="text" id="caladd-num" style="width:100%;box-sizing:border-box"></div>'+
+        '<div style="flex:1"><div class="field-lbl">ID</div><input type="text" id="caladd-num" style="width:100%;box-sizing:border-box"></div>'+
         '<div style="flex:1"><div class="field-lbl">Length</div><input type="text" id="caladd-length" style="width:100%;box-sizing:border-box"></div>'+
       '</div>'+
       '<div style="display:flex;align-items:center;gap:8px;margin-top:8px">'+
@@ -2870,7 +2874,7 @@ function dtPromoteNext(){
     var toPromote=platformsFor(creator).filter(function(pl){return c.platforms[pl]===U;});
     h+='<div class="dt-card" style="--row:var(--teal)" onclick="dtRightView=\'edit\';dtNextId=null;dtAnimate=true;expanded='+c.id+';render()">';
     h+='<span class="dt-card-dot" style="background:var(--teal)"></span>';
-    h+='<span class="id-badge">'+(c.num?esc(c.num):fid(c.id))+'</span>';
+    h+='<span class="id-badge">'+esc(numDisp(c))+'</span>';
     h+='<span class="dt-row-name">'+esc(c.title)+(toPromote.length?' <span style="color:var(--faint);font-size:13px;font-weight:400">&middot; promote on '+esc(toPromote.join(', '))+'</span>':'')+'</span>';
     h+='<span class="dt-pill" style="color:var(--teal);border-color:var(--teal)">'+doneN+'/'+active.length+' promoted</span></div>';
   });
@@ -2900,7 +2904,7 @@ function renderDesktop(){
   var newList=document.querySelector('.dt-list');if(newList)newList.scrollTop=listScroll;
   var newDet=document.querySelector('.dt-detail');if(newDet)newDet.scrollTop=detScroll;
   if(_dtCalScroll){_dtCalScroll=false;var ep=document.querySelector('.cal-edit-pane,.cal-add-pane');if(ep)ep.scrollIntoView({behavior:'smooth',block:'start'});}
-  if(editField){var el=document.getElementById('fe_'+editField.id+'_'+editField.field);if(el){el.focus();if(el.tagName==='TEXTAREA')el.setSelectionRange(el.value.length,el.value.length);}}
+  if(editField){var el=document.getElementById('fe_'+editField.id+'_'+editField.field);if(el){el.focus({preventScroll:true});if(el.tagName==='TEXTAREA')el.setSelectionRange(el.value.length,el.value.length);}}
 }
 
 // Coalesce a burst of rapid state changes (e.g. spamming a status chip) into a
@@ -2994,7 +2998,7 @@ function render(){
       h+=esc((TLABEL[next.type]||'').toUpperCase())+'</div>';
       h+='<div class="dtn-action">'+esc(actionTitle(next))+'</div>';
       h+='<div class="dtn-clip">';
-      h+=isSimple()&&next.clip.num?'<span class="id-badge">'+esc(next.clip.num)+'</span>':'<span class="id-badge">'+fid(next.clip.id)+'</span>';
+      h+=isSimple()&&next.clip.num?'<span class="id-badge">'+esc(numDisp(next.clip))+'</span>':'<span class="id-badge">'+fid(next.clip.id)+'</span>';
       h+=esc(next.clip.title);
       if(next.clip.length)h+=' &middot; '+esc(next.clip.length);
       if((next.type==='upload'||next.type==='promote')&&next.pl&&next.clip.platformDates&&next.clip.platformDates[next.pl])
@@ -3058,7 +3062,7 @@ function render(){
         var dv=c.platformDates&&c.platformDates[pp]?fmtDate(c.platformDates[pp]):'No date set';
         var isExp=expanded===c.id;
         var rh='<div class="pipe-clip-row" onclick="expanded=expanded==='+c.id+'?false:'+c.id+';editField=null;render()">';
-        rh+=c.num?'<span class="id-badge">'+esc(c.num)+'</span>':'';
+        rh+=c.num?'<span class="id-badge">'+esc(numDisp(c))+'</span>':'';
         rh+='<span class="pipe-clip-name">'+esc(c.title)+(c.length?' <span style="color:var(--faint);font-size:13px;font-weight:400">&middot; '+esc(c.length)+'</span>':'')+'</span>';
         if(showAction)rh+='<span class="pipe-clip-sub">'+esc(dv)+'</span>';
         rh+='<span style="color:var(--faint);font-size:18px;margin-left:auto">'+(isExp?'&#9650;':'&#9660;')+'</span></div>';
@@ -3068,7 +3072,7 @@ function render(){
           rh+=renderPlatforms(c);
           rh+=renderField(c,'title','Title');
           rh+=renderField(c,'desc','Description');
-          rh+=renderField(c,'num','ID #');
+          rh+=renderField(c,'num','ID');
           rh+=renderField(c,'length','Length');
           rh+=renderNeedFrom(c);
           rh+=renderField(c,'notes','Notes');
@@ -3127,7 +3131,7 @@ function render(){
           rh+=renderField(c,'title','Title');
           rh+=renderField(c,'desc','Description');
           rh+=renderField(c,'keywords','Keywords');
-          rh+=renderField(c,'num','ID #');
+          rh+=renderField(c,'num','ID');
           rh+=renderField(c,'length','Length');
           rh+=renderAssets(c);
           rh+=renderNeedsEdit(c);
