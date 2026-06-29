@@ -247,7 +247,7 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .cal-month-lbl{font-size:22px;font-weight:700;letter-spacing:-.4px}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
 .cal-day-hdr{text-align:center;font-size:13px;font-weight:700;color:var(--faint);padding:8px 0}
-.cal-cell{background:var(--surface);border-radius:11px;border:1px solid var(--border);height:108px;overflow:hidden;padding:9px;transition:box-shadow .12s;display:flex;flex-direction:column}
+.cal-cell{background:var(--surface);border-radius:11px;border:1px solid var(--border);height:108px;overflow:hidden;padding:9px;transition:box-shadow .12s;position:relative}
 .cal-cell:hover{box-shadow:var(--sh)}
 .cal-empty{background:transparent;border:none}
 .cal-today{border-color:var(--accent);background:var(--accent-bg)}
@@ -259,7 +259,7 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .unsched-chip{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:var(--surface);border:2px solid var(--border);border-radius:20px;font-size:14px;font-weight:700;color:var(--text);cursor:grab;user-select:none;white-space:nowrap}
 .unsched-chip:hover{border-color:var(--accent);color:var(--text)}
 .cal-past{opacity:.6}
-.cal-day-n{font-size:15px;font-weight:700;color:var(--muted);margin-bottom:5px}
+.cal-day-n{font-size:15px;font-weight:700;color:var(--muted);margin-bottom:5px;position:relative;z-index:1}
 .cal-today .cal-day-n{color:var(--accent)}
 .cal-plat-toggle{display:flex;gap:8px;margin-bottom:14px}
 .cal-plat-btn{padding:7px 18px;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;border:2px solid var(--border);background:var(--surface);color:var(--muted);font-family:inherit;transition:all .15s}
@@ -267,8 +267,8 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .cal-plat-btn.active-lf{background:#90a0d4;border-color:#90a0d4;color:#fff}
 .cal-event{font-size:13px;background:var(--violet-bg);border:1px solid var(--violet-b);border-radius:7px;padding:4px 8px;margin-bottom:3px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--violet);font-weight:600}
 .cal-event:hover{background:var(--violet-b)}
-/* Lone clip on a day: chip fills the rest of the cell and the title wraps so more of it fits. */
-.cal-event-full{flex:1 1 auto;min-height:0;white-space:normal;text-overflow:clip;line-height:1.3}
+/* Lone clip on a day: colour fills the whole cell (not a chip) so the full title can wrap in. */
+.cal-event-full{position:absolute;inset:0;margin:0;border:none;border-radius:0;padding:28px 10px 10px;white-space:normal;text-overflow:clip;line-height:1.3;font-size:13.5px}
 .cal-event-plat{font-weight:800;font-size:11px;margin-right:4px;opacity:.85}
 .cal-event.is-c4s .cal-event-plat,.cal-event.is-lf .cal-event-plat{display:none}
 .cal-event.is-review{background:var(--amber-bg);border-color:var(--amber-b);color:var(--amber)}
