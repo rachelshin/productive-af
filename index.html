@@ -2424,7 +2424,8 @@ function dtSidebar(){
 // new platform's groups start fresh, and open the actionable ones by default.
 function setPipePlat(pl){
   pipePlatFilter=pl;
-  dtGrpOpen=(pl==='ALL')?{}:{'Ready to Upload':true,'Ready to Promote':true};
+  if(pl==='ALL'){dtGrpOpen={};}
+  else{dtGrpOpen={};dtGrpOpen['Ready to Upload']=true;dtGrpOpen['Ready to Promote']=true;}
   dtCollapseAll=false;
   render();
 }
@@ -2540,7 +2541,7 @@ function dtList(){
     h+=dtClipGroup('Scheduled','var(--violet)',sched,false,pl);
     h+=dtClipGroup('In Review','var(--amber)',inGrp('inreview'),false,pl);
     h+=dtClipGroup('Ready to Promote','var(--teal)',inGrp('promote'),false,pl);
-    h+=dtClipGroup('Promoted on '+pl,'var(--green)',done,false,pl);
+    h+=dtClipGroup('All Done','var(--green)',done,false,pl);
   } else {
     // Scheduled (uploaded, future release) sits directly under Ready to Upload.
     [['upload','Ready to Upload','var(--rose)'],['approve','In Review','var(--amber)'],['promote','Ready to Promote','var(--teal)'],
