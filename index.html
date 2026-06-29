@@ -382,6 +382,13 @@ input[type=number]{-moz-appearance:textfield}
 .session-row:last-child{border-bottom:none}
 .session-date{color:var(--faint);font-weight:600;min-width:80px}
 .session-dur{color:var(--text);font-weight:700;font-variant-numeric:tabular-nums}
+.session-day{padding:9px 0;border-bottom:1px solid var(--border)}
+.session-day:last-child{border-bottom:none}
+.session-day-head{display:flex;justify-content:space-between;align-items:center}
+.session-day-head .session-date{font-weight:700;color:var(--text)}
+.session-day-total{font-weight:800;font-variant-numeric:tabular-nums;color:var(--text);font-size:15px}
+.session-sub{display:flex;align-items:center;gap:10px;padding:5px 0 0 12px;font-size:13px;color:var(--faint)}
+.session-sub .session-dur{color:var(--faint);font-weight:600;font-size:13px}
 
 /* Confetti + shared celebratory keyframes (used on every platform) */
 .confetti-box{position:fixed;inset:0;pointer-events:none;z-index:100000;overflow:hidden}
@@ -2383,11 +2390,22 @@ function renderInvoicingTab(){
   }
 
   if(allSessions.length){
-    allSessions.slice(0,15).forEach(function(s){
-      h+='<div class="session-row">';
-      h+='<span class="session-date">'+fmtDate(s.date)+'</span>';
-      h+='<span class="session-dur">'+fmtSeconds(s.seconds)+(s.manual?' <span style="font-size:11px;color:var(--faint)">(manual)</span>':'')+'</span>';
-      h+='<button onclick="deleteSession('+s.id+')" style="margin-left:auto;background:none;border:none;color:var(--faint);cursor:pointer;font-size:13px" title="Remove">&#10005;</button>';
+    var dayGroups=[],dayMap={};
+    allSessions.forEach(function(s){
+      if(!dayMap[s.date]){dayMap[s.date]={date:s.date,total:0,items:[]};dayGroups.push(dayMap[s.date]);}
+      dayMap[s.date].total+=s.seconds;
+      dayMap[s.date].items.push(s);
+    });
+    dayGroups.slice(0,15).forEach(function(g){
+      h+='<div class="session-day">';
+      h+='<div class="session-day-head"><span class="session-date">'+fmtDate(g.date)+'</span>';
+      h+='<span class="session-day-total">'+fmtSeconds(g.total)+'</span></div>';
+      g.items.forEach(function(s){
+        h+='<div class="session-sub">';
+        h+='<span class="session-dur">'+fmtSeconds(s.seconds)+(s.manual?' <span style="font-size:11px">(manual)</span>':'')+'</span>';
+        h+='<button onclick="deleteSession('+s.id+')" style="margin-left:auto;background:none;border:none;color:var(--faint);cursor:pointer;font-size:13px" title="Remove">&#10005;</button>';
+        h+='</div>';
+      });
       h+='</div>';
     });
   } else {
