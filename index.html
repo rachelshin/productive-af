@@ -2519,7 +2519,7 @@ function dtSidebar(){
   h+='<div class="dt-sec-lbl">Creators</div><div class="dt-cres">';
   ['LG','BH','LV'].forEach(function(key){
     var c2=CREATORS[key],act=key===creator;
-    h+='<div class="dt-cre'+(act?' active':'')+'" onclick="dtRightView=\'edit\';dtNextId=null;dtAnimate=true;switchCreator(\''+key+'\')"><span class="dt-cre-dot" style="background:'+(act?c2.grad:'var(--border)')+'"></span>'+esc(c2.name)+'</div>';
+    h+='<div class="dt-cre'+(act?' active':'')+'" onclick="dtRightView=\'cal\';dtNextId=null;dtAnimate=true;switchCreator(\''+key+'\')"><span class="dt-cre-dot" style="background:'+(act?c2.grad:'var(--border)')+'"></span>'+esc(c2.name)+'</div>';
   });
   h+='</div>';
   h+='<div class="dt-sec-lbl">View</div><div class="dt-nav">';
