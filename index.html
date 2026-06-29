@@ -247,7 +247,7 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .cal-month-lbl{font-size:22px;font-weight:700;letter-spacing:-.4px}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
 .cal-day-hdr{text-align:center;font-size:13px;font-weight:700;color:var(--faint);padding:8px 0}
-.cal-cell{background:var(--surface);border-radius:11px;border:1px solid var(--border);height:108px;overflow:hidden;padding:9px;transition:box-shadow .12s}
+.cal-cell{background:var(--surface);border-radius:11px;border:1px solid var(--border);height:108px;overflow:hidden;padding:9px;transition:box-shadow .12s;display:flex;flex-direction:column}
 .cal-cell:hover{box-shadow:var(--sh)}
 .cal-empty{background:transparent;border:none}
 .cal-today{border-color:var(--accent);background:var(--accent-bg)}
@@ -267,6 +267,8 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .cal-plat-btn.active-lf{background:#90a0d4;border-color:#90a0d4;color:#fff}
 .cal-event{font-size:13px;background:var(--violet-bg);border:1px solid var(--violet-b);border-radius:7px;padding:4px 8px;margin-bottom:3px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--violet);font-weight:600}
 .cal-event:hover{background:var(--violet-b)}
+/* Lone clip on a day: chip fills the rest of the cell and the title wraps so more of it fits. */
+.cal-event-full{flex:1 1 auto;min-height:0;white-space:normal;text-overflow:clip;line-height:1.3}
 .cal-event-plat{font-weight:800;font-size:11px;margin-right:4px;opacity:.85}
 .cal-event.is-c4s .cal-event-plat,.cal-event.is-lf .cal-event-plat{display:none}
 .cal-event.is-review{background:var(--amber-bg);border-color:var(--amber-b);color:var(--amber)}
@@ -1922,14 +1924,16 @@ function renderCalendar(){
   var h=calNavHtml();
   h+=calGridHtml(getCalEvents(),function(evs){
     var s='';
+    // A lone clip gets a full-height chip that fills the cell so its whole title can wrap in.
+    var single=evs.length===1;
     evs.slice(0,3).forEach(function(ev){
       // Colour by status (Scheduled = default violet, In Review = amber, Uploaded = sky).
       // Show the C4S/LF prefix only when there's more than one platform (Brigit/Lux); a
       // single-platform creator (Venus = C4S only) gets no redundant prefix.
       var stCls=ev.status===IR?' is-review':ev.status===U?' is-up':ev.status===PPV?' is-ppv':ev.status===PR?' is-pr':'';
-      var short=ev.clip.title.length>16?ev.clip.title.substring(0,15)+'…':ev.clip.title;
+      var short=single?ev.clip.title:(ev.clip.title.length>16?ev.clip.title.substring(0,15)+'…':ev.clip.title);
       var showPlat=platformsFor(ev.creator||creator).length>1;
-      s+='<div class="cal-event'+stCls+'" data-drag-clip="'+ev.clip.id+'" data-drag-platform="'+ev.platform+'" onclick="event.stopPropagation();jumpToClip('+ev.clip.id+')" style="cursor:grab">';
+      s+='<div class="cal-event'+stCls+(single?' cal-event-full':'')+'" data-drag-clip="'+ev.clip.id+'" data-drag-platform="'+ev.platform+'" onclick="event.stopPropagation();jumpToClip('+ev.clip.id+')" style="cursor:grab">';
       s+=(showPlat?'<span class="cal-event-plat">'+ev.platform+'</span>':'')+(isSimple()&&ev.clip.needFrom?'&#128229; ':'')+(isSimple()&&clipIsShort(ev.clip)?'★ ':'')+esc(short)+'</div>';
     });
     if(evs.length>3)s+='<div class="cal-more">+' +(evs.length-3)+' more</div>';
