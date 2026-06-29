@@ -922,36 +922,23 @@ function getNextSimple(){
 }
 function doneClipsSimple(){return clips.filter(function(c){return clipUploadedSimple(c);});}
 
-// The date a not-yet-public clip is slated to go up:
-//  - an Uploaded / PPV platform set to release on a future day, or
-//  - the dated platform it's currently ready to upload to (To Upload + a date).
-// A pending clip with no date — or one still needing edit/prep work — has none.
+// The soonest future date set on any of the clip's platforms that's still slated
+// to go up — pending, in review, uploaded, or PPV (not N/A, not already Promoted).
+// null when no platform has a future date. Any future date makes a clip Scheduled,
+// whether it's been uploaded ahead of release or just scheduled to upload later.
 function clipScheduleDate(c){
   var dates=c.platformDates||{},today=todayStr(),best=null;
   platformsFor(creator).forEach(function(pl){
     var st=c.platforms[pl],d=dates[pl];
-    if((st===U||st===PPV)&&d&&d>today&&(best===null||d<best))best=d;
+    if(st===N||st===PR)return;
+    if(d&&d>today&&(best===null||d<best))best=d;
   });
-  if(best!==null)return best;
-  // Not uploaded-ahead → only a clip whose next step is the upload itself counts,
-  // so something still mid-edit/prep stays in its work bucket, not Scheduled.
-  var s=isSimple()?getClipStepSimple(c):getClipStep(c);
-  if(s&&s.type==='upload'&&dates[s.pl])return dates[s.pl];
-  return null;
+  return best;
 }
-// The clip is already public if any platform is posted (uploaded/promoted/PPV)
-// and live now — its date is today-or-earlier, or no date was recorded (legacy).
-function clipIsPublic(c){
-  var dates=c.platformDates||{},today=todayStr();
-  return platformsFor(creator).some(function(pl){
-    if(!isPosted(c.platforms[pl]))return false;
-    var d=dates[pl];return !d||d<=today;
-  });
-}
-// "Scheduled" = a dated clip not yet live — either uploaded with a future release
-// date, or ready to upload on a set date. Once public it moves to Uploaded.
+// "Scheduled" = any platform has a future date. A clip with no future date is
+// unscheduled — it stays in To Upload (unscheduled + unuploaded) or Uploaded.
 function isScheduledFuture(c){
-  return !clipIsPublic(c)&&!!clipScheduleDate(c);
+  return !!clipScheduleDate(c);
 }
 function bySoonestGoLive(a,b){var da=clipScheduleDate(a)||'9999',db=clipScheduleDate(b)||'9999';return da<db?-1:da>db?1:a.id-b.id;}
 
@@ -2349,9 +2336,9 @@ function dtClipGroup(label,col,items,noAutoOpen){
 function dtList(){
   if(!clips.length)return '<div class="dt-empty"><div class="dt-emoji">&#129528;</div>No clips here yet.<br><small>Pick another creator, or Restore a backup.</small></div>';
   var h='';
-  // Dated, not-yet-public clips (uploaded-ahead, or ready to upload on a set date)
-  // are pulled out of their bucket and shown once under "Scheduled" (soonest first).
-  // Only undated pending clips remain in To Upload.
+  // Any clip with a future date on a platform is pulled out of its bucket and shown
+  // once under "Scheduled" (soonest first). To Upload keeps only the unscheduled,
+  // unuploaded clips — from there a clip can get scheduled (a date) or uploaded.
   var scheduled=clips.filter(isScheduledFuture).sort(bySoonestGoLive);
   var schedIds={};scheduled.forEach(function(c){schedIds[c.id]=true;});
   function notSched(c){return !schedIds[c.id];}
