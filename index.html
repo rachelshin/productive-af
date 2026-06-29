@@ -254,7 +254,8 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .cal-drop-hover{border-color:var(--accent)!important;background:var(--accent-bg)!important;box-shadow:0 0 0 2px var(--accent)}
 .cal-drag-ghost{opacity:.92;box-shadow:0 8px 22px rgba(40,15,10,.28);transform:scale(1.03)}
 .cal-event[data-drag-clip],.unsched-chip[data-drag-clip]{touch-action:none}
-.unsched-pool{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.unsched-pool{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;border-radius:12px}
+.unsched-pool.empty{min-height:46px;border:1.5px dashed var(--border)}
 .unsched-chip{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:var(--surface);border:2px solid var(--border);border-radius:20px;font-size:14px;font-weight:700;color:var(--text);cursor:grab;user-select:none;white-space:nowrap}
 .unsched-chip:hover{border-color:var(--accent);color:var(--text)}
 .cal-past{opacity:.6}
@@ -1727,7 +1728,7 @@ function calCellUnder(x,y){
   if(g)g.style.display='none';                 // don't let the ghost block the hit-test
   var el=document.elementFromPoint(x,y);
   if(g)g.style.display='';
-  return el&&el.closest?el.closest('[data-drop-date]'):null;
+  return el&&el.closest?el.closest('[data-drop-date],[data-drop-clear]'):null;
 }
 function calPointerDown(e){
   if(e.button!=null&&e.button!==0)return;       // left button / touch only
@@ -1782,8 +1783,10 @@ function calPointerUp(e){
   document.addEventListener('click',swallow,true);
   setTimeout(function(){document.removeEventListener('click',swallow,true);},350);
   var target=document.elementFromPoint(e.clientX,e.clientY);
-  var cell=(target&&target.closest?target.closest('[data-drop-date]'):null)||d.lastCell;
-  if(cell)applyCalDrop(d.clipId,d.platform,d.creator,cell.getAttribute('data-drop-date'));
+  var cell=(target&&target.closest?target.closest('[data-drop-date],[data-drop-clear]'):null)||d.lastCell;
+  if(!cell)return;
+  if(cell.hasAttribute('data-drop-clear'))clearCalDate(d.clipId,d.platform,d.creator);
+  else applyCalDrop(d.clipId,d.platform,d.creator,cell.getAttribute('data-drop-date'));
 }
 function applyCalDrop(clipId,platform,creator,dateStr){
   if(!dateStr)return;
@@ -1809,6 +1812,28 @@ function applyCalDrop(clipId,platform,creator,dateStr){
     } else {
       c2.platformDates[platform]=dateStr;
     }
+    saveCreator();
+  }
+  render();
+}
+// Dropping a chip onto the Unscheduled pool strips its date(s) and returns it to
+// the pool — the inverse of applyCalDrop. Mirrors applyCalDrop's creator handling.
+function clearCalDate(clipId,platform,creator){
+  if(creator){
+    try{
+      var s=store.getItem(storageKey(creator));if(!s)return;
+      var p=JSON.parse(s);
+      var c=(p.clips||[]).find(function(x){return x.id===clipId;});
+      if(!c||!c.platformDates)return;
+      if(platform==='__all__'){PL.forEach(function(pl){c.platformDates[pl]='';});}
+      else c.platformDates[platform]='';
+      store.setItem(storageKey(creator),JSON.stringify(p));
+    }catch(err){}
+  } else {
+    var c2=clips.find(function(x){return x.id===clipId;});
+    if(!c2||!c2.platformDates)return;
+    if(platform==='__all__'){PL.forEach(function(pl){c2.platformDates[pl]='';});}
+    else c2.platformDates[platform]='';
     saveCreator();
   }
   render();
@@ -1969,21 +1994,22 @@ function renderCalendar(){
     if(unscheduled.length)h+='<div class="sec-lbl" style="margin-top:24px">Unscheduled — drag to a date</div>';
   }
 
-  if(unscheduled.length){
-    h+='<div class="unsched-pool" style="margin-top:10px">';
-    unscheduled.forEach(function(item){
-      var c=item.clip,pl=item.pl;
-      var uchipCls=isSimple()?(c.platforms['C4S']===P?' is-c4s':' is-lf'):'';
-      h+='<div class="unsched-chip'+uchipCls+'" data-drag-clip="'+c.id+'" data-drag-platform="'+pl+'" onclick="event.stopPropagation();jumpToClip('+c.id+')" title="'+esc(c.title)+'" style="cursor:grab">';
-      if(isSimple()&&c.num)h+='<span class="id-badge" style="font-size:10px;padding:1px 5px">'+esc(c.num)+'</span> ';
-      if(isSimple()&&c.needFrom)h+='&#128229; ';
-      h+=esc(c.title.length>22?c.title.substring(0,21)+'…':c.title);
-      h+='</div>';
-    });
+  // The pool is always a drop target (data-drop-clear): drag a scheduled chip back
+  // onto it to strip that platform's date and return the clip to Unscheduled. It's
+  // rendered even when empty so there's somewhere to drop the last scheduled clip.
+  h+='<div class="unsched-pool'+(unscheduled.length?'':' empty')+'" data-drop-clear="1" style="margin-top:10px">';
+  unscheduled.forEach(function(item){
+    var c=item.clip,pl=item.pl;
+    var uchipCls=isSimple()?(c.platforms['C4S']===P?' is-c4s':' is-lf'):'';
+    h+='<div class="unsched-chip'+uchipCls+'" data-drag-clip="'+c.id+'" data-drag-platform="'+pl+'" onclick="event.stopPropagation();jumpToClip('+c.id+')" title="'+esc(c.title)+'" style="cursor:grab">';
+    if(isSimple()&&c.num)h+='<span class="id-badge" style="font-size:10px;padding:1px 5px">'+esc(c.num)+'</span> ';
+    if(isSimple()&&c.needFrom)h+='&#128229; ';
+    h+=esc(c.title.length>22?c.title.substring(0,21)+'…':c.title);
     h+='</div>';
-  } else if(isSimple()&&PL.length>1){
-    h+='<div style="color:var(--faint);font-size:14px;padding:10px 0">No unscheduled clips'+(calSearch?' matching &ldquo;'+esc(calSearch)+'&rdquo;':'')+'.</div>';
-  }
+  });
+  h+='</div>';
+  if(!unscheduled.length&&isSimple()&&PL.length>1)
+    h+='<div style="color:var(--faint);font-size:14px;padding:8px 0">No unscheduled clips'+(calSearch?' matching &ldquo;'+esc(calSearch)+'&rdquo;':'')+'.</div>';
   return h;
 }
 
@@ -2708,7 +2734,9 @@ function toggleSales(open){salesOpen=!open;render();}
 //  • Everything else (ready to upload/promote, etc.): details on top (expanded),
 //    Sales minimized at the bottom.
 function wrapDetail(c,body,del){
-  if(!clipIsPosted(c))return body+del;
+  // Brigit/Venus don't track sales — never show the Sales card (nor the collapse
+  // wrapper, which only existed to share space with it).
+  if(isSimple()||!clipIsPosted(c))return body+del;
   var isDone=isSimple()?!getClipStepSimple(c):!getClipStep(c);
   var sOpen=(salesOpen===null)?isDone:salesOpen;
   var sales=collapsibleBox('Sales',sOpen,'toggleSales('+sOpen+')',renderSales(c));
