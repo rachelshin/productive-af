@@ -1184,11 +1184,15 @@ function toggleCheck(id,field){
 function saveF(id,field,value){
   var c=clips.find(function(x){return x.id===id;});if(!c)return;
   if(field==='title'&&!value.trim()){editField=null;render();return;} // never blank the clip name
-  if(field==='num'&&value.trim()){
+  if(field==='num'){
     var norm=value.trim().replace(/^#+/,'');
-    var dup=clips.find(function(x){return x.id!==id&&x.num&&x.num.replace(/^#+/,'')===norm;});
-    if(dup){alert('ID #'+norm+' is already used by "'+dup.title+'". Please choose a different number.');return;}
-    value='#'+norm;
+    if(!norm){
+      value=nextClipNum(id); // erased/blank → auto-assign highest existing number + 1
+    } else {
+      var dup=clips.find(function(x){return x.id!==id&&x.num&&x.num.replace(/^#+/,'')===norm;});
+      if(dup){alert('ID #'+norm+' is already used by "'+dup.title+'". Please choose a different number.');return;}
+      value='#'+norm;
+    }
   }
   if(field==='keywords')c.keywords=value.split(',').map(function(k){return k.trim();}).filter(Boolean);
   else c[field]=value;
@@ -1339,9 +1343,14 @@ function clearNeedsEdit(id){
   var c=clips.find(function(x){return x.id===id;});if(!c)return;
   c.needsEdit=false;saveCreator();render();
 }
-function nextClipNum(){
+// Highest existing clip number + 1. Pass excludeId when reassigning a clip's own
+// number (e.g. it was erased) so the clip doesn't count itself.
+function nextClipNum(excludeId){
   var max=0;
-  clips.forEach(function(c){if(c.num){var n=parseInt(c.num.replace(/[^0-9]/g,''));if(n>max)max=n;}});
+  clips.forEach(function(c){
+    if(excludeId!=null&&c.id===excludeId)return;
+    if(c.num){var n=parseInt(c.num.replace(/[^0-9]/g,''));if(n>max)max=n;}
+  });
   return '#'+(max+1);
 }
 function doAddClip(title,status,num,length,date,type,desc,keywords){
@@ -1366,7 +1375,7 @@ function doAddClip(title,status,num,length,date,type,desc,keywords){
   else if(anyDone&&(status==='idea'||status==='filmed'))status='edited';
   var prepDone=anyDone||published;
   var pld={};PL.forEach(function(p){pld[p]=date||'';});
-  var assignedNum=num&&num.trim()?num.trim():nextClipNum();
+  var assignedNum=num&&num.trim()?'#'+num.trim().replace(/^#+/,''):nextClipNum();
   var kw=keywords?keywords.split(',').map(function(x){return x.trim();}).filter(Boolean):[];
   clips.push({id:nextId++,num:assignedNum,title:title.trim(),uploadTitle:'',keywords:kw,status:status,type:type,
     length:type==='photoset'?'':(length||''),desc:desc||'',descDone:prepDone,kwDone:prepDone,
@@ -1965,7 +1974,7 @@ function renderCalendar(){
     unscheduled.forEach(function(item){
       var c=item.clip,pl=item.pl;
       var uchipCls=isSimple()?(c.platforms['C4S']===P?' is-c4s':' is-lf'):'';
-      h+='<div class="unsched-chip'+uchipCls+'" data-drag-clip="'+c.id+'" data-drag-platform="'+pl+'" title="'+esc(c.title)+'">';
+      h+='<div class="unsched-chip'+uchipCls+'" data-drag-clip="'+c.id+'" data-drag-platform="'+pl+'" onclick="event.stopPropagation();jumpToClip('+c.id+')" title="'+esc(c.title)+'" style="cursor:grab">';
       if(isSimple()&&c.num)h+='<span class="id-badge" style="font-size:10px;padding:1px 5px">'+esc(c.num)+'</span> ';
       if(isSimple()&&c.needFrom)h+='&#128229; ';
       h+=esc(c.title.length>22?c.title.substring(0,21)+'…':c.title);
