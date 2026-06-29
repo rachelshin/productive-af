@@ -1414,7 +1414,10 @@ function renderField(c,field,label){
       h+=val?esc(val):'';h+='</div>';
     }
   }
-  if(field==='desc')h+=descDoneCheck(c);
+  // Lux only: description is part of her pipeline, so she can mark it done to skip
+  // that step. For Brigit/Venus description is optional and not in the pipeline, so
+  // there's nothing to skip — no checkbox.
+  if(field==='desc'&&!isSimple())h+=descDoneCheck(c);
   h+='</div>';return h;
 }
 
@@ -1990,13 +1993,39 @@ function daysDiff(dateStr){
   return Math.floor((now-d)/(1000*60*60*24));
 }
 
+// The running clock face updates every second from the absolute start time.
+function timerTick(){
+  var el=document.getElementById('timer-clock');
+  if(el){el.textContent=fmtSecsClock(Math.floor((Date.now()-timerStartMs)/1000));}
+}
+
+// Persist (or clear) the running-timer state so it survives a refresh or the app
+// being closed. Anchored to an absolute timestamp, so elapsed is correct on return
+// no matter how long the app was gone. Synced via `store`, so it also crosses devices.
+function saveTimerState(){
+  try{
+    if(timerRunning)store.setItem('lg-timer',JSON.stringify({startMs:timerStartMs,creator:timerCreator}));
+    else store.removeItem('lg-timer');
+  }catch(e){}
+}
+
+// On boot, bring back a timer that was running before the last refresh/close.
+function restoreTimer(){
+  try{
+    var s=store.getItem('lg-timer');if(!s)return;
+    var t=JSON.parse(s);
+    if(!t||!t.startMs||!t.creator){store.removeItem('lg-timer');return;}
+    timerRunning=true;timerStartMs=t.startMs;timerCreator=t.creator;
+    clearInterval(timerInterval);
+    timerInterval=setInterval(timerTick,1000);
+  }catch(e){}
+}
+
 function startTimer(){
   if(timerRunning)return;
   timerRunning=true;timerStartMs=Date.now();timerCreator=creator;
-  timerInterval=setInterval(function(){
-    var el=document.getElementById('timer-clock');
-    if(el){el.textContent=fmtSecsClock(Math.floor((Date.now()-timerStartMs)/1000));}
-  },1000);
+  timerInterval=setInterval(timerTick,1000);
+  saveTimerState();
   render();
 }
 
@@ -2038,6 +2067,7 @@ function stopTimer(silent){
   clearInterval(timerInterval);timerInterval=null;timerRunning=false;
   var elapsed=Math.floor((Date.now()-timerStartMs)/1000);
   var owner=timerCreator;timerCreator=null;
+  saveTimerState(); // clears the persisted running-timer
   if(!silent)recordConsultingTime(owner,elapsed); // records to the owner, even if you've switched creators
   render();
 }
@@ -3182,7 +3212,8 @@ function doAdd(){
   //     is not listed here — that mirrors the app's existing behavior.)
   var SYNC_KEYS = [
     'lg-v8-LG', 'lg-v8-BH', 'lg-v8-LV',
-    'lg-consulting-BH', 'lg-consulting-LV'
+    'lg-consulting-BH', 'lg-consulting-LV',
+    'lg-timer'   // running-timer state, so a live timer survives refresh/close/device-switch
   ];
 
   // 3) -------- Init Firebase (compat SDK, no build step needed) -------------
@@ -3324,6 +3355,7 @@ function doAdd(){
         .then(function () {
           if (typeof loadCreator === 'function')    loadCreator();
           if (typeof loadConsulting === 'function') loadConsulting();
+          if (typeof restoreTimer === 'function')   restoreTimer();
           // Open on the global "Do This Next": right pane shows the single most
           // pressing clip across all creators, with that creator highlighted on
           // the left and their inventory loaded in the middle pane.
@@ -3335,6 +3367,7 @@ function doAdd(){
           // Fall back to local cache so the app still opens.
           if (typeof loadCreator === 'function')    loadCreator();
           if (typeof loadConsulting === 'function') loadConsulting();
+          if (typeof restoreTimer === 'function')   restoreTimer();
           // Open on the global "Do This Next": right pane shows the single most
           // pressing clip across all creators, with that creator highlighted on
           // the left and their inventory loaded in the middle pane.
