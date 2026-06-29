@@ -486,6 +486,10 @@ input[type=number]{-moz-appearance:textfield}
   .dt-list-titlerow{display:flex;justify-content:space-between;align-items:center;gap:10px}
   .dt-next-btn{flex-shrink:0;border:none;border-radius:9px;padding:8px 13px;background:linear-gradient(135deg,#d4637a,#9b7dbd);color:#fff;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 2px 8px rgba(155,90,150,.28);transition:transform .12s,box-shadow .12s;white-space:nowrap}
   .dt-next-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(155,90,150,.38)}
+  .dt-platchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+  .dt-platchip{padding:5px 12px;border-radius:18px;font-size:13px;font-weight:700;cursor:pointer;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);font-family:inherit;transition:all .12s;white-space:nowrap}
+  .dt-platchip:hover{border-color:var(--cre);color:var(--text)}
+  .dt-platchip.active{background:var(--cre);border-color:transparent;color:#fff;box-shadow:0 2px 8px rgba(155,90,150,.25)}
   .dt-main .cal-cell{height:128px}
 }
 </style>
@@ -646,6 +650,7 @@ var salesOpen=null;    // Sales dropdown: null = per-layout default (open on All
 var anaScope='total';  // Analytics view scope: 'total' (all platforms) or a platform code (SM/NF/SP/C4S/MV)
 var calDrag=null;
 var pipeSearch='';
+var pipePlatFilter='ALL'; // Lux middle-pane platform filter: 'ALL' (combined clip-level view) or a platform code (SM/CB/…). Reset on creator switch.
 var addPlatforms=null; // per-platform upload status chosen in the Lux add form (null until used)
 var addStatusFlags={}; // Lux add-form status checkboxes: {filmed,edited} for clips, {up} for photosets
 var calMonth=new Date().getMonth(),calYear=new Date().getFullYear();
@@ -847,7 +852,7 @@ function switchCreator(key){
   creator=key;
   PL=platformsFor(key);
   expanded=false;editField=null;addingNew=false;dtCalClip=null;dtCalAddDate=null;
-  openGroups={};dtGrpOpen={};dtCollapseAll=true;tab='queue';pipeSearch='';
+  openGroups={};dtGrpOpen={};dtCollapseAll=true;tab='queue';pipeSearch='';pipePlatFilter='ALL';
   var cr=CREATORS[key];
   document.documentElement.style.setProperty('--accent','var('+cr.accentVar+')');
   document.documentElement.style.setProperty('--accent-bg','var('+cr.accentBg+')');
@@ -982,6 +987,31 @@ function isScheduledFuture(c){
   return !!clipScheduleDate(c);
 }
 function bySoonestGoLive(a,b){var da=clipScheduleDate(a)||'9999',db=clipScheduleDate(b)||'9999';return da<db?-1:da>db?1:a.id-b.id;}
+// ── PER-PLATFORM PIPELINE (Lux platform-filter view) ───────────────────────
+// Classify a single clip's stage on ONE platform, independent of the others.
+// Returns 'upload' | 'scheduled' | 'inreview' | 'promote' | 'done', or null (N/A).
+function platDateOf(c,pl){return (c.platformDates||{})[pl]||'';}
+function platGroupOf(c,pl){
+  var st=c.platforms[pl];if(typeof st==='undefined')st=P;
+  if(st===N)return null;                       // not posted to this site at all
+  var d=platDateOf(c,pl),future=d&&d>todayStr();
+  if(future&&st!==PR)return 'scheduled';        // dated for the future → Scheduled
+  if(st===P)return 'upload';
+  if(st===IR)return 'inreview';
+  if(st===U)return 'promote';                   // live but not yet promoted here
+  if(st===PR||st===PPV)return 'done';           // terminal on this site
+  return null;
+}
+// Short status text shown on the card in platform-filter mode.
+function platPill(c,pl){
+  var g=platGroupOf(c,pl);
+  if(g==='scheduled')return fmtDate(platDateOf(c,pl));
+  if(g==='upload')return 'To Upload';
+  if(g==='inreview')return 'In Review';
+  if(g==='promote')return 'Promote';
+  if(g==='done')return c.platforms[pl]===PPV?'PPV':'Promoted';
+  return '';
+}
 
 // ── DEFAULT CLIP shown in the right pane when a creator is opened ──────────
 // Primary rule (all creators): the next clip on their calendar — the soonest
@@ -2390,6 +2420,14 @@ function dtSidebar(){
   return h;
 }
 
+// Switch the Lux middle-pane platform filter. Reset the accordion state so the
+// new platform's groups start fresh, and open the actionable ones by default.
+function setPipePlat(pl){
+  pipePlatFilter=pl;
+  dtGrpOpen=(pl==='ALL')?{}:{'Ready to Upload':true,'Ready to Promote':true};
+  dtCollapseAll=false;
+  render();
+}
 function dtListHeader(){
   var cr=CREATORS[creator]||{name:''};
   var h='<div class="dt-list-head"><div class="dt-list-titlerow"><span class="dt-list-title">'+esc(cr.name)+'</span>'+
@@ -2397,6 +2435,16 @@ function dtListHeader(){
   h+='<div class="field-lbl" style="margin-top:10px">Search clips</div>';
   h+='<input type="text" id="dt-search" value="'+esc(pipeSearch)+'" oninput="pipeSearch=this.value;render();var el=document.getElementById(\'dt-search\');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}" style="width:100%;box-sizing:border-box;padding:9px 14px;border:1.5px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:15px">';
   if(pipeSearch)h+='<div style="font-size:13px;color:var(--muted);margin-top:6px">Results for &ldquo;'+esc(pipeSearch)+'&rdquo; &mdash; <a onclick="pipeSearch=\'\';render()" style="cursor:pointer;color:var(--accent)">clear</a></div>';
+  // Lux only: platform filter chips. "All" = combined clip-level pipeline; a platform
+  // narrows every group to that platform's own per-platform status.
+  if(!isSimple()){
+    h+='<div class="dt-platchips">';
+    h+='<button class="dt-platchip'+(pipePlatFilter==='ALL'?' active':'')+'" onclick="setPipePlat(\'ALL\')">All</button>';
+    platformsFor(creator).forEach(function(pl){
+      h+='<button class="dt-platchip'+(pipePlatFilter===pl?' active':'')+'" onclick="setPipePlat(\''+pl+'\')">'+esc(pl)+'</button>';
+    });
+    h+='</div>';
+  }
   return h+'</div>';
 }
 
@@ -2417,7 +2465,10 @@ function dtHeaderBand(){
   var grad=isAll?'linear-gradient(120deg,#d4637a,#7272b8,#3a8c80)':cr.grad;
   return '<div class="dt-band" style="background:'+grad+'"><div class="dt-band-av">'+(isAll?'&#9733;':esc(cr.initials))+'</div><span class="dt-band-name">'+esc(isAll?'All Creators':cr.name)+'</span></div>';
 }
-function dtClipGroup(label,col,items,noAutoOpen){
+// pl (optional): platform-filter mode — the pill reflects THIS platform's own
+// status (To Upload / scheduled date / In Review / Promote / Promoted), not the
+// clip's overall next step, since the same clip can be at different stages per site.
+function dtClipGroup(label,col,items,noAutoOpen,pl){
   items=items.filter(dtMatch); // honor the middle-pane search box
   if(!items.length)return '';
   // Each group is a collapsible accordion — click the header to drop it down.
@@ -2445,7 +2496,9 @@ function dtClipGroup(label,col,items,noAutoOpen){
     if(isSimple()&&st)scol=col;
     var pill=st?esc(dtStepShort(st)):'&#10003; Done';
     // In the Scheduled group, the pill shows when it goes up, not its pipeline step.
-    if(isScheduledFuture(c)){scol=col;pill='&#128197; '+esc(fmtDate(clipScheduleDate(c)));}
+    if(isScheduledFuture(c)&&!pl){scol=col;pill='&#128197; '+esc(fmtDate(clipScheduleDate(c)));}
+    // Platform-filter mode: pill = this platform's status (color matches the group).
+    if(pl){scol=col;pill=esc(platPill(c,pl));}
     h+='<div class="dt-card'+(sel?' sel':'')+'" style="--row:'+scol+'" onclick="dtCollapseAll=false;dtRightView=\'edit\';dtNextId=null;dtAnimate=true;expanded='+c.id+';render()">';
     h+='<span class="dt-card-dot" style="background:'+scol+'"></span>';
     h+='<span class="id-badge">'+(c.num?esc(c.num):fid(c.id))+'</span>';
@@ -2477,6 +2530,17 @@ function dtList(){
     h+=dtClipGroup('Scheduled','var(--violet)',scheduled);
     h+=dtClipGroup('In Review','var(--amber)',clips.filter(function(c){var s=getClipStepSimple(c);return notSched(c)&&s&&s.type==='approve';}));
     h+=dtClipGroup('Uploaded','var(--green)',clips.filter(function(c){return notSched(c)&&clipUploadedSimple(c);}));
+  } else if(pipePlatFilter!=='ALL'){
+    // Lux, one platform selected: every group is THIS platform's own status.
+    var pl=pipePlatFilter;
+    var inGrp=function(g){return clips.filter(function(c){return platGroupOf(c,pl)===g;});};
+    var sched=inGrp('scheduled').sort(function(a,b){var da=platDateOf(a,pl),db=platDateOf(b,pl);return da<db?-1:da>db?1:a.id-b.id;});
+    var done=inGrp('done').sort(function(a,b){return clipPlatSales(b,pl)-clipPlatSales(a,pl);});
+    h+=dtClipGroup('Ready to Upload','var(--rose)',inGrp('upload'),false,pl);
+    h+=dtClipGroup('Scheduled','var(--violet)',sched,false,pl);
+    h+=dtClipGroup('In Review','var(--amber)',inGrp('inreview'),false,pl);
+    h+=dtClipGroup('Ready to Promote','var(--teal)',inGrp('promote'),false,pl);
+    h+=dtClipGroup('Promoted on '+pl,'var(--green)',done,false,pl);
   } else {
     // Scheduled (uploaded, future release) sits directly under Ready to Upload.
     [['upload','Ready to Upload','var(--rose)'],['approve','In Review','var(--amber)'],['promote','Ready to Promote','var(--teal)'],
@@ -2508,6 +2572,7 @@ function dtList(){
     }
   }
   if(!h&&pipeSearch.trim())return '<div class="dt-empty"><div class="dt-emoji">&#128269;</div>No clips match &ldquo;'+esc(pipeSearch)+'&rdquo;.</div>';
+  if(!h&&pipePlatFilter!=='ALL')return '<div class="dt-empty"><div class="dt-emoji">&#127881;</div>Nothing for '+esc(pipePlatFilter)+' right now.<br><small>No clips are pending, scheduled, or live on this platform.</small></div>';
   return h;
 }
 
