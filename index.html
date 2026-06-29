@@ -1926,12 +1926,12 @@ function renderCalendar(){
   }
   function getUnschedC4S(){
     return clips.filter(function(c){
-      return c.platforms['C4S']===P&&(!c.platformDates||!c.platformDates['C4S'])&&(!isCalSearch||clipMatchesCalSearch(c));
+      return !c.needFrom&&c.platforms['C4S']===P&&(!c.platformDates||!c.platformDates['C4S'])&&(!isCalSearch||clipMatchesCalSearch(c));
     });
   }
   function getUnschedLF(){
     return clips.filter(function(c){
-      return c.platforms['C4S']!==P&&c.platforms['LF']===P&&(!c.platformDates||!c.platformDates['LF'])&&(!isCalSearch||clipMatchesCalSearch(c));
+      return !c.needFrom&&c.platforms['C4S']!==P&&c.platforms['LF']===P&&(!c.platformDates||!c.platformDates['LF'])&&(!isCalSearch||clipMatchesCalSearch(c));
     });
   }
   var unscheduled;
@@ -1945,7 +1945,7 @@ function renderCalendar(){
     }
   } else {
     unscheduled=clips.filter(function(c){
-      return PL.some(function(pl){return c.platforms[pl]===P&&(!c.platformDates||!c.platformDates[pl]);});
+      return !c.needFrom&&PL.some(function(pl){return c.platforms[pl]===P&&(!c.platformDates||!c.platformDates[pl]);});
     }).map(function(c){return {clip:c,pl:'__all__'};});
   }
 
