@@ -1173,7 +1173,13 @@ function setPlatformDate(id,pl,val){
 }
 function toggleCheck(id,field){
   var c=clips.find(function(x){return x.id===id;});if(!c)return;
-  c[field]=!c[field];saveCreator();render();
+  c[field]=!c[field];
+  // Brigit/Venus: a clip we still need from the creator can't have a publish date
+  // yet — clear any scheduled dates when it's marked Need From.
+  if(field==='needFrom'&&c[field]&&isSimple()&&c.platformDates){
+    Object.keys(c.platformDates).forEach(function(pl){c.platformDates[pl]='';});
+  }
+  saveCreator();render();
 }
 function saveF(id,field,value){
   var c=clips.find(function(x){return x.id===id;});if(!c)return;
@@ -1484,6 +1490,8 @@ function platDateInner(c,pl){
       '<input type="date" value="'+esc(dateVal)+'" onchange="setUploadDate('+c.id+',\''+pl+'\',this.value)" style="font-size:13px">'+
       (!dateVal?'<div style="font-size:11px;color:var(--faint)">Date unknown</div>':'')+'</div>';
   var isOverdue=dateVal&&dateVal<=todayStr()&&st===P;
+  // Brigit/Venus: can't schedule a publish date for a clip we don't have yet.
+  if(isSimple()&&c.needFrom)return '<span class="no-date">Need clip first</span>';
   return '<div style="display:flex;flex-direction:column;gap:4px">'+
     '<input type="date" value="'+esc(dateVal)+'" onchange="setPlatformDate('+c.id+',\''+pl+'\',this.value)" style="font-size:13px">'+
     (isOverdue?'<div class="plat-date-due">⚠ Overdue</div>':'')+'</div>';
@@ -2711,12 +2719,10 @@ function renderClipDetail(c){
     var SL='',SR='';
     SL+=renderField(c,'desc','Description');
     SL+=renderField(c,'keywords','Keywords');
+    SL+=renderField(c,'notes','Notes');
     SR+=renderPlatforms(c);
     SR+=renderField(c,'length','Length');
     SR+=renderNeedFrom(c);
-    // Venus (C4S only) has a short right column — put Notes at its bottom to even things out.
-    if(creator==='LV')SR+=renderField(c,'notes','Notes');
-    else SL+=renderField(c,'notes','Notes');
     return wrapDetail(c,'<div class="dt-cols2"><div class="dt-col">'+SL+'</div><div class="dt-col">'+SR+'</div></div>',del);
   }
   // LG: writing on the left, schedule + assets on the right; remove spans full width.
