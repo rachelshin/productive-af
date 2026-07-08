@@ -670,7 +670,7 @@ var calPlatFilter='C4S';
 var calSearch='';
 
 // Consulting / timer state
-var consulting={hoursPerInvoice:10,rate:50,currency:'$',currentPeriodStart:new Date().toISOString().split('T')[0],currentPeriodSeconds:0,sessions:[],invoices:[],nextSessionId:1,nextInvoiceId:1,nextInvoiceNum:1};
+var consulting={hoursPerInvoice:10,rate:50,currency:'$',currentPeriodStart:new Date().toLocaleDateString('en-CA'),currentPeriodSeconds:0,sessions:[],invoices:[],nextSessionId:1,nextInvoiceId:1,nextInvoiceNum:1};
 var timerRunning=false,timerStartMs=0,timerInterval=null,timerCreator=null; // timerCreator = which creator the running timer belongs to
 var manualEntryOpen=false,editPeriodStart=false;
 
@@ -834,7 +834,7 @@ function exportData(){
   var blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   var a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download='lg-dashboard-backup-'+new Date().toISOString().split('T')[0]+'.json';
+  a.download='lg-dashboard-backup-'+new Date().toLocaleDateString('en-CA')+'.json';
   a.click();
 }
 function importData(){
@@ -874,7 +874,7 @@ function switchCreator(key){
 }
 
 // ── LOGIC ──────────────────────────────────────────────────────
-function todayStr(){return new Date().toISOString().split('T')[0];}
+function todayStr(){return new Date().toLocaleDateString('en-CA');}
 
 function firstIn(c,state){
   var today=todayStr();var dates=c.platformDates||{};
@@ -2199,7 +2199,7 @@ function deleteSession(sid){
 
 function addDays(dateStr,n){
   var d=new Date(dateStr+'T12:00:00');d.setDate(d.getDate()+n);
-  return d.toISOString().split('T')[0];
+  return d.toLocaleDateString('en-CA');
 }
 function longDate(dateStr){
   var mo=['January','February','March','April','May','June','July','August','September','October','November','December'];
