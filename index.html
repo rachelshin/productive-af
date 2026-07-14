@@ -345,6 +345,7 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .inv-act-btn.sent{background:var(--violet);color:#fff}
 .inv-act-btn.paid{background:var(--green);color:#fff}
 .inv-act-btn.ghost{background:var(--bg);color:var(--muted);border:1px solid var(--border)}
+.inv-act-btn.del{background:var(--rose-bg);color:var(--rose);border:1px solid var(--rose-b)}
 
 /* ── Invoicing tab ── */
 .inv-settings{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px;box-shadow:var(--sh);margin-bottom:14px}
@@ -2143,6 +2144,14 @@ function markPaid(invId){
   if(inv)inv.paidAt=todayStr();
   saveConsulting();render();
 }
+function deleteInvoice(invId){
+  var inv=consulting.invoices.find(function(i){return i.id===invId;});
+  if(!inv)return;
+  var invNumDisp=String(inv.invoiceNum||inv.id).padStart(4,'0');
+  if(!confirm('Delete Invoice #'+invNumDisp+'? This cannot be undone.'))return;
+  consulting.invoices=consulting.invoices.filter(function(i){return i.id!==invId;});
+  saveConsulting();render();
+}
 function saveHoursPerInvoice(val){
   var n=parseFloat(val);if(isNaN(n)||n<=0)return;
   consulting.hoursPerInvoice=n;saveConsulting();render();
@@ -2433,6 +2442,7 @@ function renderInvoicingTab(){
       h+='<button class="inv-act-btn ghost" onclick="generateInvoicePDF(consulting.invoices.find(function(x){return x.id==='+inv.id+'}))" title="Open printable invoice">&#128424; PDF</button>';
       if(!inv.invoicedAt)h+='<button class="inv-act-btn sent" onclick="markInvoiced('+inv.id+')">&#10003; Sent</button>';
       if(inv.invoicedAt&&!inv.paidAt)h+='<button class="inv-act-btn paid" onclick="markPaid('+inv.id+')">&#10003; Paid</button>';
+      h+='<button class="inv-act-btn del" onclick="deleteInvoice('+inv.id+')" title="Delete invoice">&#128465; Delete</button>';
       h+='</div></div>';
     });
     h+='</div>';
