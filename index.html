@@ -913,12 +913,14 @@ function getClipStep(c){
 }
 
 var GPRI={'upload':0,'approve':0.5,'promote':1,'make-thumbnail':2,'make-preview':3,'write-desc':4,'write-keywords':5,'make-nfgbcover':6,'write-title':6.5,'edit':8,'film':9};
-var TCOLOR={'upload':'var(--rose)','approve':'var(--amber)','promote':'var(--teal)','make-thumbnail':'var(--amber)','make-nfgbcover':'var(--amber)','make-preview':'var(--amber)','write-desc':'var(--violet)','write-title':'var(--violet)','write-keywords':'var(--violet)','edit':'var(--sky)','film':'var(--faint)'};
-var TLABEL={'upload':'Upload to','approve':'Awaiting approval on','promote':'Promote on','make-thumbnail':'Make a thumbnail for','make-nfgbcover':'Make an NF GB Cover for','make-preview':'Make a trailer for','write-desc':'Write a description for','write-title':'Write a title for','write-keywords':'Add keywords for','edit':'Edit','film':'Film'};
+var TCOLOR={'get-release':'var(--amber)','get-clip':'var(--violet)','upload':'var(--rose)','approve':'var(--amber)','promote':'var(--teal)','make-thumbnail':'var(--amber)','make-nfgbcover':'var(--amber)','make-preview':'var(--amber)','write-desc':'var(--violet)','write-title':'var(--violet)','write-keywords':'var(--violet)','edit':'var(--sky)','film':'var(--faint)'};
+var TLABEL={'get-release':'Get the model release','get-clip':'Get the clip','upload':'Upload to','approve':'Awaiting approval on','promote':'Promote on','make-thumbnail':'Make a thumbnail for','make-nfgbcover':'Make an NF GB Cover for','make-preview':'Make a trailer for','write-desc':'Write a description for','write-title':'Write a title for','write-keywords':'Add keywords for','edit':'Edit','film':'Film'};
 
 function actionTitle(s){
   var t=TLABEL[s.type]||s.type;
   if(s.type==='upload'||s.type==='promote'||s.type==='approve')return t+' '+s.pl;
+  if(s.type==='get-release')return 'Get the model release';
+  if(s.type==='get-clip')return 'Get the clip from '+creatorShortName();
   return t+' "'+s.clip.title+'"';
 }
 function getNext(){
@@ -956,6 +958,13 @@ function clipUploadedSimple(c){
   return platformsFor(creator).every(function(pl){return c.platforms[pl]!==P&&c.platforms[pl]!==IR;});
 }
 function getClipStepSimple(c){
+  // Step zero: no signed release yet; then footage not yet received. Both come
+  // before uploading — the next action is chasing the creator, not a platform.
+  // pl = the next pending platform, kept so date-based sorting still works.
+  if(c.needsRelease||c.needFrom){
+    var pend=c.platforms['C4S']===P?'C4S':platformsFor(creator).filter(function(q){return q!=='C4S'&&c.platforms[q]===P;})[0]||null;
+    return {type:c.needsRelease?'get-release':'get-clip',clip:c,pl:pend};
+  }
   // Simple creators only ever upload — never write desc/keywords/etc.
   // C4S first, then any other pending platform for this creator (LF for Brigit).
   // Venus only has C4S, so she always gets "Upload to C4S".
@@ -969,8 +978,9 @@ function getClipStepSimple(c){
   return null;
 }
 function getNextSimple(){
-  // Don't suggest uploading a clip we haven't received from the creator yet.
-  var pending=clips.filter(function(c){return !c.needFrom&&!clipUploadedSimple(c);});
+  // needFrom / needsRelease clips stay in the running — their step is chasing
+  // the creator ("get the clip / release"), sorted by any penciled-in date.
+  var pending=clips.filter(function(c){return !clipUploadedSimple(c);});
   if(!pending.length)return null;
   // sort by the next-upload platform's scheduled date, then by id
   function nextPl(c){var s=getClipStepSimple(c);return s?s.pl:null;}
@@ -1067,16 +1077,16 @@ function lgCompleteness(c){ // how close to fully done: prep milestones + per-pl
 var _lgPick={sig:'',id:null}; // remembers the random tie-break pick so it doesn't jump on every render
 function dtDefaultClip(){
   if(!clips.length)return null;
-  // 1) Soonest clip scheduled on the calendar. needFrom clips (footage not yet
-  // received) are out of the workflow, so they never lead "Do this next".
-  var dated=clips.filter(function(c){return nextCalDate(c)&&!c.needFrom;});
+  // 1) Soonest clip scheduled on the calendar (needFrom / needsRelease clips
+  // included — their "do this next" is getting the clip / release).
+  var dated=clips.filter(function(c){return nextCalDate(c);});
   if(dated.length){
     dated.sort(function(a,b){var da=nextCalDate(a),db=nextCalDate(b);return da<db?-1:da>db?1:a.id-b.id;});
     return dated[0];
   }
   // 2) Nothing scheduled → creator-specific fallback.
   if(isSimple()){
-    var unposted=clips.filter(function(c){return !clipUploadedSimple(c)&&!c.needFrom;});
+    var unposted=clips.filter(function(c){return !clipUploadedSimple(c);});
     if(!unposted.length)return null;
     unposted.sort(function(a,b){return clipNumVal(a)-clipNumVal(b);});
     return unposted[0];
@@ -1188,11 +1198,6 @@ function setPlatformDate(id,pl,val){
 function toggleCheck(id,field){
   var c=clips.find(function(x){return x.id===id;});if(!c)return;
   c[field]=!c[field];
-  // Brigit/Venus: a clip we still need from the creator can't have a publish date
-  // yet — clear any scheduled dates when it's marked Need From.
-  if(field==='needFrom'&&c[field]&&isSimple()&&c.platformDates){
-    Object.keys(c.platformDates).forEach(function(pl){c.platformDates[pl]='';});
-  }
   saveCreator();render();
 }
 function saveF(id,field,value){
@@ -1494,6 +1499,17 @@ function renderNeedFrom(c){
     '<span class="ack-lbl">Need this clip from '+esc(creatorShortName())+'</span></div></div>';
 }
 
+// Brigit/Venus only: the model release form hasn't been signed yet — the very
+// first step of the process, before we even chase the footage. Checked clips get
+// their own "Needs Release" group at the top of the middle pane.
+function renderNeedsRelease(c){
+  var on=c.needsRelease;
+  return '<div class="field-row"><div class="field-lbl">Release</div>'+
+    '<div class="ack'+(on?' done':'')+'" onclick="toggleCheck('+c.id+',\'needsRelease\')">'+
+    '<div class="ack-box">'+(on?'<svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3 5-6" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>':'')+'</div>'+
+    '<span class="ack-lbl">Needs release</span></div></div>';
+}
+
 // Class + label for a platform status chip. Shared by the full render and the
 // in-place update in cyclePlatform (so a fast click never hits a stale button).
 function pstChip(st){
@@ -1515,8 +1531,6 @@ function platDateInner(c,pl){
       '<input type="date" value="'+esc(dateVal)+'" onchange="setUploadDate('+c.id+',\''+pl+'\',this.value)" style="font-size:13px">'+
       (!dateVal?'<div style="font-size:11px;color:var(--faint)">Date unknown</div>':'')+'</div>';
   var isOverdue=dateVal&&dateVal<=todayStr()&&st===P;
-  // Brigit/Venus: can't schedule a publish date for a clip we don't have yet.
-  if(isSimple()&&c.needFrom)return '<span class="no-date">Need clip first</span>';
   return '<div style="display:flex;flex-direction:column;gap:4px">'+
     '<input type="date" value="'+esc(dateVal)+'" onchange="setPlatformDate('+c.id+',\''+pl+'\',this.value)" style="font-size:13px">'+
     (isOverdue?'<div class="plat-date-due">⚠ Overdue</div>':'')+'</div>';
@@ -1543,7 +1557,13 @@ function renderPlatforms(c){
 function renderActionPanel(step){
   var c=step.clip,t=step.type,pl=step.pl;
   var h='<div class="action-panel">';
-  if(t==='upload'){
+  if(t==='get-release'){
+    h+='<div class="action-panel-lbl">Waiting on the signed model release</div>';
+    h+='<button class="plat-action-btn upload-btn" onclick="toggleCheck('+c.id+',\'needsRelease\')">&#128221;&nbsp; Done — release signed</button>';
+  } else if(t==='get-clip'){
+    h+='<div class="action-panel-lbl">Waiting on the footage from '+esc(creatorShortName())+'</div>';
+    h+='<button class="plat-action-btn upload-btn" onclick="toggleCheck('+c.id+',\'needFrom\')">&#128229;&nbsp; Got it — clip received</button>';
+  } else if(t==='upload'){
     var dv=c.platformDates&&c.platformDates[pl]?fmtDate(c.platformDates[pl]):'';
     // For Lux, uploading sends the clip to "In Review" (awaiting approval), not live yet.
     var toReview=(creator==='LG');
@@ -1971,12 +1991,12 @@ function renderCalendar(){
   }
   function getUnschedC4S(){
     return clips.filter(function(c){
-      return !c.needFrom&&c.platforms['C4S']===P&&(!c.platformDates||!c.platformDates['C4S'])&&(!isCalSearch||clipMatchesCalSearch(c));
+      return c.platforms['C4S']===P&&(!c.platformDates||!c.platformDates['C4S'])&&(!isCalSearch||clipMatchesCalSearch(c));
     });
   }
   function getUnschedLF(){
     return clips.filter(function(c){
-      return !c.needFrom&&c.platforms['C4S']!==P&&c.platforms['LF']===P&&(!c.platformDates||!c.platformDates['LF'])&&(!isCalSearch||clipMatchesCalSearch(c));
+      return c.platforms['C4S']!==P&&c.platforms['LF']===P&&(!c.platformDates||!c.platformDates['LF'])&&(!isCalSearch||clipMatchesCalSearch(c));
     });
   }
   var unscheduled;
@@ -1990,7 +2010,7 @@ function renderCalendar(){
     }
   } else {
     unscheduled=clips.filter(function(c){
-      return !c.needFrom&&PL.some(function(pl){return c.platforms[pl]===P&&(!c.platformDates||!c.platformDates[pl]);});
+      return PL.some(function(pl){return c.platforms[pl]===P&&(!c.platformDates||!c.platformDates[pl]);});
     }).map(function(c){return {clip:c,pl:'__all__'};});
   }
 
@@ -2517,8 +2537,7 @@ function confetti(){
 // The single most pressing thing across ALL creators: soonest scheduled upload.
 function dtGlobalNext(){
   var evMap=getAllCalEvents(),all=[];
-  // Skip clips we don't have yet (needFrom) — they're out of the workflow until received.
-  Object.keys(evMap).forEach(function(d){(evMap[d]||[]).forEach(function(ev){if(ev.status===P&&!ev.clip.needFrom)all.push({date:d,ev:ev});});});
+  Object.keys(evMap).forEach(function(d){(evMap[d]||[]).forEach(function(ev){if(ev.status===P)all.push({date:d,ev:ev});});});
   all.sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:0;});
   return all.length?all[0]:null;
 }
@@ -2604,7 +2623,7 @@ function dtMatch(c){
     ||(c.uploadTitle&&c.uploadTitle.toLowerCase().indexOf(q)>=0);
 }
 
-var DT_SHORT={upload:'Upload',approve:'In Review',promote:'Promote','write-desc':'Description','write-title':'Title','write-keywords':'Keywords','make-thumbnail':'Thumbnail','make-nfgbcover':'NF Cover','make-preview':'Trailer',edit:'Edit',film:'Film'};
+var DT_SHORT={'get-release':'Needs Release','get-clip':'Get Clip',upload:'Upload',approve:'In Review',promote:'Promote','write-desc':'Description','write-title':'Title','write-keywords':'Keywords','make-thumbnail':'Thumbnail','make-nfgbcover':'NF Cover','make-preview':'Trailer',edit:'Edit',film:'Film'};
 function dtStepShort(st){var b=DT_SHORT[st.type]||st.type;return (st.type==='upload'||st.type==='promote'||st.type==='approve')?b+' '+st.pl:b;}
 function dtHeaderBand(){
   var isAll=(dtRightView==='allcal');
@@ -2671,19 +2690,25 @@ function dtList(){
   var schedIds={};scheduled.forEach(function(c){schedIds[c.id]=true;});
   function notSched(c){return !schedIds[c.id];}
   if(isSimple()){
+    // No signed release yet = step zero. Those clips show ONLY under "Needs
+    // Release" — pulled out of every other group until the release is sorted.
+    var needsRelList=clips.filter(function(c){return c.needsRelease;});
+    var relIds={};needsRelList.forEach(function(c){relIds[c.id]=true;});
+    function notRel(c){return !relIds[c.id];}
     // Clips we don't have yet from the creator are pulled out of the upload groups
     // (you can't upload footage you haven't received) into their own "Need from …" group.
-    var needFromList=clips.filter(function(c){return c.needFrom;});
+    var needFromList=clips.filter(function(c){return notRel(c)&&c.needFrom;});
     var needIds={};needFromList.forEach(function(c){needIds[c.id]=true;});
     function notNeed(c){return !needIds[c.id];}
     // In Review = ANY clip awaiting approval on ANY platform. It takes priority:
     // an in-review clip shows ONLY here — pulled out of Scheduled and the upload
     // buckets — matching the per-platform workflow (schedule → upload → in review
     // → published → next platform), so you don't act on it until it's approved.
-    var inReviewList=clips.filter(function(c){return notNeed(c)&&platformsFor(creator).some(function(pl){return c.platforms[pl]===IR;});});
+    var inReviewList=clips.filter(function(c){return notRel(c)&&notNeed(c)&&platformsFor(creator).some(function(pl){return c.platforms[pl]===IR;});});
     var revIds={};inReviewList.forEach(function(c){revIds[c.id]=true;});
-    function avail(c){return notNeed(c)&&notSched(c)&&!revIds[c.id];}
-    var schedF=scheduled.filter(notNeed).filter(function(c){return !revIds[c.id];});
+    function avail(c){return notRel(c)&&notNeed(c)&&notSched(c)&&!revIds[c.id];}
+    var schedF=scheduled.filter(notRel).filter(notNeed).filter(function(c){return !revIds[c.id];});
+    h+=dtClipGroup('Needs Release','var(--amber)',needsRelList);
     h+=dtClipGroup('Need from '+creatorShortName(),'var(--violet)',needFromList);
     if(platformsFor(creator).length>1){
       h+=dtClipGroup('Upload to C4S','var(--rose)',clips.filter(function(c){var s=getClipStepSimple(c);return avail(c)&&s&&s.type==='upload'&&s.pl==='C4S';}));
@@ -2693,7 +2718,7 @@ function dtList(){
     }
     h+=dtClipGroup('Scheduled','var(--violet)',schedF);
     h+=dtClipGroup('In Review','var(--amber)',inReviewList);
-    h+=dtClipGroup('Uploaded','var(--green)',clips.filter(function(c){return notNeed(c)&&notSched(c)&&clipUploadedSimple(c);}));
+    h+=dtClipGroup('Uploaded','var(--green)',clips.filter(function(c){return notRel(c)&&notNeed(c)&&notSched(c)&&clipUploadedSimple(c);}));
   } else if(pipePlatFilter!=='ALL'){
     // Lux, one platform selected: every group is THIS platform's own status.
     var pl=pipePlatFilter;
@@ -2798,12 +2823,16 @@ function renderClipDetail(c){
   var action=(s&&(s.type==='film'||s.type==='edit'))?(renderActionPanel(s)+'<div class="sep"></div>'):'';
   if(isSimple()){
     // BH/LV: two columns that fill the pane — writing left, schedule + meta right.
+    // Waiting-on-the-creator steps get their action button up top (there's no
+    // platform-table way to complete them, unlike uploads).
     var SL='',SR='';
+    if(s&&(s.type==='get-release'||s.type==='get-clip'))SL+=renderActionPanel(s)+'<div class="sep"></div>';
     SL+=renderField(c,'desc','Description');
     SL+=renderField(c,'keywords','Keywords');
     SL+=renderField(c,'notes','Notes');
     SR+=renderPlatforms(c);
     SR+=renderField(c,'length','Length');
+    SR+=renderNeedsRelease(c);
     SR+=renderNeedFrom(c);
     return wrapDetail(c,'<div class="dt-cols2"><div class="dt-col">'+SL+'</div><div class="dt-col">'+SR+'</div></div>',del);
   }
@@ -2826,7 +2855,7 @@ function dtClipEditor(c,step){
   var h='';
   if(step){
     var col=TCOLOR[step.type]||'var(--faint)';
-    var head=step.type==='upload'?'Upload to '+step.pl:step.type==='promote'?'Promote on '+step.pl:step.type==='approve'?'Awaiting approval on '+step.pl:(TLABEL[step.type]||step.type).replace(/ for$/,'');
+    var head=step.type==='upload'?'Upload to '+step.pl:step.type==='promote'?'Promote on '+step.pl:step.type==='approve'?'Awaiting approval on '+step.pl:(step.type==='get-release'||step.type==='get-clip')?actionTitle(step):(TLABEL[step.type]||step.type).replace(/ for$/,'');
     var dv=(step.pl&&c.platformDates&&c.platformDates[step.pl])?c.platformDates[step.pl]:'';
     h+='<div class="dt-next" style="border-left:4px solid '+col+'">';
     h+='<div class="dt-next-eyebrow" style="color:'+col+'"><span class="dtn-pulse" style="background:'+col+'"></span>DO THIS NEXT</div>';
@@ -3037,7 +3066,7 @@ function render(){
       h+=isSimple()&&next.clip.num?'<span class="id-badge">'+esc(numDisp(next.clip))+'</span>':'<span class="id-badge">'+fid(next.clip.id)+'</span>';
       h+=esc(next.clip.title);
       if(next.clip.length)h+=' &middot; '+esc(next.clip.length);
-      if((next.type==='upload'||next.type==='promote')&&next.pl&&next.clip.platformDates&&next.clip.platformDates[next.pl])
+      if((next.type==='upload'||next.type==='promote'||next.type==='get-release'||next.type==='get-clip')&&next.pl&&next.clip.platformDates&&next.clip.platformDates[next.pl])
         h+=' &middot; scheduled '+fmtDate(next.clip.platformDates[next.pl]);
       h+='</div></div>';
       h+='<div class="dtn-chev'+(isOpen?' open':'')+'">&#9662;</div></div>';
@@ -3110,6 +3139,7 @@ function render(){
           rh+=renderField(c,'desc','Description');
           rh+=renderField(c,'num','ID');
           rh+=renderField(c,'length','Length');
+          rh+=renderNeedsRelease(c);
           rh+=renderNeedFrom(c);
           rh+=renderField(c,'notes','Notes');
           rh+='<div style="margin-top:12px"><button class="btn btn-del" onclick="event.stopPropagation();doRemove('+c.id+')">Remove clip</button></div>';
@@ -3128,6 +3158,10 @@ function render(){
         gh+='</div>';return gh;
       }
       if(!clips.length)h+='<div class="empty-state"><div class="big">&#128203;</div><p>No clips yet.</p><small>Add clips below.</small></div>';
+      // No signed release yet — step zero, its own group above everything else.
+      var needsRelClips=filteredClips.filter(function(c){return c.needsRelease;});
+      h+=pipeGrp('needsRelease','&#128221;','Needs Release','var(--amber)',needsRelClips,false);
+      filteredClips=filteredClips.filter(function(c){return !c.needsRelease;});
       // Clips not yet received from the creator are pulled out of the upload groups.
       var needFromClips=filteredClips.filter(function(c){return c.needFrom;});
       h+=pipeGrp('needFrom','&#128229;','Need from '+creatorShortName(),'var(--violet)',needFromClips,false);
@@ -3486,6 +3520,12 @@ function doAdd(){
   // Optional: expose a sign-out helper you can wire to a button later.
   window.lgSignOut = function () { auth.signOut(); };
 })();
+</script>
+<script>
+// Offline support: the service worker caches the app shell (this page + the
+// Firebase SDK scripts) so the dashboard opens with no connection. Data was
+// already offline-first (localStorage + Firestore persistence).
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 </script>
 </body>
 </html>

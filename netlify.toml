@@ -4,3 +4,21 @@
 [build]
   publish = "."
   command = ""
+
+# Never let the HTTP cache hold onto the page or the service worker —
+# offline serving is the service worker's job (network-first), and these
+# headers guarantee updates are picked up on the next online load.
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache, must-revalidate"
+
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "no-cache, must-revalidate"
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache, must-revalidate"
