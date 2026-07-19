@@ -278,6 +278,8 @@ textarea{resize:vertical;min-height:90px;line-height:1.6}
 .cal-event.is-up{background:var(--sky-bg);border-color:var(--sky-b);color:var(--sky)}
 .cal-event.is-ppv{background:var(--violet);border-color:var(--violet);color:#fff}
 .cal-event.is-pr{background:var(--green-bg);border-color:var(--green-b);color:var(--green)}
+.cal-event.is-needrel{background:var(--rose-bg);border-color:var(--rose-b);color:var(--rose)}
+.cal-event.is-needfrom{background:var(--teal-bg);border-color:var(--teal-b);color:var(--teal)}
 .cal-event.is-c4s{background:#f5d5da;border-color:#d4909e;color:#6a1f2e}
 .cal-event.is-lf{background:#d5dff5;border-color:#90a0d4;color:#1f2e6a}
 .unsched-chip.is-c4s{background:#f5d5da;border-color:#d4909e;color:#6a1f2e}
@@ -1916,21 +1918,33 @@ function calGridHtml(evMap,renderCellEvents,onDay){
   h+='</div>';
   return h;
 }
+// Chip class for a calendar event, by phase. Posted states win (the platform's
+// real status); otherwise the creator-chase flags color a still-pending chip
+// (Needs Release = rose, Need from = teal); default = violet Scheduled.
+function calPhaseCls(ev){
+  if(ev.status===IR)return ' is-review';
+  if(ev.status===U)return ' is-up';
+  if(ev.status===PPV)return ' is-ppv';
+  if(ev.status===PR)return ' is-pr';
+  if(ev.clip.needsRelease)return ' is-needrel';
+  if(ev.clip.needFrom)return ' is-needfrom';
+  return '';
+}
 function renderAllCalendar(){
   var h=calNavHtml();
+  // Chips are colored by phase (same scheme as the per-creator calendar); the
+  // creator is the chip's LG/BH/LV prefix.
   h+='<div class="cal-legend" style="margin-bottom:12px">';
-  ['LG','BH','LV'].forEach(function(cr){
-    h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:'+CAL_COLORS[cr]+'"></div>'+CREATORS[cr].name+'</div>';
+  [['--rose-b','Needs Release'],['--teal-b','Need from creator'],['--violet-b','Scheduled'],
+   ['--amber-b','In Review'],['--sky-b','Uploaded'],['--green-b','Promoted']].forEach(function(lg){
+    h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:var('+lg[0]+')"></div>'+lg[1]+'</div>';
   });
   h+='</div>';
   h+=calGridHtml(getAllCalEvents(),function(evs){
     var s='';
     evs.slice(0,4).forEach(function(ev){
       var short=ev.clip.title.length>14?ev.clip.title.substring(0,13)+'…':ev.clip.title;
-      var done=isPosted(ev.status);
-      var stStyle=done?('background:'+ev.color+';border-color:'+ev.color+';color:#fff')
-        :('background:'+hexA(ev.color,.16)+';border-color:'+hexA(ev.color,.45)+';color:'+ev.color);
-      s+='<div class="cal-event" data-drag-clip="'+ev.clip.id+'" data-drag-platform="'+ev.platform+'" data-drag-creator="'+ev.creator+'" style="'+stStyle+';cursor:grab" title="'+esc(ev.clip.title)+' ('+ev.creator+' / '+ev.platform+')">';
+      s+='<div class="cal-event'+calPhaseCls(ev)+'" data-drag-clip="'+ev.clip.id+'" data-drag-platform="'+ev.platform+'" data-drag-creator="'+ev.creator+'" style="cursor:grab" title="'+esc(ev.clip.title)+' ('+ev.creator+' / '+ev.platform+')">';
       s+='<span class="cal-event-plat">'+ev.creator+'</span>'+esc(short)+'</div>';
     });
     if(evs.length>4)s+='<div class="cal-more">+'+(evs.length-4)+' more</div>';
@@ -1958,10 +1972,10 @@ function renderCalendar(){
     // A lone clip gets a full-height chip that fills the cell so its whole title can wrap in.
     var single=evs.length===1;
     evs.slice(0,3).forEach(function(ev){
-      // Colour by status (Scheduled = default violet, In Review = amber, Uploaded = sky).
+      // Colour by phase (see calPhaseCls — Needs Release / Need from get their own).
       // Show the C4S/LF prefix only when there's more than one platform (Brigit/Lux); a
       // single-platform creator (Venus = C4S only) gets no redundant prefix.
-      var stCls=ev.status===IR?' is-review':ev.status===U?' is-up':ev.status===PPV?' is-ppv':ev.status===PR?' is-pr':'';
+      var stCls=calPhaseCls(ev);
       var short=single?ev.clip.title:(ev.clip.title.length>16?ev.clip.title.substring(0,15)+'…':ev.clip.title);
       var showPlat=platformsFor(ev.creator||creator).length>1;
       var inner=(showPlat?'<span class="cal-event-plat">'+ev.platform+'</span>':'')+(isSimple()&&ev.clip.needFrom?'&#128229; ':'')+(isSimple()&&clipIsShort(ev.clip)?'★ ':'')+esc(short);
@@ -1974,6 +1988,8 @@ function renderCalendar(){
   },(isDesktop()&&isSimple())?function(ds){return 'openCalAdd(\''+ds+'\')';}:null);
   h+='<div class="cal-legend">';
   if(isSimple()){
+    h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--rose-b)"></div>Needs Release</div>';
+    h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--teal-b)"></div>Need from '+esc(creatorShortName())+'</div>';
     h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--violet-b)"></div>Scheduled</div>';
     h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--amber-b)"></div>In Review</div>';
     h+='<div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--sky-b)"></div>Uploaded</div>';
