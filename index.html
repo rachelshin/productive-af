@@ -1944,7 +1944,7 @@ function renderAllCalendar(){
     var s='';
     evs.slice(0,4).forEach(function(ev){
       var short=ev.clip.title.length>14?ev.clip.title.substring(0,13)+'…':ev.clip.title;
-      s+='<div class="cal-event'+calPhaseCls(ev)+'" data-drag-clip="'+ev.clip.id+'" data-drag-platform="'+ev.platform+'" data-drag-creator="'+ev.creator+'" style="cursor:grab" title="'+esc(ev.clip.title)+' ('+ev.creator+' / '+ev.platform+')">';
+      s+='<div class="cal-event'+calPhaseCls(ev)+'" data-drag-clip="'+ev.clip.id+'" data-drag-platform="'+ev.platform+'" data-drag-creator="'+ev.creator+'" onclick="event.stopPropagation();allCalSelectClip(\''+ev.creator+'\','+ev.clip.id+')" style="cursor:grab" title="'+esc(ev.clip.title)+' ('+ev.creator+' / '+ev.platform+')">';
       s+='<span class="cal-event-plat">'+ev.creator+'</span>'+esc(short)+'</div>';
     });
     if(evs.length>4)s+='<div class="cal-more">+'+(evs.length-4)+' more</div>';
@@ -2521,6 +2521,16 @@ function calSelectClip(id){
   dtCalAddDate=null; // a clip click supersedes any open add-clip form
   dtCalClip=id;expanded=id;editField=null;_dtCalScroll=true;render();
 }
+// Combined calendar: clicking a clip opens its edit screen under the calendar, the
+// same as the per-creator calendar. The clip belongs to whichever creator the chip is
+// prefixed with, so load that creator first — switchCreator clears dtCalClip, so it
+// has to run before the selection is set.
+function allCalSelectClip(cr,id){
+  if(creator!==cr)switchCreator(cr);
+  if(!isDesktop()){tab=isSimple()?'pipe':'queue';expanded=id;editField=null;render();return;}
+  dtRightView='allcal'; // stay on the combined calendar rather than jumping to the creator's own
+  dtCalAddDate=null;dtCalClip=id;expanded=id;editField=null;_dtCalScroll=true;render();
+}
 // Desktop (Brigit/Venus): clicking an empty calendar day (or a day outside its clips)
 // opens an add-clip form under the calendar, pre-filled with that upload date.
 function openCalAdd(ds){
@@ -2908,7 +2918,9 @@ function dtCalEditPane(){
   var c=clips.find(function(x){return x.id===dtCalClip;});
   if(!c)return '';
   var step=isSimple()?getClipStepSimple(c):getClipStep(c);
-  return '<div class="cal-edit-pane"><div class="sec-lbl" style="margin-top:24px;display:flex;justify-content:space-between;align-items:center">Editing &mdash; '+esc(c.title)+'<span class="cal-edit-close" onclick="dtCalClip=null;render()">&times;</span></div>'+dtClipEditor(c,step)+'</div>';
+  // On the combined calendar the clip could be anyone's, so name the creator too.
+  var who=dtRightView==='allcal'?esc((CREATORS[creator]||{name:''}).name)+' &middot; ':'';
+  return '<div class="cal-edit-pane"><div class="sec-lbl" style="margin-top:24px;display:flex;justify-content:space-between;align-items:center">Editing &mdash; '+who+esc(c.title)+'<span class="cal-edit-close" onclick="dtCalClip=null;render()">&times;</span></div>'+dtClipEditor(c,step)+'</div>';
 }
 
 // The add-clip form shown UNDER the calendar after clicking an empty day (Brigit/Venus).
@@ -2975,7 +2987,7 @@ function renderDesktop(){
   h+='<section class="dt-detail'+anim+'">';
   h+=dtWhyCard();
   if(dtRightView==='analytics'&&!isSimple())h+=renderAnalytics();
-  else if(dtRightView==='allcal')h+='<div class="sec-lbl">Combined Calendar — all creators</div>'+renderAllCalendar();
+  else if(dtRightView==='allcal')h+='<div class="sec-lbl">Combined Calendar — all creators</div>'+renderAllCalendar()+dtCalEditPane();
   else if(dtRightView==='cal')h+='<div class="sec-lbl">'+esc((CREATORS[creator]||{name:''}).name)+' — Upload Schedule</div>'+((clips.length||isSimple())?renderCalendar():'<div class="dt-empty">No clips scheduled yet.</div>')+dtCalEditPane()+dtCalAddPane();
   else if(dtRightView==='inv'&&isSimple())h+=renderInvoicingTab();
   else if(dtRightView==='promote'&&!isSimple())h+=dtPromoteNext();
