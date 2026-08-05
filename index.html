@@ -676,6 +676,7 @@ var calSearch='';
 // Consulting / timer state
 var consulting={hoursPerInvoice:10,rate:50,currency:'$',currentPeriodStart:new Date().toLocaleDateString('en-CA'),currentPeriodSeconds:0,sessions:[],invoices:[],nextSessionId:1,nextInvoiceId:1,nextInvoiceNum:1};
 var timerRunning=false,timerStartMs=0,timerInterval=null,timerCreator=null; // timerCreator = which creator the running timer belongs to
+var timerBankedSecs=0; // seconds of the CURRENT session already recorded by a mid-session invoice rollover (see checkTimerRollover)
 var manualEntryOpen=false,editPeriodStart=false;
 
 // Single source of truth for per-creator storage keys + platform list.
@@ -2096,6 +2097,32 @@ function daysDiff(dateStr){
 function timerTick(){
   var el=document.getElementById('timer-clock');
   if(el){el.textContent=fmtSecsClock(Math.floor((Date.now()-timerStartMs)/1000));}
+  checkTimerRollover();
+}
+
+// Creator `cr`'s consulting record: the live one when they're on screen, otherwise
+// their stored profile. Returns null for creators who aren't consulting clients.
+function consultingFor(cr){
+  if(!cr||cr==='LG')return null;
+  if(cr===creator)return consulting;
+  try{var s=store.getItem(consultingKey(cr));return s?JSON.parse(s):null;}catch(e){return null;}
+}
+
+// Cut the invoice the moment the running timer crosses the hour limit, instead of
+// waiting for Stop — otherwise "This period" keeps climbing past the limit with
+// nothing to show for it. The seconds banked here are remembered in timerBankedSecs
+// so the clock face keeps running uninterrupted and Stop only records what's left.
+function checkTimerRollover(){
+  if(!timerRunning)return;
+  var co=consultingFor(timerCreator);
+  if(!co||!co.hoursPerInvoice)return;
+  var unbanked=Math.floor((Date.now()-timerStartMs)/1000)-timerBankedSecs;
+  if(unbanked<1)return;
+  if(co.currentPeriodSeconds+unbanked<Math.round(co.hoursPerInvoice*3600))return;
+  timerBankedSecs+=unbanked;
+  saveTimerState();
+  recordConsultingTime(timerCreator,unbanked); // creates the invoice and resets the period
+  render();
 }
 
 // Persist (or clear) the running-timer state so it survives a refresh or the app
@@ -2103,7 +2130,7 @@ function timerTick(){
 // no matter how long the app was gone. Synced via `store`, so it also crosses devices.
 function saveTimerState(){
   try{
-    if(timerRunning)store.setItem('lg-timer',JSON.stringify({startMs:timerStartMs,creator:timerCreator}));
+    if(timerRunning)store.setItem('lg-timer',JSON.stringify({startMs:timerStartMs,creator:timerCreator,banked:timerBankedSecs}));
     else store.removeItem('lg-timer');
   }catch(e){}
 }
@@ -2114,15 +2141,16 @@ function restoreTimer(){
     var s=store.getItem('lg-timer');if(!s)return;
     var t=JSON.parse(s);
     if(!t||!t.startMs||!t.creator){store.removeItem('lg-timer');return;}
-    timerRunning=true;timerStartMs=t.startMs;timerCreator=t.creator;
+    timerRunning=true;timerStartMs=t.startMs;timerCreator=t.creator;timerBankedSecs=t.banked||0;
     clearInterval(timerInterval);
     timerInterval=setInterval(timerTick,1000);
+    checkTimerRollover(); // the app may have been closed straight through the hour limit
   }catch(e){}
 }
 
 function startTimer(){
   if(timerRunning)return;
-  timerRunning=true;timerStartMs=Date.now();timerCreator=creator;
+  timerRunning=true;timerStartMs=Date.now();timerCreator=creator;timerBankedSecs=0;
   timerInterval=setInterval(timerTick,1000);
   saveTimerState();
   render();
@@ -2135,9 +2163,7 @@ function startTimer(){
 // update, and write that creator's stored profile directly.
 function recordConsultingTime(cr,elapsed){
   if(!cr||cr==='LG'||elapsed<1)return;
-  var isCur=(cr===creator),co;
-  if(isCur){co=consulting;}
-  else{try{var s=store.getItem(consultingKey(cr));co=s?JSON.parse(s):null;}catch(e){co=null;}}
+  var isCur=(cr===creator),co=consultingFor(cr);
   if(!co)return;
   co.sessions.push({id:co.nextSessionId++,date:todayStr(),seconds:elapsed});
   var threshold=Math.round(co.hoursPerInvoice*3600);
@@ -2164,8 +2190,9 @@ function recordConsultingTime(cr,elapsed){
 function stopTimer(silent){
   if(!timerRunning)return;
   clearInterval(timerInterval);timerInterval=null;timerRunning=false;
-  var elapsed=Math.floor((Date.now()-timerStartMs)/1000);
-  var owner=timerCreator;timerCreator=null;
+  // Only the seconds not already banked by a mid-session rollover.
+  var elapsed=Math.max(0,Math.floor((Date.now()-timerStartMs)/1000)-timerBankedSecs);
+  var owner=timerCreator;timerCreator=null;timerBankedSecs=0;
   saveTimerState(); // clears the persisted running-timer
   if(!silent)recordConsultingTime(owner,elapsed); // records to the owner, even if you've switched creators
   render();
@@ -2330,7 +2357,9 @@ function renderTimerWidget(){
   var threshold=Math.round(consulting.hoursPerInvoice*3600);
   // Only fold the running clock into the period when it belongs to THIS creator —
   // a timer running for another creator accrues to them, not whoever's on screen.
-  var periodSecs=consulting.currentPeriodSeconds+(runningHere?elapsed:0);
+  // Seconds already banked by a mid-session rollover are in currentPeriodSeconds
+  // (well, in the invoice they triggered), so only the unbanked part is added on.
+  var periodSecs=consulting.currentPeriodSeconds+(runningHere?Math.max(0,elapsed-timerBankedSecs):0);
   var pct=Math.min(100,Math.round(periodSecs/threshold*100));
   var h='<div class="timer-widget">';
   h+='<div id="timer-clock" class="timer-clock'+(timerRunning?' running':'')+'">'+fmtSecsClock(elapsed)+'</div>';
