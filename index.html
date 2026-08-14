@@ -393,6 +393,16 @@ input[type=number]{-moz-appearance:textfield}
 .session-day-total{font-weight:800;font-variant-numeric:tabular-nums;color:var(--text);font-size:15px}
 .session-sub{display:flex;align-items:center;gap:10px;padding:5px 0 0 12px;font-size:13px;color:var(--faint)}
 .session-sub .session-dur{color:var(--faint);font-weight:600;font-size:13px}
+.past-period-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}
+.past-period{border-bottom:1px solid var(--border)}
+.past-period:last-child{border-bottom:none}
+.past-period-head{width:100%;display:flex;align-items:center;gap:12px;padding:14px 18px;background:none;border:none;font-family:inherit;text-align:left;cursor:pointer;color:var(--text)}
+.past-period-head:hover{background:var(--bg)}
+.past-period-caret{color:var(--faint);font-size:12px;transition:transform .2s;flex-shrink:0}
+.past-period-head.open .past-period-caret{transform:rotate(90deg)}
+.past-period-title{font-size:15px;font-weight:700;flex:1}
+.past-period-meta{font-size:14px;font-weight:700;color:var(--faint);font-variant-numeric:tabular-nums;flex-shrink:0}
+.past-period-body{padding:0 18px 14px}
 
 /* Confetti + shared celebratory keyframes (used on every platform) */
 .confetti-box{position:fixed;inset:0;pointer-events:none;z-index:100000;overflow:hidden}
@@ -678,6 +688,7 @@ var consulting={hoursPerInvoice:10,rate:50,currency:'$',currentPeriodStart:new D
 var timerRunning=false,timerStartMs=0,timerInterval=null,timerCreator=null; // timerCreator = which creator the running timer belongs to
 var timerBankedSecs=0; // seconds of the CURRENT session already recorded by a mid-session invoice rollover (see checkTimerRollover)
 var manualEntryOpen=false,editPeriodStart=false;
+var openPastPeriod=null; // invoice id whose past-period time log is expanded (only one at a time, collapsed by default)
 
 // Single source of truth for per-creator storage keys + platform list.
 // Pass a creator code (LG/BH/LV) to target another creator; omit for the active one.
@@ -700,7 +711,7 @@ function loadConsulting(){
       if(!consulting.nextInvoiceNum)consulting.nextInvoiceNum=consulting.nextInvoiceId||1;
     } else {consulting=defaultConsulting();}
   }catch(e){consulting=defaultConsulting();}
-  manualEntryOpen=false;editPeriodStart=false;
+  manualEntryOpen=false;editPeriodStart=false;openPastPeriod=null;
 }
 function saveConsulting(){
   if(creator==='LG')return;
@@ -2093,10 +2104,47 @@ function daysDiff(dateStr){
   return Math.floor((now-d)/(1000*60*60*24));
 }
 
-// The running clock face updates every second from the absolute start time.
+// Seconds logged toward the current invoice period for the creator on screen,
+// including the running clock — but only when the timer belongs to THIS creator
+// (a timer running for someone else accrues to them, not to whoever's on screen),
+// and minus anything a mid-session rollover already banked into an invoice.
+function timerPeriodSecs(){
+  if(!timerRunning||timerCreator!==creator)return consulting.currentPeriodSeconds;
+  return consulting.currentPeriodSeconds+timerUnbanked();
+}
+// The part of the running session not yet written into a session record.
+function timerUnbanked(){
+  return Math.max(0,Math.floor((Date.now()-timerStartMs)/1000)-timerBankedSecs);
+}
+// Seconds worked today for the creator on screen: sessions already recorded under
+// today's date, plus the running clock — a session is dated when it's stopped, so
+// the time on the clock is time that will land on today.
+function timerTodaySecs(){
+  var t=todayStr(),n=0;
+  consulting.sessions.forEach(function(s){if(s.date===t)n+=s.seconds;});
+  if(timerRunning&&timerCreator===creator)n+=timerUnbanked();
+  return n;
+}
+
+// The running clock face updates every second from the absolute start time. "This
+// period" and its bar are patched in place on the same tick: a full render() every
+// second would rebuild the pane and interrupt anything being typed.
 function timerTick(){
   var el=document.getElementById('timer-clock');
   if(el){el.textContent=fmtSecsClock(Math.floor((Date.now()-timerStartMs)/1000));}
+  var pv=document.getElementById('timer-period-val');
+  if(pv){
+    var ps=timerPeriodSecs();
+    pv.textContent=fmtHours(ps)+' of '+consulting.hoursPerInvoice+'h';
+    var bar=document.getElementById('timer-period-bar');
+    if(bar){
+      var pct=Math.min(100,Math.round(ps/Math.round(consulting.hoursPerInvoice*3600)*100));
+      bar.style.width=pct+'%';
+      if(pct>=100)bar.classList.add('done');else bar.classList.remove('done');
+    }
+  }
+  var tv=document.getElementById('timer-today');
+  if(tv)tv.textContent='Today: '+fmtHours(timerTodaySecs());
   checkTimerRollover();
 }
 
@@ -2261,11 +2309,18 @@ function addManualSession(){
   }
   manualEntryOpen=false;saveConsulting();render();
 }
+// Only current-period time is still sitting in currentPeriodSeconds. Time from a period
+// that already rolled into an invoice was subtracted out at rollover, so removing it must
+// leave the counter (and the invoice, which is a fixed-hours record) alone — otherwise the
+// current period loses hours it never contained.
 function deleteSession(sid){
   var s=consulting.sessions.find(function(x){return x.id===sid;});
   if(!s)return;
-  if(!confirm('Remove this '+fmtSeconds(s.seconds)+' session on '+fmtDate(s.date)+'?'))return;
-  consulting.currentPeriodSeconds=Math.max(0,consulting.currentPeriodSeconds-s.seconds);
+  var isCurrent=splitSessionsByPeriod().current.some(function(x){return x.id===sid;});
+  var msg='Remove this '+fmtSeconds(s.seconds)+' session on '+fmtDate(s.date)+'?';
+  if(!isCurrent)msg+='\n\nThis time was already invoiced, so the invoice and the current period total stay as they are.';
+  if(!confirm(msg))return;
+  if(isCurrent)consulting.currentPeriodSeconds=Math.max(0,consulting.currentPeriodSeconds-s.seconds);
   consulting.sessions=consulting.sessions.filter(function(x){return x.id!==sid;});
   saveConsulting();render();
 }
@@ -2355,11 +2410,7 @@ function renderTimerWidget(){
   var runningHere=timerRunning&&timerCreator===creator;
   var elapsed=timerRunning?Math.floor((Date.now()-timerStartMs)/1000):0;
   var threshold=Math.round(consulting.hoursPerInvoice*3600);
-  // Only fold the running clock into the period when it belongs to THIS creator —
-  // a timer running for another creator accrues to them, not whoever's on screen.
-  // Seconds already banked by a mid-session rollover are in currentPeriodSeconds
-  // (well, in the invoice they triggered), so only the unbanked part is added on.
-  var periodSecs=consulting.currentPeriodSeconds+(runningHere?Math.max(0,elapsed-timerBankedSecs):0);
+  var periodSecs=timerPeriodSecs();
   var pct=Math.min(100,Math.round(periodSecs/threshold*100));
   var h='<div class="timer-widget">';
   h+='<div id="timer-clock" class="timer-clock'+(timerRunning?' running':'')+'">'+fmtSecsClock(elapsed)+'</div>';
@@ -2375,10 +2426,11 @@ function renderTimerWidget(){
   h+='<div class="timer-sep"></div>';
   h+='<div class="timer-period">';
   h+='<div class="timer-period-lbl">This period</div>';
-  h+='<div class="timer-period-val">'+fmtHours(periodSecs)+' of '+consulting.hoursPerInvoice+'h</div>';
-  h+='<div class="prog-bar-wrap"><div class="prog-bar-fill'+(pct>=100?' done':'')+'" style="width:'+pct+'%"></div></div>';
-  var todaySecs=0;consulting.sessions.filter(function(s){return s.date===todayStr();}).forEach(function(s){todaySecs+=s.seconds;});
-  if(todaySecs>0)h+='<div class="timer-session-lbl">Today: '+fmtHours(todaySecs)+'</div>';
+  h+='<div id="timer-period-val" class="timer-period-val">'+fmtHours(periodSecs)+' of '+consulting.hoursPerInvoice+'h</div>';
+  h+='<div class="prog-bar-wrap"><div id="timer-period-bar" class="prog-bar-fill'+(pct>=100?' done':'')+'" style="width:'+pct+'%"></div></div>';
+  // Rendered while the timer runs even at 0h, so the tick below has something to write into.
+  var todaySecs=timerTodaySecs();
+  if(todaySecs>0||runningHere)h+='<div id="timer-today" class="timer-session-lbl">Today: '+fmtHours(todaySecs)+'</div>';
   h+='</div></div>';
   return h;
 }
@@ -2402,6 +2454,58 @@ function renderInvoicingBanners(){
     h+='<button class="inv-act-btn paid" onclick="markPaid('+inv.id+')">&#10003; Mark Paid</button></div></div>';
   });
   return h;
+}
+
+// Sessions carry no invoice link, so periods are reconstructed from dates: anything on
+// or after currentPeriodStart belongs to the current period, everything older falls into
+// the earliest invoice period whose periodEnd it doesn't precede. Adjacent periods share
+// a boundary date (one period's end is the next one's start), so the newer period wins
+// and a day split by a rollover is never listed twice.
+function splitSessionsByPeriod(){
+  var past=consulting.invoices.slice().sort(function(a,b){
+    return a.periodEnd<b.periodEnd?-1:a.periodEnd>b.periodEnd?1:a.id-b.id;
+  });
+  var buckets={},current=[];
+  past.forEach(function(inv){buckets[inv.id]=[];});
+  consulting.sessions.forEach(function(s){
+    if(s.date>=consulting.currentPeriodStart){current.push(s);return;}
+    var hit=null;
+    for(var i=0;i<past.length;i++){if(s.date<=past[i].periodEnd){hit=past[i];break;}}
+    if(hit)buckets[hit.id].push(s);
+    else current.push(s); // older than the current start but past every invoice end (edited start date)
+  });
+  return {current:current,past:past,buckets:buckets};
+}
+
+// Day-grouped time log, newest day first. Removal is available in every period —
+// deleteSession works out which period the session belongs to before touching any total.
+function renderSessionLog(sessions){
+  var groups=[],map={},h='';
+  sessions.slice().sort(function(a,b){
+    return a.date<b.date?1:a.date>b.date?-1:b.id-a.id;
+  }).forEach(function(s){
+    if(!map[s.date]){map[s.date]={date:s.date,total:0,items:[]};groups.push(map[s.date]);}
+    map[s.date].total+=s.seconds;
+    map[s.date].items.push(s);
+  });
+  groups.forEach(function(g){
+    h+='<div class="session-day">';
+    h+='<div class="session-day-head"><span class="session-date">'+fmtDate(g.date)+'</span>';
+    h+='<span class="session-day-total">'+fmtSeconds(g.total)+'</span></div>';
+    g.items.forEach(function(s){
+      h+='<div class="session-sub">';
+      h+='<span class="session-dur">'+fmtSeconds(s.seconds)+(s.manual?' <span style="font-size:11px">(manual)</span>':'')+'</span>';
+      h+='<button onclick="deleteSession('+s.id+')" style="margin-left:auto;background:none;border:none;color:var(--faint);cursor:pointer;font-size:13px" title="Remove">&#10005;</button>';
+      h+='</div>';
+    });
+    h+='</div>';
+  });
+  return h;
+}
+
+function togglePastPeriod(invId){
+  openPastPeriod=(openPastPeriod===invId?null:invId);
+  render();
 }
 
 function renderInvoicingTab(){
@@ -2445,7 +2549,7 @@ function renderInvoicingTab(){
   h+='<div class="inv-prog-lg"><div class="inv-prog-fill'+(pct>=100?' done':'')+'" style="width:'+pct+'%"></div></div>';
   h+='<div class="inv-prog-lbl">'+fmtHours(consulting.currentPeriodSeconds)+' / '+consulting.hoursPerInvoice+'h</div>';
 
-  var allSessions=consulting.sessions.slice().reverse();
+  var split=splitSessionsByPeriod();
   h+='<div class="session-list" style="margin-top:14px">';
   h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
   h+='<div style="font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)">Time Log</div>';
@@ -2464,29 +2568,37 @@ function renderInvoicingTab(){
     h+='</div></div>';
   }
 
-  if(allSessions.length){
-    var dayGroups=[],dayMap={};
-    allSessions.forEach(function(s){
-      if(!dayMap[s.date]){dayMap[s.date]={date:s.date,total:0,items:[]};dayGroups.push(dayMap[s.date]);}
-      dayMap[s.date].total+=s.seconds;
-      dayMap[s.date].items.push(s);
-    });
-    dayGroups.slice(0,15).forEach(function(g){
-      h+='<div class="session-day">';
-      h+='<div class="session-day-head"><span class="session-date">'+fmtDate(g.date)+'</span>';
-      h+='<span class="session-day-total">'+fmtSeconds(g.total)+'</span></div>';
-      g.items.forEach(function(s){
-        h+='<div class="session-sub">';
-        h+='<span class="session-dur">'+fmtSeconds(s.seconds)+(s.manual?' <span style="font-size:11px">(manual)</span>':'')+'</span>';
-        h+='<button onclick="deleteSession('+s.id+')" style="margin-left:auto;background:none;border:none;color:var(--faint);cursor:pointer;font-size:13px" title="Remove">&#10005;</button>';
-        h+='</div>';
-      });
-      h+='</div>';
-    });
+  if(split.current.length){
+    h+=renderSessionLog(split.current);
   } else {
-    h+='<div style="color:var(--faint);font-size:14px;padding:10px 0">No sessions yet. Start the timer or log time manually.</div>';
+    h+='<div style="color:var(--faint);font-size:14px;padding:10px 0">No time logged this period yet.</div>';
   }
   h+='</div></div>';
+
+  if(split.past.length){
+    h+='<div class="sec-lbl">Previous Periods</div>';
+    h+='<div class="past-period-card">';
+    split.past.slice().reverse().forEach(function(inv){
+      var items=split.buckets[inv.id]||[];
+      var secs=items.reduce(function(t,s){return t+s.seconds;},0);
+      var open=openPastPeriod===inv.id;
+      var invNumDisp=String(inv.invoiceNum||inv.id).padStart(4,'0');
+      h+='<div class="past-period">';
+      h+='<button class="past-period-head'+(open?' open':'')+'" onclick="togglePastPeriod('+inv.id+')">';
+      h+='<span class="past-period-caret">&#9654;</span>';
+      h+='<span class="past-period-title">Invoice #'+invNumDisp+'<span style="font-weight:500;color:var(--muted)"> &middot; '+fmtDateRange(inv.periodStart,inv.periodEnd)+'</span></span>';
+      h+='<span class="past-period-meta">'+(secs?fmtSeconds(secs):inv.hours+'h')+'</span>';
+      h+='</button>';
+      if(open){
+        h+='<div class="past-period-body">';
+        if(items.length)h+=renderSessionLog(items);
+        else h+='<div style="color:var(--faint);font-size:14px;padding:6px 0">No individual sessions recorded for this period.</div>';
+        h+='</div>';
+      }
+      h+='</div>';
+    });
+    h+='</div>';
+  }
 
   h+='<div class="sec-lbl">Invoices</div>';
   if(consulting.invoices.length){
