@@ -401,8 +401,12 @@ input[type=number]{-moz-appearance:textfield}
 .past-period-caret{color:var(--faint);font-size:12px;transition:transform .2s;flex-shrink:0}
 .past-period-head.open .past-period-caret{transform:rotate(90deg)}
 .past-period-title{font-size:15px;font-weight:700;flex:1}
-.past-period-meta{font-size:14px;font-weight:700;color:var(--faint);font-variant-numeric:tabular-nums;flex-shrink:0}
+.past-period-meta{font-size:14px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;flex-shrink:0}
+.past-period-logged{font-weight:600;color:var(--faint)}
 .past-period-body{padding:0 18px 14px}
+.past-period-bill{display:flex;align-items:center;gap:10px;padding:10px 0 12px;border-bottom:1px solid var(--border);margin-bottom:4px}
+.past-period-bill-lbl{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.past-period-bill-amt{margin-left:auto;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
 
 /* Confetti + shared celebratory keyframes (used on every platform) */
 .confetti-box{position:fixed;inset:0;pointer-events:none;z-index:100000;overflow:hidden}
@@ -689,6 +693,7 @@ var timerRunning=false,timerStartMs=0,timerInterval=null,timerCreator=null; // t
 var timerBankedSecs=0; // seconds of the CURRENT session already recorded by a mid-session invoice rollover (see checkTimerRollover)
 var manualEntryOpen=false,editPeriodStart=false;
 var openPastPeriod=null; // invoice id whose past-period time log is expanded (only one at a time, collapsed by default)
+var editSessionId=null;  // time entry being edited inline (null = none); mutually exclusive with manualEntryOpen
 
 // Single source of truth for per-creator storage keys + platform list.
 // Pass a creator code (LG/BH/LV) to target another creator; omit for the active one.
@@ -711,7 +716,7 @@ function loadConsulting(){
       if(!consulting.nextInvoiceNum)consulting.nextInvoiceNum=consulting.nextInvoiceId||1;
     } else {consulting=defaultConsulting();}
   }catch(e){consulting=defaultConsulting();}
-  manualEntryOpen=false;editPeriodStart=false;openPastPeriod=null;
+  manualEntryOpen=false;editPeriodStart=false;openPastPeriod=null;editSessionId=null;
 }
 function saveConsulting(){
   if(creator==='LG')return;
@@ -2209,28 +2214,40 @@ function startTimer(){
 // the creator on screen — the timer keeps running as you click around, so on Stop
 // the time may belong to a creator you've since navigated away from; we then read,
 // update, and write that creator's stored profile directly.
-function recordConsultingTime(cr,elapsed){
-  if(!cr||cr==='LG'||elapsed<1)return;
-  var isCur=(cr===creator),co=consultingFor(cr);
-  if(!co)return;
-  co.sessions.push({id:co.nextSessionId++,date:todayStr(),seconds:elapsed});
+// Close out as many full invoice periods as the banked seconds cover, ending each on
+// `endDate`. Shared by the timer, manual entry, and hand-edits so the threshold behaves
+// the same however the time got there. Entries hand-pinned to "current" that predate the
+// period we just closed move onto that invoice, since that is where their time went.
+function rollUpPeriods(co,endDate){
   var threshold=Math.round(co.hoursPerInvoice*3600);
-  co.currentPeriodSeconds+=elapsed;
   while(co.currentPeriodSeconds>=threshold){
-    co.invoices.unshift({
+    var inv={
       id:co.nextInvoiceId++,
       invoiceNum:co.nextInvoiceNum++,
       periodStart:co.currentPeriodStart,
-      periodEnd:todayStr(),
+      periodEnd:endDate,
       hours:co.hoursPerInvoice,
       rate:co.rate,
       currency:co.currency,
       invoicedAt:null,
       paidAt:null
-    });
+    };
+    co.invoices.unshift(inv);
     co.currentPeriodSeconds-=threshold;
-    co.currentPeriodStart=todayStr();
+    co.currentPeriodStart=endDate;
+    co.sessions.forEach(function(s){
+      if(s.periodId==='current'&&s.date<endDate)s.periodId=inv.id;
+    });
   }
+}
+
+function recordConsultingTime(cr,elapsed){
+  if(!cr||cr==='LG'||elapsed<1)return;
+  var isCur=(cr===creator),co=consultingFor(cr);
+  if(!co)return;
+  co.sessions.push({id:co.nextSessionId++,date:todayStr(),seconds:elapsed});
+  co.currentPeriodSeconds+=elapsed;
+  rollUpPeriods(co,todayStr());
   if(isCur)saveConsulting();
   else{try{store.setItem(consultingKey(cr),JSON.stringify(co));}catch(e){}}
 }
@@ -2279,35 +2296,73 @@ function setPeriodStart(val){
   if(val)consulting.currentPeriodStart=val;
   editPeriodStart=false;saveConsulting();render();
 }
-function addManualSession(){
+// Reads the shared entry form. Only one form is open at a time, so the ids are reused
+// by both the add row and the inline edit row.
+function readSessionForm(){
   var dateEl=document.getElementById('man-date');
   var hEl=document.getElementById('man-h');
   var mEl=document.getElementById('man-m');
-  if(!dateEl||!hEl||!mEl)return;
-  var date=dateEl.value||todayStr();
-  var hours=parseInt(hEl.value)||0;
-  var mins=parseInt(mEl.value)||0;
-  var secs=(hours*3600)+(mins*60);
-  if(secs<60){alert('Please enter at least 1 minute.');return;}
-  consulting.sessions.push({id:consulting.nextSessionId++,date:date,seconds:secs,manual:true});
-  var threshold=Math.round(consulting.hoursPerInvoice*3600);
-  consulting.currentPeriodSeconds+=secs;
-  while(consulting.currentPeriodSeconds>=threshold){
-    consulting.invoices.unshift({
-      id:consulting.nextInvoiceId++,
-      invoiceNum:consulting.nextInvoiceNum++,
-      periodStart:consulting.currentPeriodStart,
-      periodEnd:date,
-      hours:consulting.hoursPerInvoice,
-      rate:consulting.rate,
-      currency:consulting.currency,
-      invoicedAt:null,
-      paidAt:null
-    });
-    consulting.currentPeriodSeconds-=threshold;
-    consulting.currentPeriodStart=date;
+  var pEl=document.getElementById('man-period');
+  if(!dateEl||!hEl||!mEl)return null;
+  var secs=((parseInt(hEl.value)||0)*3600)+((parseInt(mEl.value)||0)*60);
+  if(secs<60){alert('Please enter at least 1 minute.');return null;}
+  var pv=pEl?pEl.value:'current';
+  return {date:dateEl.value||todayStr(),seconds:secs,period:(pv==='current'?'current':parseInt(pv))};
+}
+
+// A pin is only stored when the chosen period differs from the one the date implies.
+// Pinning every entry would freeze it in place, so entries that sit where their date
+// already puts them stay unpinned and keep following the period boundaries.
+function setSessionPeriod(s,target,past){
+  if(periodByDate(s.date,past)===target)delete s.periodId;
+  else s.periodId=target;
+}
+
+function addManualSession(){
+  var f=readSessionForm();
+  if(!f)return;
+  var past=sortedPastPeriods();
+  var s={id:consulting.nextSessionId++,date:f.date,seconds:f.seconds,manual:true};
+  setSessionPeriod(s,f.period,past);
+  consulting.sessions.push(s);
+  if(f.period==='current'){
+    consulting.currentPeriodSeconds+=f.seconds;
+    rollUpPeriods(consulting,f.date);
   }
   manualEntryOpen=false;saveConsulting();render();
+}
+
+// Edit an entry's date, duration, and period in one go. currentPeriodSeconds only tracks
+// the current period, so it is credited or debited purely by whether the entry starts or
+// ends up there: time in a closed period was already subtracted out at rollover and is
+// carried by that invoice's hours instead.
+function saveSessionEdit(sid){
+  var s=consulting.sessions.find(function(x){return x.id===sid;});
+  if(!s)return;
+  var f=readSessionForm();
+  if(!f)return;
+  var past=sortedPastPeriods();
+  if(periodOf(s,past)==='current')consulting.currentPeriodSeconds=Math.max(0,consulting.currentPeriodSeconds-s.seconds);
+  s.date=f.date;s.seconds=f.seconds;
+  setSessionPeriod(s,f.period,past);
+  if(f.period==='current'){
+    consulting.currentPeriodSeconds+=f.seconds;
+    rollUpPeriods(consulting,f.date);
+  }
+  editSessionId=null;saveConsulting();render();
+}
+
+function openSessionEdit(sid){
+  editSessionId=sid;manualEntryOpen=false;render();
+}
+function closeSessionForm(){
+  editSessionId=null;manualEntryOpen=false;render();
+}
+function saveInvoiceHours(invId,val){
+  var n=parseFloat(val);if(isNaN(n)||n<0)return;
+  var inv=consulting.invoices.find(function(i){return i.id===invId;});
+  if(!inv)return;
+  inv.hours=n;saveConsulting();render();
 }
 // Only current-period time is still sitting in currentPeriodSeconds. Time from a period
 // that already rolled into an invoice was subtracted out at rollover, so removing it must
@@ -2456,29 +2511,81 @@ function renderInvoicingBanners(){
   return h;
 }
 
-// Sessions carry no invoice link, so periods are reconstructed from dates: anything on
-// or after currentPeriodStart belongs to the current period, everything older falls into
-// the earliest invoice period whose periodEnd it doesn't precede. Adjacent periods share
-// a boundary date (one period's end is the next one's start), so the newer period wins
-// and a day split by a rollover is never listed twice.
-function splitSessionsByPeriod(){
-  var past=consulting.invoices.slice().sort(function(a,b){
+// Closed periods, oldest first. Invoices are stored newest-first, so anything walking
+// period boundaries in date order needs this instead.
+function sortedPastPeriods(){
+  return consulting.invoices.slice().sort(function(a,b){
     return a.periodEnd<b.periodEnd?-1:a.periodEnd>b.periodEnd?1:a.id-b.id;
   });
-  var buckets={},current=[];
+}
+
+// Sessions carry no invoice link, so the period a date implies is reconstructed: anything
+// on or after currentPeriodStart is current, everything older falls into the earliest
+// invoice period whose periodEnd it doesn't precede. Adjacent periods share a boundary
+// date (one period's end is the next one's start), so the newer period wins and a day
+// split by a rollover is never listed twice. Returns 'current' or an invoice id.
+function periodByDate(date,past){
+  if(date>=consulting.currentPeriodStart)return 'current';
+  for(var i=0;i<past.length;i++){if(date<=past[i].periodEnd)return past[i].id;}
+  return 'current'; // older than the current start but past every invoice end (edited start date)
+}
+
+// Where an entry actually lives: a hand-set pin wins over its date, so an entry can be
+// moved into a period its date wouldn't put it in. A pin naming a deleted invoice is
+// ignored and the date decides again.
+function periodOf(s,past){
+  if(s.periodId==='current')return 'current';
+  if(s.periodId!=null&&past.some(function(i){return i.id===s.periodId;}))return s.periodId;
+  return periodByDate(s.date,past);
+}
+
+function splitSessionsByPeriod(){
+  var past=sortedPastPeriods(),buckets={},current=[];
   past.forEach(function(inv){buckets[inv.id]=[];});
   consulting.sessions.forEach(function(s){
-    if(s.date>=consulting.currentPeriodStart){current.push(s);return;}
-    var hit=null;
-    for(var i=0;i<past.length;i++){if(s.date<=past[i].periodEnd){hit=past[i];break;}}
-    if(hit)buckets[hit.id].push(s);
-    else current.push(s); // older than the current start but past every invoice end (edited start date)
+    var p=periodOf(s,past);
+    if(p==='current')current.push(s);
+    else buckets[p].push(s);
   });
   return {current:current,past:past,buckets:buckets};
 }
 
-// Day-grouped time log, newest day first. Removal is available in every period —
-// deleteSession works out which period the session belongs to before touching any total.
+// One form for both adding and editing an entry: `s` null means add. The period select is
+// what moves an entry between periods by hand.
+function renderSessionForm(s){
+  var past=sortedPastPeriods();
+  var sel=s?periodOf(s,past):'current';
+  var date=s?s.date:todayStr();
+  var hrs=s?Math.floor(s.seconds/3600):0;
+  var mins=s?Math.round((s.seconds%3600)/60):0;
+  var lbl='font-size:12px;font-weight:700;color:var(--faint);margin-bottom:4px';
+  var fld='width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:9px;font-family:inherit;font-size:16px;background:var(--bg)';
+  var h='<div style="background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">';
+  h+='<div style="display:grid;grid-template-columns:1fr 80px 80px;gap:8px;align-items:end">';
+  h+='<div><div style="'+lbl+'">DATE</div>';
+  h+='<input type="date" id="man-date" value="'+date+'" style="'+fld+'"></div>';
+  h+='<div><div style="'+lbl+'">HRS</div>';
+  h+='<input type="number" id="man-h" min="0" max="24" value="'+hrs+'" style="'+fld+';text-align:center"></div>';
+  h+='<div><div style="'+lbl+'">MINS</div>';
+  h+='<input type="number" id="man-m" min="0" max="59" value="'+mins+'" style="'+fld+';text-align:center"></div>';
+  h+='</div>';
+  h+='<div style="margin-top:10px"><div style="'+lbl+'">PERIOD</div>';
+  h+='<select id="man-period" style="'+fld+';cursor:pointer">';
+  h+='<option value="current"'+(sel==='current'?' selected':'')+'>Current &middot; since '+fmtDate(consulting.currentPeriodStart)+'</option>';
+  past.slice().reverse().forEach(function(inv){
+    var n=String(inv.invoiceNum||inv.id).padStart(4,'0');
+    h+='<option value="'+inv.id+'"'+(sel===inv.id?' selected':'')+'>Invoice #'+n+' &middot; '+fmtDateRange(inv.periodStart,inv.periodEnd)+'</option>';
+  });
+  h+='</select></div>';
+  h+='<div style="display:flex;gap:8px;margin-top:12px">';
+  h+='<button class="btn btn-dark" onclick="'+(s?'saveSessionEdit('+s.id+')':'addManualSession()')+'">'+(s?'Save':'Add')+'</button>';
+  h+='<button class="btn btn-ghost" onclick="closeSessionForm()">Cancel</button>';
+  h+='</div></div>';
+  return h;
+}
+
+// Day-grouped time log, newest day first. Editing and removal are available in every
+// period — both work out which period the entry belongs to before touching any total.
 function renderSessionLog(sessions){
   var groups=[],map={},h='';
   sessions.slice().sort(function(a,b){
@@ -2493,9 +2600,12 @@ function renderSessionLog(sessions){
     h+='<div class="session-day-head"><span class="session-date">'+fmtDate(g.date)+'</span>';
     h+='<span class="session-day-total">'+fmtSeconds(g.total)+'</span></div>';
     g.items.forEach(function(s){
+      if(editSessionId===s.id){h+=renderSessionForm(s);return;}
+      var ico='background:none;border:none;color:var(--faint);cursor:pointer;font-size:13px';
       h+='<div class="session-sub">';
       h+='<span class="session-dur">'+fmtSeconds(s.seconds)+(s.manual?' <span style="font-size:11px">(manual)</span>':'')+'</span>';
-      h+='<button onclick="deleteSession('+s.id+')" style="margin-left:auto;background:none;border:none;color:var(--faint);cursor:pointer;font-size:13px" title="Remove">&#10005;</button>';
+      h+='<button onclick="openSessionEdit('+s.id+')" style="margin-left:auto;'+ico+'" title="Edit">&#9998;</button>';
+      h+='<button onclick="deleteSession('+s.id+')" style="'+ico+'" title="Remove">&#10005;</button>';
       h+='</div>';
     });
     h+='</div>';
@@ -2553,20 +2663,9 @@ function renderInvoicingTab(){
   h+='<div class="session-list" style="margin-top:14px">';
   h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
   h+='<div style="font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)">Time Log</div>';
-  h+='<button class="btn btn-ghost" style="font-size:13px;padding:5px 12px" onclick="manualEntryOpen=!manualEntryOpen;render()">+ Log Time</button></div>';
+  h+='<button class="btn btn-ghost" style="font-size:13px;padding:5px 12px" onclick="editSessionId=null;manualEntryOpen=!manualEntryOpen;render()">+ Log Time</button></div>';
 
-  if(manualEntryOpen){
-    h+='<div style="background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">';
-    h+='<div style="display:grid;grid-template-columns:1fr 80px 80px auto;gap:8px;align-items:end">';
-    h+='<div><div style="font-size:12px;font-weight:700;color:var(--faint);margin-bottom:4px">DATE</div>';
-    h+='<input type="date" id="man-date" value="'+todayStr()+'" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:9px;font-family:inherit;font-size:14px"></div>';
-    h+='<div><div style="font-size:12px;font-weight:700;color:var(--faint);margin-bottom:4px">HRS</div>';
-    h+='<input type="number" id="man-h" min="0" max="24" value="0" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:9px;font-family:inherit;font-size:14px;text-align:center"></div>';
-    h+='<div><div style="font-size:12px;font-weight:700;color:var(--faint);margin-bottom:4px">MINS</div>';
-    h+='<input type="number" id="man-m" min="0" max="59" value="0" style="width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:9px;font-family:inherit;font-size:14px;text-align:center"></div>';
-    h+='<div style="padding-top:4px"><button class="btn btn-dark" onclick="addManualSession()">Add</button></div>';
-    h+='</div></div>';
-  }
+  if(manualEntryOpen)h+=renderSessionForm(null);
 
   if(split.current.length){
     h+=renderSessionLog(split.current);
@@ -2587,12 +2686,17 @@ function renderInvoicingTab(){
       h+='<button class="past-period-head'+(open?' open':'')+'" onclick="togglePastPeriod('+inv.id+')">';
       h+='<span class="past-period-caret">&#9654;</span>';
       h+='<span class="past-period-title">Invoice #'+invNumDisp+'<span style="font-weight:500;color:var(--muted)"> &middot; '+fmtDateRange(inv.periodStart,inv.periodEnd)+'</span></span>';
-      h+='<span class="past-period-meta">'+(secs?fmtSeconds(secs):inv.hours+'h')+'</span>';
+      h+='<span class="past-period-meta">'+inv.hours+'h'+(secs?'<span class="past-period-logged"> &middot; '+fmtSeconds(secs)+' logged</span>':'')+'</span>';
       h+='</button>';
       if(open){
+        var invSym=inv.currency||sym,invRate=inv.rate||consulting.rate;
         h+='<div class="past-period-body">';
+        h+='<div class="past-period-bill">';
+        h+='<span class="past-period-bill-lbl">Billed hours</span>';
+        h+='<input class="inv-hours-input" type="number" min="0" step="0.5" value="'+inv.hours+'" onchange="saveInvoiceHours('+inv.id+',this.value)">';
+        h+='<span class="past-period-bill-amt">'+invSym+Math.round(invRate*inv.hours)+'</span></div>';
         if(items.length)h+=renderSessionLog(items);
-        else h+='<div style="color:var(--faint);font-size:14px;padding:6px 0">No individual sessions recorded for this period.</div>';
+        else h+='<div style="color:var(--faint);font-size:14px;padding:6px 0">No individual entries in this period.</div>';
         h+='</div>';
       }
       h+='</div>';
