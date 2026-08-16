@@ -2315,20 +2315,27 @@ function readSessionForm(){
   return {date:dateEl.value||todayStr(),seconds:secs,period:(pv==='current'?'current':parseInt(pv))};
 }
 
-// A pin is only stored when the chosen period differs from the one the date implies.
-// Pinning every entry would freeze it in place, so entries that sit where their date
-// already puts them stay unpinned and keep following the period boundaries.
-function setSessionPeriod(s,target,past){
-  if(periodByDate(s.date,past)===target)delete s.periodId;
-  else s.periodId=target;
+// Which period an entry was actually dealt into. Closed periods are checked first, so a
+// straddling entry reports the one holding its home half rather than its spillover.
+function placementOf(sid,split){
+  split=split||splitSessionsByPeriod();
+  for(var k=0;k<split.past.length;k++){
+    var id=split.past[k].id;
+    if(buckethas(split.buckets[id],sid))return id;
+  }
+  return 'current';
+}
+function buckethas(list,sid){
+  return list.some(function(x){return x.id===sid;});
 }
 
 function addManualSession(){
   var f=readSessionForm();
   if(!f)return;
-  var past=sortedPastPeriods();
   var s={id:consulting.nextSessionId++,date:f.date,seconds:f.seconds,manual:true};
-  setSessionPeriod(s,f.period,past);
+  // "Current" is where an unpinned entry ends up once the closed periods are full, so
+  // leave it unpinned and let it be dealt. Naming a closed period is a deliberate move.
+  if(f.period!=='current')s.periodId=f.period;
   consulting.sessions.push(s);
   if(f.period==='current'){
     consulting.currentPeriodSeconds+=f.seconds;
@@ -2346,10 +2353,16 @@ function saveSessionEdit(sid){
   if(!s)return;
   var f=readSessionForm();
   if(!f)return;
-  var past=sortedPastPeriods();
-  consulting.currentPeriodSeconds=Math.max(0,consulting.currentPeriodSeconds-secondsInCurrent(sid));
+  var split=splitSessionsByPeriod();
+  var was=placementOf(sid,split);
+  consulting.currentPeriodSeconds=Math.max(0,consulting.currentPeriodSeconds-secondsInCurrent(sid,split));
   s.date=f.date;s.seconds=f.seconds;
-  setSessionPeriod(s,f.period,past);
+  // Only touch the pin when the period actually changed. Rewriting it on every save would
+  // pin an entry that was merely having its duration corrected, freezing it in place.
+  if(f.period!==was){
+    if(f.period==='current')delete s.periodId;
+    else s.periodId=f.period;
+  }
   if(f.period==='current'){
     consulting.currentPeriodSeconds+=f.seconds;
     rollUpPeriods(consulting,f.date);
@@ -2524,26 +2537,6 @@ function sortedPastPeriods(){
   });
 }
 
-// Sessions carry no invoice link, so the period a date implies is reconstructed: anything
-// on or after currentPeriodStart is current, everything older falls into the earliest
-// invoice period whose periodEnd it doesn't precede. Adjacent periods share a boundary
-// date (one period's end is the next one's start), so the newer period wins and a day
-// split by a rollover is never listed twice. Returns 'current' or an invoice id.
-function periodByDate(date,past){
-  if(date>=consulting.currentPeriodStart)return 'current';
-  for(var i=0;i<past.length;i++){if(date<=past[i].periodEnd)return past[i].id;}
-  return 'current'; // older than the current start but past every invoice end (edited start date)
-}
-
-// Where an entry actually lives: a hand-set pin wins over its date, so an entry can be
-// moved into a period its date wouldn't put it in. A pin naming a deleted invoice is
-// ignored and the date decides again.
-function periodOf(s,past){
-  if(s.periodId==='current')return 'current';
-  if(s.periodId!=null&&past.some(function(i){return i.id===s.periodId;}))return s.periodId;
-  return periodByDate(s.date,past);
-}
-
 // A display slice of an entry, for one that straddles a period boundary. `fullSeconds` is
 // the whole entry so the row can show "45m of 52m"; `carried` marks the spillover half,
 // whose home is the earlier period. The id is the real entry's, so edit and delete still
@@ -2553,39 +2546,45 @@ function sessionPart(s,secs,carried){
           fullSeconds:s.fullSeconds||s.seconds,carried:!!carried};
 }
 
-// Entries are bucketed by period, then each closed period is trimmed to the hours it
-// actually bills. A period fills to its cap and the overflow flows into the next one,
-// splitting the entry that straddles the boundary — the same thing the rollover did to
-// the seconds counter, which bills exactly `hours` and carries the remainder forward.
-// Without this an 8h invoice can list 8h 7m of entries under it. Overflow cascades, so a
-// period pushed over by a hand-moved entry spills into the one after it in turn.
+// Entries are dealt out to periods oldest first, each closed period taking exactly the
+// hours it bills before the next one starts, with whatever is left over landing in the
+// current period. That is the inverse of how the rollover ran: it accumulated seconds and
+// cut an invoice at every threshold crossing, so replaying the entries in the same order
+// reproduces the same boundaries and each invoice's entries sum to what it bills.
+//
+// Matching entries to a period's start/end dates cannot do this. Rollovers happen partway
+// through a day, so a single day (and a single long entry) sits on both sides of one, and
+// a period cut twice in one day has a start and end date that are the same day. Date
+// windows either starve those invoices or overfill them.
+//
+// Hand-moved entries are placed first and are never dealt elsewhere, so a pin always wins.
+// If pins alone overfill a period it simply shows more than it bills, which is the point
+// of moving them there.
 function splitSessionsByPeriod(){
-  var past=sortedPastPeriods(),buckets={},current=[];
+  var past=sortedPastPeriods(),buckets={},current=[],pool=[];
   past.forEach(function(inv){buckets[inv.id]=[];});
   consulting.sessions.forEach(function(s){
-    var p=periodOf(s,past);
-    if(p==='current')current.push(s);
-    else buckets[p].push(s);
+    if(s.periodId==='current')current.push(s);
+    else if(s.periodId!=null&&buckets[s.periodId])buckets[s.periodId].push(s);
+    else pool.push(s); // unpinned, or pinned to an invoice that has since been deleted
   });
-  var byDate=function(a,b){return a.date<b.date?-1:a.date>b.date?1:a.id-b.id;};
-  past.forEach(function(inv,idx){
+  pool.sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:a.id-b.id;});
+  var total=function(list){return list.reduce(function(t,s){return t+s.seconds;},0);};
+  var i=0;
+  past.forEach(function(inv){
     var list=buckets[inv.id];
-    list.sort(byDate);
-    var over=list.reduce(function(t,s){return t+s.seconds;},0)-Math.round((inv.hours||0)*3600);
-    if(over<=0)return;
-    var moved=[];
-    while(over>0&&list.length){
-      var last=list[list.length-1];
-      if(last.seconds<=over){over-=last.seconds;moved.unshift(list.pop());}
+    var room=Math.round((inv.hours||0)*3600)-total(list);
+    while(room>0&&i<pool.length){
+      var s=pool[i];
+      if(s.seconds<=room){room-=s.seconds;list.push(s);i++;}
       else{
-        list[list.length-1]=sessionPart(last,last.seconds-over,last.carried);
-        moved.unshift(sessionPart(last,over,true));
-        over=0;
+        list.push(sessionPart(s,room,s.carried));      // the part this invoice bills
+        pool[i]=sessionPart(s,s.seconds-room,true);    // the rest waits for the next period
+        room=0;
       }
     }
-    var next=past[idx+1]?buckets[past[idx+1].id]:current;
-    next.push.apply(next,moved);
   });
+  for(;i<pool.length;i++)current.push(pool[i]);
   return {current:current,past:past,buckets:buckets};
 }
 
@@ -2602,7 +2601,7 @@ function secondsInCurrent(sid,split){
 // what moves an entry between periods by hand.
 function renderSessionForm(s){
   var past=sortedPastPeriods();
-  var sel=s?periodOf(s,past):'current';
+  var sel=s?placementOf(s.id):'current';
   var date=s?s.date:todayStr();
   var hrs=s?Math.floor(s.seconds/3600):0;
   var mins=s?Math.round((s.seconds%3600)/60):0;
@@ -2744,10 +2743,10 @@ function renderInvoicingTab(){
       h+='<button class="past-period-head'+(open?' open':'')+'" onclick="togglePastPeriod('+inv.id+')">';
       h+='<span class="past-period-caret">&#9654;</span>';
       h+='<span class="past-period-title">Invoice #'+invNumDisp+'<span style="font-weight:500;color:var(--muted)"> &middot; '+fmtDateRange(inv.periodStart,inv.periodEnd)+'</span></span>';
-      // Only worth showing when the entries fall short of what the invoice bills; overflow
-      // can no longer happen, since it spills into the next period.
-      var shortBy=Math.round(inv.hours*3600)-secs;
-      h+='<span class="past-period-meta">'+inv.hours+'h'+(shortBy>59?'<span class="past-period-logged"> &middot; '+fmtSeconds(secs)+' logged</span>':'')+'</span>';
+      // Entries are dealt to fill the billed hours exactly, so a gap either way means the
+      // logged time genuinely doesn't back the invoice: worth showing, not worth hiding.
+      var gap=Math.abs(Math.round(inv.hours*3600)-secs);
+      h+='<span class="past-period-meta">'+inv.hours+'h'+(gap>59?'<span class="past-period-logged"> &middot; '+fmtSeconds(secs)+' logged</span>':'')+'</span>';
       h+='</button>';
       if(open){
         var invSym=inv.currency||sym,invRate=inv.rate||consulting.rate;
