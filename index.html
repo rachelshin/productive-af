@@ -393,6 +393,7 @@ input[type=number]{-moz-appearance:textfield}
 .session-day-total{font-weight:800;font-variant-numeric:tabular-nums;color:var(--text);font-size:15px}
 .session-sub{display:flex;align-items:center;gap:10px;padding:5px 0 0 12px;font-size:13px;color:var(--faint)}
 .session-sub .session-dur{color:var(--faint);font-weight:600;font-size:13px}
+.session-split{font-size:12px;color:var(--faint);opacity:.75;font-style:italic}
 .past-period-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}
 .past-period{border-bottom:1px solid var(--border)}
 .past-period:last-child{border-bottom:none}
@@ -704,33 +705,6 @@ function defaultConsulting(){
   var cfg=CREATOR_CONFIG[creator]||{rate:50,currency:'$'};
   return {hoursPerInvoice:10,rate:cfg.rate,currency:cfg.currency,currentPeriodStart:todayStr(),currentPeriodSeconds:0,sessions:[],invoices:[],nextSessionId:1,nextInvoiceId:1,nextInvoiceNum:1};
 }
-// Every invoice and time entry is addressed by id: markPaid, markInvoiced, deleteInvoice
-// and the PDF button all look theirs up with `find(i=>i.id===n)`. An id that is missing,
-// NaN (nextInvoiceId++ on an absent counter), or duplicated makes that lookup fail or hit
-// the wrong row, and the callers fail silently — the click appears to work, saves, and
-// re-renders unchanged, so a paid invoice keeps showing Overdue. Hand out sound ids on
-// load, keeping the ones that are already valid and unique.
-function repairConsultingIds(co){
-  co.invoices=co.invoices||[];co.sessions=co.sessions||[];
-  var ok=function(v){return typeof v==='number'&&isFinite(v);};
-  var maxI=0,maxS=0;
-  co.invoices.forEach(function(i){if(ok(i.id))maxI=Math.max(maxI,i.id);});
-  co.sessions.forEach(function(s){if(ok(s.id))maxS=Math.max(maxS,s.id);});
-  var seenI={},remap={};
-  co.invoices.forEach(function(i){
-    if(!ok(i.id)||seenI[i.id]){var old=i.id;i.id=++maxI;if(ok(old))remap[old]=i.id;}
-    seenI[i.id]=1;
-  });
-  var seenS={};
-  co.sessions.forEach(function(s){
-    if(!ok(s.id)||seenS[s.id])s.id=++maxS;
-    seenS[s.id]=1;
-    if(s.periodId!=null&&s.periodId!=='current'&&remap[s.periodId])s.periodId=remap[s.periodId];
-  });
-  if(!ok(co.nextInvoiceId)||co.nextInvoiceId<=maxI)co.nextInvoiceId=maxI+1;
-  if(!ok(co.nextSessionId)||co.nextSessionId<=maxS)co.nextSessionId=maxS+1;
-}
-
 function loadConsulting(){
   if(creator==='LG'){consulting=defaultConsulting();return;}
   try{
@@ -740,7 +714,6 @@ function loadConsulting(){
       // fill missing fields
       if(!consulting.rate)consulting.rate=(CREATOR_CONFIG[creator]||{rate:50}).rate;
       if(!consulting.currency)consulting.currency=(CREATOR_CONFIG[creator]||{currency:'$'}).currency;
-      repairConsultingIds(consulting);
       if(!consulting.nextInvoiceNum)consulting.nextInvoiceNum=consulting.nextInvoiceId||1;
     } else {consulting=defaultConsulting();}
   }catch(e){consulting=defaultConsulting();}
@@ -2186,13 +2159,7 @@ function timerTick(){
 function consultingFor(cr){
   if(!cr||cr==='LG')return null;
   if(cr===creator)return consulting;
-  // Parsed straight from storage, bypassing loadConsulting — repair here too, or an
-  // invoice cut by the timer for an off-screen creator inherits a broken id counter.
-  try{
-    var s=store.getItem(consultingKey(cr));
-    if(!s)return null;
-    var co=JSON.parse(s);repairConsultingIds(co);return co;
-  }catch(e){return null;}
+  try{var s=store.getItem(consultingKey(cr));return s?JSON.parse(s):null;}catch(e){return null;}
 }
 
 // Cut the invoice the moment the running timer crosses the hour limit, instead of
@@ -2309,7 +2276,6 @@ function markPaid(invId){
   var inv=consulting.invoices.find(function(i){return i.id===invId;});
   if(!inv){alert('Could not find that invoice to update. Reload the page and try again.');return;}
   inv.paidAt=todayStr();
-  if(!inv.invoicedAt)inv.invoicedAt=inv.paidAt; // paid implies sent
   saveConsulting();render();
 }
 function deleteInvoice(invId){
@@ -2381,7 +2347,7 @@ function saveSessionEdit(sid){
   var f=readSessionForm();
   if(!f)return;
   var past=sortedPastPeriods();
-  if(periodOf(s,past)==='current')consulting.currentPeriodSeconds=Math.max(0,consulting.currentPeriodSeconds-s.seconds);
+  consulting.currentPeriodSeconds=Math.max(0,consulting.currentPeriodSeconds-secondsInCurrent(sid));
   s.date=f.date;s.seconds=f.seconds;
   setSessionPeriod(s,f.period,past);
   if(f.period==='current'){
@@ -2410,11 +2376,11 @@ function saveInvoiceHours(invId,val){
 function deleteSession(sid){
   var s=consulting.sessions.find(function(x){return x.id===sid;});
   if(!s)return;
-  var isCurrent=splitSessionsByPeriod().current.some(function(x){return x.id===sid;});
-  var msg='Remove this '+fmtSeconds(s.seconds)+' session on '+fmtDate(s.date)+'?';
-  if(!isCurrent)msg+='\n\nThis time was already invoiced, so the invoice and the current period total stay as they are.';
+  var inCur=secondsInCurrent(sid);
+  var msg='Remove this '+fmtSeconds(s.seconds)+' entry on '+fmtDate(s.date)+'?';
+  if(inCur<s.seconds)msg+='\n\n'+fmtSeconds(s.seconds-inCur)+' of it was already invoiced, so those invoices keep the hours they bill.';
   if(!confirm(msg))return;
-  if(isCurrent)consulting.currentPeriodSeconds=Math.max(0,consulting.currentPeriodSeconds-s.seconds);
+  consulting.currentPeriodSeconds=Math.max(0,consulting.currentPeriodSeconds-inCur);
   consulting.sessions=consulting.sessions.filter(function(x){return x.id!==sid;});
   saveConsulting();render();
 }
@@ -2538,14 +2504,14 @@ function renderInvoicingBanners(){
     h+='<div class="inv-banner-text">Invoice ready to send!<small>'+fmtDateRange(inv.periodStart,inv.periodEnd)+' &middot; '+inv.hours+'h</small></div>';
     h+='<div class="inv-banner-actions">';
     h+='<button class="inv-act-btn ghost" onclick="generateInvoicePDF(consulting.invoices.find(function(x){return x.id==='+inv.id+'}))">&#128424; PDF</button>';
-    h+='<button class="inv-act-btn sent" onclick="markInvoiced('+inv.id+')">&#10003; Mark Sent</button></div></div>';
+    h+='<button class="inv-act-btn sent" onclick="markInvoiced('+inv.id+')">Mark Sent</button></div></div>';
   });
   consulting.invoices.filter(function(i){return i.invoicedAt&&!i.paidAt&&daysDiff(i.invoicedAt)>7;}).forEach(function(inv){
     h+='<div class="inv-banner overdue">';
     h+='<div class="inv-banner-icon">&#9888;&#65039;</div>';
     h+='<div class="inv-banner-text">Payment overdue &mdash; '+daysDiff(inv.invoicedAt)+' days since invoice!<small>Sent '+fmtDate(inv.invoicedAt)+' &middot; '+fmtDateRange(inv.periodStart,inv.periodEnd)+'</small></div>';
     h+='<div class="inv-banner-actions">';
-    h+='<button class="inv-act-btn paid" onclick="markPaid('+inv.id+')">&#10003; Mark Paid</button></div></div>';
+    h+='<button class="inv-act-btn paid" onclick="markPaid('+inv.id+')">Mark Paid</button></div></div>';
   });
   return h;
 }
@@ -2578,6 +2544,21 @@ function periodOf(s,past){
   return periodByDate(s.date,past);
 }
 
+// A display slice of an entry, for one that straddles a period boundary. `fullSeconds` is
+// the whole entry so the row can show "45m of 52m"; `carried` marks the spillover half,
+// whose home is the earlier period. The id is the real entry's, so edit and delete still
+// reach the stored record.
+function sessionPart(s,secs,carried){
+  return {id:s.id,date:s.date,seconds:secs,manual:s.manual,
+          fullSeconds:s.fullSeconds||s.seconds,carried:!!carried};
+}
+
+// Entries are bucketed by period, then each closed period is trimmed to the hours it
+// actually bills. A period fills to its cap and the overflow flows into the next one,
+// splitting the entry that straddles the boundary — the same thing the rollover did to
+// the seconds counter, which bills exactly `hours` and carries the remainder forward.
+// Without this an 8h invoice can list 8h 7m of entries under it. Overflow cascades, so a
+// period pushed over by a hand-moved entry spills into the one after it in turn.
 function splitSessionsByPeriod(){
   var past=sortedPastPeriods(),buckets={},current=[];
   past.forEach(function(inv){buckets[inv.id]=[];});
@@ -2586,7 +2567,35 @@ function splitSessionsByPeriod(){
     if(p==='current')current.push(s);
     else buckets[p].push(s);
   });
+  var byDate=function(a,b){return a.date<b.date?-1:a.date>b.date?1:a.id-b.id;};
+  past.forEach(function(inv,idx){
+    var list=buckets[inv.id];
+    list.sort(byDate);
+    var over=list.reduce(function(t,s){return t+s.seconds;},0)-Math.round((inv.hours||0)*3600);
+    if(over<=0)return;
+    var moved=[];
+    while(over>0&&list.length){
+      var last=list[list.length-1];
+      if(last.seconds<=over){over-=last.seconds;moved.unshift(list.pop());}
+      else{
+        list[list.length-1]=sessionPart(last,last.seconds-over,last.carried);
+        moved.unshift(sessionPart(last,over,true));
+        over=0;
+      }
+    }
+    var next=past[idx+1]?buckets[past[idx+1].id]:current;
+    next.push.apply(next,moved);
+  });
   return {current:current,past:past,buckets:buckets};
+}
+
+// How many of an entry's seconds sit in the current period right now. An entry straddling
+// the last rollover has only its spillover there, so adjusting currentPeriodSeconds by the
+// entry's full length on edit or delete would take out time the current period never held.
+function secondsInCurrent(sid,split){
+  return (split||splitSessionsByPeriod()).current.reduce(function(t,x){
+    return t+(x.id===sid?x.seconds:0);
+  },0);
 }
 
 // One form for both adding and editing an entry: `s` null means add. The period select is
@@ -2639,12 +2648,22 @@ function renderSessionLog(sessions){
     h+='<div class="session-day-head"><span class="session-date">'+fmtDate(g.date)+'</span>';
     h+='<span class="session-day-total">'+fmtSeconds(g.total)+'</span></div>';
     g.items.forEach(function(s){
-      if(editSessionId===s.id){h+=renderSessionForm(s);return;}
+      // Always edit the stored entry, never a display slice of it, so the form shows the
+      // whole duration. The spillover half carries no controls: its home is the earlier
+      // period, and rendering the form in both places would put two sets of the same
+      // input ids in the DOM.
+      if(editSessionId===s.id&&!s.carried){
+        h+=renderSessionForm(consulting.sessions.find(function(x){return x.id===s.id;})||s);
+        return;
+      }
       var ico='background:none;border:none;color:var(--faint);cursor:pointer;font-size:13px';
       h+='<div class="session-sub">';
       h+='<span class="session-dur">'+fmtSeconds(s.seconds)+(s.manual?' <span style="font-size:11px">(manual)</span>':'')+'</span>';
-      h+='<button onclick="openSessionEdit('+s.id+')" style="margin-left:auto;'+ico+'" title="Edit">&#9998;</button>';
-      h+='<button onclick="deleteSession('+s.id+')" style="'+ico+'" title="Remove">&#10005;</button>';
+      if(s.fullSeconds&&s.fullSeconds!==s.seconds)h+='<span class="session-split">of '+fmtSeconds(s.fullSeconds)+(s.carried?' &middot; carried over':'')+'</span>';
+      if(!s.carried){
+        h+='<button onclick="openSessionEdit('+s.id+')" style="margin-left:auto;'+ico+'" title="Edit">&#9998;</button>';
+        h+='<button onclick="deleteSession('+s.id+')" style="'+ico+'" title="Remove">&#10005;</button>';
+      }
       h+='</div>';
     });
     h+='</div>';
@@ -2725,7 +2744,10 @@ function renderInvoicingTab(){
       h+='<button class="past-period-head'+(open?' open':'')+'" onclick="togglePastPeriod('+inv.id+')">';
       h+='<span class="past-period-caret">&#9654;</span>';
       h+='<span class="past-period-title">Invoice #'+invNumDisp+'<span style="font-weight:500;color:var(--muted)"> &middot; '+fmtDateRange(inv.periodStart,inv.periodEnd)+'</span></span>';
-      h+='<span class="past-period-meta">'+inv.hours+'h'+(secs?'<span class="past-period-logged"> &middot; '+fmtSeconds(secs)+' logged</span>':'')+'</span>';
+      // Only worth showing when the entries fall short of what the invoice bills; overflow
+      // can no longer happen, since it spills into the next period.
+      var shortBy=Math.round(inv.hours*3600)-secs;
+      h+='<span class="past-period-meta">'+inv.hours+'h'+(shortBy>59?'<span class="past-period-logged"> &middot; '+fmtSeconds(secs)+' logged</span>':'')+'</span>';
       h+='</button>';
       if(open){
         var invSym=inv.currency||sym,invRate=inv.rate||consulting.rate;
@@ -2761,8 +2783,10 @@ function renderInvoicingTab(){
       h+='<div class="inv-row-actions" style="flex-wrap:wrap;gap:6px">';
       h+='<span class="inv-status-badge '+status+'">'+badge+'</span>';
       h+='<button class="inv-act-btn ghost" onclick="generateInvoicePDF(consulting.invoices.find(function(x){return x.id==='+inv.id+'}))" title="Open printable invoice">&#128424; PDF</button>';
-      if(!inv.invoicedAt)h+='<button class="inv-act-btn sent" onclick="markInvoiced('+inv.id+')">&#10003; Sent</button>';
-      if(inv.invoicedAt&&!inv.paidAt)h+='<button class="inv-act-btn paid" onclick="markPaid('+inv.id+')">&#10003; Paid</button>';
+      // "Mark …", never "✓ …": a check plus a past-tense word reads as a status, and these
+      // sit right beside the status badge in the same pill styling.
+      if(!inv.invoicedAt)h+='<button class="inv-act-btn sent" onclick="markInvoiced('+inv.id+')">Mark Sent</button>';
+      if(inv.invoicedAt&&!inv.paidAt)h+='<button class="inv-act-btn paid" onclick="markPaid('+inv.id+')">Mark Paid</button>';
       h+='<button class="inv-act-btn del" onclick="deleteInvoice('+inv.id+')" title="Delete invoice">&#128465; Delete</button>';
       h+='</div></div>';
     });
