@@ -704,6 +704,33 @@ function defaultConsulting(){
   var cfg=CREATOR_CONFIG[creator]||{rate:50,currency:'$'};
   return {hoursPerInvoice:10,rate:cfg.rate,currency:cfg.currency,currentPeriodStart:todayStr(),currentPeriodSeconds:0,sessions:[],invoices:[],nextSessionId:1,nextInvoiceId:1,nextInvoiceNum:1};
 }
+// Every invoice and time entry is addressed by id: markPaid, markInvoiced, deleteInvoice
+// and the PDF button all look theirs up with `find(i=>i.id===n)`. An id that is missing,
+// NaN (nextInvoiceId++ on an absent counter), or duplicated makes that lookup fail or hit
+// the wrong row, and the callers fail silently — the click appears to work, saves, and
+// re-renders unchanged, so a paid invoice keeps showing Overdue. Hand out sound ids on
+// load, keeping the ones that are already valid and unique.
+function repairConsultingIds(co){
+  co.invoices=co.invoices||[];co.sessions=co.sessions||[];
+  var ok=function(v){return typeof v==='number'&&isFinite(v);};
+  var maxI=0,maxS=0;
+  co.invoices.forEach(function(i){if(ok(i.id))maxI=Math.max(maxI,i.id);});
+  co.sessions.forEach(function(s){if(ok(s.id))maxS=Math.max(maxS,s.id);});
+  var seenI={},remap={};
+  co.invoices.forEach(function(i){
+    if(!ok(i.id)||seenI[i.id]){var old=i.id;i.id=++maxI;if(ok(old))remap[old]=i.id;}
+    seenI[i.id]=1;
+  });
+  var seenS={};
+  co.sessions.forEach(function(s){
+    if(!ok(s.id)||seenS[s.id])s.id=++maxS;
+    seenS[s.id]=1;
+    if(s.periodId!=null&&s.periodId!=='current'&&remap[s.periodId])s.periodId=remap[s.periodId];
+  });
+  if(!ok(co.nextInvoiceId)||co.nextInvoiceId<=maxI)co.nextInvoiceId=maxI+1;
+  if(!ok(co.nextSessionId)||co.nextSessionId<=maxS)co.nextSessionId=maxS+1;
+}
+
 function loadConsulting(){
   if(creator==='LG'){consulting=defaultConsulting();return;}
   try{
@@ -713,6 +740,7 @@ function loadConsulting(){
       // fill missing fields
       if(!consulting.rate)consulting.rate=(CREATOR_CONFIG[creator]||{rate:50}).rate;
       if(!consulting.currency)consulting.currency=(CREATOR_CONFIG[creator]||{currency:'$'}).currency;
+      repairConsultingIds(consulting);
       if(!consulting.nextInvoiceNum)consulting.nextInvoiceNum=consulting.nextInvoiceId||1;
     } else {consulting=defaultConsulting();}
   }catch(e){consulting=defaultConsulting();}
@@ -2158,7 +2186,13 @@ function timerTick(){
 function consultingFor(cr){
   if(!cr||cr==='LG')return null;
   if(cr===creator)return consulting;
-  try{var s=store.getItem(consultingKey(cr));return s?JSON.parse(s):null;}catch(e){return null;}
+  // Parsed straight from storage, bypassing loadConsulting — repair here too, or an
+  // invoice cut by the timer for an off-screen creator inherits a broken id counter.
+  try{
+    var s=store.getItem(consultingKey(cr));
+    if(!s)return null;
+    var co=JSON.parse(s);repairConsultingIds(co);return co;
+  }catch(e){return null;}
 }
 
 // Cut the invoice the moment the running timer crosses the hour limit, instead of
@@ -2263,14 +2297,19 @@ function stopTimer(silent){
   render();
 }
 
+// Never write-and-render when the lookup missed: that is what made a failed "Mark Paid"
+// look like it had worked.
 function markInvoiced(invId){
   var inv=consulting.invoices.find(function(i){return i.id===invId;});
-  if(inv)inv.invoicedAt=todayStr();
+  if(!inv){alert('Could not find that invoice to update. Reload the page and try again.');return;}
+  inv.invoicedAt=todayStr();
   saveConsulting();render();
 }
 function markPaid(invId){
   var inv=consulting.invoices.find(function(i){return i.id===invId;});
-  if(inv)inv.paidAt=todayStr();
+  if(!inv){alert('Could not find that invoice to update. Reload the page and try again.');return;}
+  inv.paidAt=todayStr();
+  if(!inv.invoicedAt)inv.invoicedAt=inv.paidAt; // paid implies sent
   saveConsulting();render();
 }
 function deleteInvoice(invId){
@@ -2493,7 +2532,7 @@ function renderTimerWidget(){
 function renderInvoicingBanners(){
   var h='';
   if(!isSimple())return h;
-  consulting.invoices.filter(function(i){return !i.invoicedAt;}).forEach(function(inv){
+  consulting.invoices.filter(function(i){return !i.invoicedAt&&!i.paidAt;}).forEach(function(inv){
     h+='<div class="inv-banner ready">';
     h+='<div class="inv-banner-icon">&#129534;</div>';
     h+='<div class="inv-banner-text">Invoice ready to send!<small>'+fmtDateRange(inv.periodStart,inv.periodEnd)+' &middot; '+inv.hours+'h</small></div>';
